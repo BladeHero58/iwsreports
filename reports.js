@@ -316,40 +316,65 @@ router.post("/save", async (req, res) => {
         return res.status(400).json({ success: false, message: "Hiányzó adatok." });
     }
 
-    const projectDir = path.resolve(process.cwd(), 'uploads', `project-${projectId}`);
-    if (!fs.existsSync(projectDir)) {
-        fs.mkdirSync(projectDir, { recursive: true });
-    }
+    try {
+        // Új rész: korábbi projekt jelentések törlése az adatbázisból
+        const oldReports = await pool.query(
+            'SELECT file_path FROM project_reports WHERE project_id = $1',
+            [projectId]
+        );
+        
+        // Töröljük a régi jelentéseket a fájlrendszerből
+        for (const report of oldReports.rows) {
+            try {
+                if (report.file_path && fs.existsSync(report.file_path)) {
+                    fs.unlinkSync(report.file_path);
+                }
+            } catch (deleteError) {
+                console.error("Hiba a régi jelentés fájl törlésekor:", deleteError);
+                // Folytassuk a törlést akkor is, ha egy fájl törlése sikertelen
+            }
+        }
+        
+        // Töröljük a régi jelentéseket az adatbázisból
+        await pool.query(
+            'DELETE FROM project_reports WHERE project_id = $1',
+            [projectId]
+        );
+        
+        // Az eredeti kód folytatása
+        const projectDir = path.resolve(process.cwd(), 'uploads', `project-${projectId}`);
+        if (!fs.existsSync(projectDir)) {
+            fs.mkdirSync(projectDir, { recursive: true });
+        }
 
-    // 1. Összegyűjtjük a táblázatban használt összes kép URL-jét
-    const usedImageUrls = [];
-    
-    // Végigmegyünk a táblázat celláin
-    if (Array.isArray(data)) {
-        data.forEach(row => {
-            if (Array.isArray(row)) {
-                row.forEach(cell => {
-                    // Ha a cella tartalmaz képre utaló URL-t
-                    if (typeof cell === 'string' && cell.includes('/uploads/project-')) {
-                        usedImageUrls.push(cell);
-                    }
-                });
+        // 1. Összegyűjtjük a táblázatban használt összes kép URL-jét
+        const usedImageUrls = [];
+        
+        // Végigmegyünk a táblázat celláin
+        if (Array.isArray(data)) {
+            data.forEach(row => {
+                if (Array.isArray(row)) {
+                    row.forEach(cell => {
+                        // Ha a cella tartalmaz képre utaló URL-t
+                        if (typeof cell === 'string' && cell.includes('/uploads/project-')) {
+                            usedImageUrls.push(cell);
+                        }
+                    });
+                }
+            });
+        }
+
+        // Régi fájlok törlése
+        fs.readdirSync(projectDir).forEach((file) => {
+            if (file.endsWith('.xlsx')) {
+                const filePath = path.join(projectDir, file);
+                fs.unlinkSync(filePath);
             }
         });
-    }
 
-    // Régi fájlok törlése
-    fs.readdirSync(projectDir).forEach((file) => {
-        if (file.endsWith('.xlsx')) {
-            const filePath = path.join(projectDir, file);
-            fs.unlinkSync(filePath);
-        }
-    });
+        const fileName = `report-${Date.now()}.xlsx`;
+        const filePath = path.join(projectDir, fileName);
 
-    const fileName = `report-${Date.now()}.xlsx`;
-    const filePath = path.join(projectDir, fileName);
-
-    try {
         const workbook = XLSX.utils.book_new();
 
         // 1. Excel fejlécek és adatok előkészítése

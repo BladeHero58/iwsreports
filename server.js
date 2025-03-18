@@ -144,7 +144,6 @@ app.post('/register', async (req, res) => {
   }
 });
 
-
 //login
 app.post(
   '/login',
@@ -169,6 +168,17 @@ app.post(
     }
   }
 );
+
+// Alapértelmezett útvonal (login oldal)
+app.get('/', (req, res, next) => {
+  res.render('login', (err, html) => {
+    if (err) {
+      console.error(err);
+      return next(err); // Hibakezelőnek adja át a hibát
+    }
+    res.send(html);
+  });
+});
 
 // Login oldal megjelenítése
 app.get('/login', (req, res) => {
@@ -685,13 +695,6 @@ app.post('/update-password', isAuthenticated, async (req, res) => {
     res.send("Hiba történt a jelszó módosításakor.");
   }
 });
-
-// Alapértelmezett útvonal (index.html)
-app.get('/', (req, res) => {
-    const filePath = path.join(__dirname, "/public/index.html");
-    console.log(`Fájl elérési út: ${filePath}`); // Kiírja az elérési utat a konzolra
-    res.sendFile(filePath);
-  });
 
 // Profil oldal megjelenítése
 app.get('/profile', isAuthenticated, async (req, res) => {
