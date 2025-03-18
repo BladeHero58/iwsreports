@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projektek</title>
+
+    <link rel="stylesheet" href="/css/pages/projects-style.css">
+
+    <script>
+        function confirmDelete(event) {
+            const isConfirmed = confirm('Biztosan törölni szeretnéd ezt a projektet?');
+            if (!isConfirmed) {
+                event.preventDefault();
+            }
+        }
+    </script>
+
+</head>
+<body>
+    <h1>Admin Dashboard - Projektek</h1>
+
+    <form action="/admin/projects/add" method="get">
+        <button type="submit" class="btn">Új projekt hozzáadása</button>
+    </form>
+
+    <% if (typeof message !== 'undefined') { %>
+        <div style="color: green; font-weight: bold;">
+            <%= message %>
+        </div>
+    <% } %>
+
+    <ul>
+        <% projects.forEach(project => { %>
+            <li>
+                <strong><%= project.name %></strong><br>
+                Leírás: <%= project.description %><br>
+                Állapot: <%= project.status %><br>
+
+                <form action="/admin/projects/<%= project.id %>" method="get">
+                    <button type="submit" class="btn">Projekt adatai</button>
+                </form>
+
+                <!-- Törlés gomb -->
+                <form action="/admin/projects/delete" method="POST" style="display: inline;" onsubmit="confirmDelete(event)">
+                    <input type="hidden" name="projectId" value="<%= project.id %>">
+                    <button type="submit" class="btn-blue">Törlés</button>
+                </form>
+            </li>
+        <% }); %>
+    </ul>
+    <br>
+
+    <form action="/admin-dashboard" method="GET">
+        <button type="submit" class="logout-btn">Vissza az írányítópultra</button>
+    </form>
+</body>
+</html>

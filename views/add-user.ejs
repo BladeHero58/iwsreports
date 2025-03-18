@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang='hu'>
+<head>
+  <meta charset='UTF-8'>
+  <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+  <title>Új felhasználó hozzáadása</title>
+
+  <link rel="stylesheet" href="/css/style.css">
+
+</head>
+<body>
+  <h1>Új felhasználó hozzáadása</h1>
+  
+  <% if (typeof error !== 'undefined') { %>
+    <div class="error-message">
+      <%= error %>
+    </div>
+  <% } %>
+  
+  <form action='/admin/users/add' method='POST'>
+    <input type='text' name='username' placeholder='Felhasználónév' value="<%= typeof username !== 'undefined' ? username : '' %>" required><br><br>
+    <input type='password' name='password' placeholder='Jelszó' required><br><br>
+    <input type='password' name='confirmPassword' placeholder='Jelszó megerősítése' required><br><br>
+    <label for="isAdmin">Admin jogkör:</label>
+    <input type='checkbox' name='isAdmin'><br><br>
+    <button type='submit' class="btn">Hozzáadás</button>
+  </form>
+</body>
+</html>

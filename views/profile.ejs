@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Felhasználói Profil</title>
+
+  <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" 1  href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet"> 
+    
+</head>
+<body>
+  <h1>Üdvözöljük, <%= user.username %>!</h1>
+  <p>Email: <%= user.email %></p>
+  <p>Felhasználói név: <%= user.username %></p>
+  
+  <h2>Jelszó módosítása</h2>
+  <form action="/update-password" method="POST">
+    <label for="newPassword">Új jelszó:</label>
+    <input type="password" id="newPassword" name="newPassword" required>
+    
+    <label for="confirmPassword">Új jelszó megerősítése:</label>
+    <input type="password" id="confirmPassword" name="confirmPassword" required>
+    
+    <button type="submit">Jelszó módosítása</button>
+  </form>
+  
+  <form action="/dashboard" method="GET">
+    <button type="submit" class="logout-btn">Vissza az írányítópultra</button>
+</form>
+
+</body>
+</html>

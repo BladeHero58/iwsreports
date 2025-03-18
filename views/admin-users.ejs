@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Adminisztrátor - Felhasználók</title>
+  <link rel="stylesheet" href="/css/pages/admin-users-style.css">
+</head>
+<body>
+    <h1>Adminisztrátor - Felhasználók</h1>
+
+  <form action="/admin/users/add" method="get">
+    <button type="submit" class="btn">Új felhasználó hozzáadása</button>
+</form>
+
+<section>
+  <h2>Felhasználók listája</h2>
+  <% if (users && users.length > 0) { %>
+    <table>
+      <thead>
+        <tr>
+          <th>Műveletek</th>
+          <th>Felhasználónév</th>
+          <th>Admin jogosultság</th>
+          <th>Felhasználóhoz rendelt projektek</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% users.forEach(user => { %>
+          <tr>
+            <td class="action-buttons">
+              <form action="/admin/users/delete/<%= user.id %>" method="POST" onsubmit="return confirm('Biztosan törölni szeretné a(z) <%= user.username %> felhasználót?');">
+                <button type="submit" class="btn-blue">Törlés</button>
+              </form>
+            </td>
+            <td><%= user.username %></td>
+            <td><%= user.is_admin ? 'Igen' : 'Nem' %></td>
+            <td>
+              <% if (user.projects && user.projects.length > 0) { %>
+                <ul>
+                  <% user.projects.forEach(project => { %>
+                    <li><%= project.name %></li>
+                  <% }) %>
+                </ul>
+              <% } else { %>
+                Nincs projekt
+              <% } %>
+            </td>
+           
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } else { %>
+    <p>Nincsenek felhasználók.</p>
+  <% } %>
+</section>
+
+  <form action="/admin-dashboard" method="GET">
+    <button type="submit" class="logout-btn">Vissza az irányítópultra</button>
+</form>
+
+</body>
+</html>

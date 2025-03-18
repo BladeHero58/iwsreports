@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang='hu'>
+<head>
+  <meta charset='UTF-8'>
+  <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+  <title>Új projekt hozzáadása</title>
+
+  <link rel="stylesheet" href="/css/style.css">
+
+</head>
+<body>
+  <h1>Új projekt hozzáadása</h1>
+  <form action='/admin/projects/add' method='POST'>
+    <input type='text' name='name' placeholder='Projekt neve' required>
+    <textarea name='description' placeholder='Projekt leírása'></textarea>
+    <select name='status'>
+      <option value='Elindítandó'>Elindítandó</option>
+      <option value='Folyamatban'>Folyamatban</option>
+      <option value='Befejezett'>Befejezett</option>
+    </select>
+    <button type='submit' class="btn">Hozzáadás</button>
+  </form>
+</body>
+</html>

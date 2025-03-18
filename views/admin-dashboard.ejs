@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <h1>Admin irányítópult</h1>
+     <!-- Bejelentkezett felhasználó információk megjelenítése -->
+  <% if (user && user.isAdmin) { %>
+    <section>
+      <p>Ön adminisztrátori jogosultsággal rendelkezik.</p>
+      <!-- További adminisztrátori funkciók itt -->
+    </section>
+  <% } else { %>
+    <section>
+      <h2>Felhasználói szint</h2>
+      <p>Felhasználóként nem rendelkezel adminisztrátori jogokkal.</p>
+    </section>
+  <% } %>
+  </header>
+
+  <form action="/admin/projects" method="get">
+    <button type="submit" class="btn">Projektek</button>
+</form>
+  
+  <form action="/admin/users" method="get">
+    <button type="submit" class="btn">Felhasználók kezelése</button>
+</form>
+
+<form action="/profile" method="get">
+  <button type="submit" class="btn">Profil megtekintése</button>
+</form>
+
+<form action="/logout" method="GET">
+  <button type="submit" class="logout-btn">Kijelentkezés</button>
+</form>
+
+
+</body>
+</html>
+
+

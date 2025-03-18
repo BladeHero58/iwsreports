@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MVM Xpert szankciós lista</title>
+
+    <link rel="stylesheet" href="/css/pages/fine-list-style.css">
+
+</head>
+<body>
+    <h1>MVM Xpert szankciós lista</h1>
+    
+    <div class="button-container">
+      <form action="/user/projects" method="get">
+          <button type="submit" class="logout-btn">Vissza a projekthez</button>
+      </form>
+  </div>
+
+    <table>
+        <thead>
+          <tr>
+            <th class="elso-oszlop">Sorszám</th>
+            <th class="masodik-oszlop">Leírás</th>
+            <th class="harmadik-oszlop">Szankció</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% let sorszams = []; %>
+          <% for (let i = 1; i <= 41; i++) { %>
+            <% if (i === 29) { %>
+              <% sorszams.push('29a'); %>
+              <% sorszams.push('29b'); %>
+            <% } else if (i === 31) { %>
+              <% sorszams.push('31a'); %>
+              <% sorszams.push('31b'); %>
+            <% } else { %>
+              <% sorszams.push(i); %>
+            <% } %>
+          <% } %>
+      
+          <% const adatok = {
+            1: { leiras: "MVM XPert munka-, tűz-, vagy környezetvédelmi szabályainak (szerződésben rögzített, illetve a BET-ben szereplő, és itt nem részletezett) megsértése. ", szankcio: "100.000 Ft " },
+            2: { leiras: "Egyéni védőeszköz nem, vagy nem előírás szerinti használata (személyenként / védőeszközönként). ", szankcio: "10.000 Ft" },
+            3: { leiras: "Csoportos és egyéni mentőeszközök biztosításának hiánya. (mentőkészülékek)", szankcio: "50.000 Ft " },
+            4: { leiras: "A vállalkozó nem biztosítja az egészséget nem veszélyeztető biztonságos munkavégzéshez szükséges feltétleket, munkaeszközöket, kollektív védőeszközöket (pl. állványok, személyemelés feltételei, stb.). ", szankcio: "100.000 Ft " },
+            5: { leiras: "Állványok, munkaállások nem szabályszerű kivitelezése (stabilitás, háromsoros korlát, véglezárók, minősített elemek, EPH, villámvédelem), személyemelők nem megfelelő használata, illetve dokumentációk hiánya (vázlat, állványterv, átadás-átvétel és felülvizsgálati jegyzőkönyvek, stb.)", szankcio: "50.000 Ft" },
+            6: { leiras: "Munkabiztonságot jelentősen befolyásoló eszközök, jelzések, biztonsági berendezések mellőzése, kiiktatása, vállalkozónak felróható nem megfelelősége. ", szankcio: "50.000 Ft" },
+            7: { leiras: "Kifejezetten életvédelmi céllal viselt egyéni védőeszközök (zuhanás-gátló, munkahelyzet beállító testheveder, légzőkészülék, stb.) biztosításának/használatának mellőzése, vagy nem előírás szerinti használata. ", szankcio: "150.000 Ft" },
+            8: { leiras: "A vállalkozó nem tett intézkedést az illetéktelen személyek bejutására az általa végzett veszélyes tevékenység hatókörében (pl. emelési terület lehatárolása, forró felületek jelenléte, veszélyes anyag használat, stb.). ", szankcio: "50.000 Ft" },
+            9: { leiras: "Veszélyes munkaeszköz üzembehelyezésének és időszakos biztonsági felülvizsgálat elvégzésének, igazolásának hiánya, kezelési utasítás nem elérhető. ", szankcio: "50.000 Ft " },
+            10: { leiras: "A munkavégzéshez használt időszakos felülvizsgálatra kötelezett gépek, berendezések, munkaeszközök nem azonosíthatók, felülvizsgálatai a helyszínen nem igazolhatók (matrica és/vagy jegyzőkönyv hiánya). ", szankcio: "30.000 Ft" },
+            11: { leiras: "A munkaeszközök nem rendeltetésszerű használata, nem szabályszerű telepítés, állapot, környezeti hatásoknak nem megfelelő ellenállóság (IP védettség, földelés, mechanikai védelem, védőburkolat hiánya, stb.). ", szankcio: "30.000 Ft " },
+            12: { leiras: "Gázpalackok tárolása nem megfelelő.", szankcio: "20.000 Ft" },
+            13: { leiras: "Képzettség nélküli emelőgép, munkagép kezelése.", szankcio: "100.000 Ft" },
+            14: { leiras: "A munkaterületre vonatkozó sebességhatárok betartásának elmulasztása.", szankcio: "10.000 Ft" },
+            15: { leiras: "Egyéb jogosulatlan munkavégzés (pl: gépkezelői jogosultságok, emelőgép kezelői megbízás, teherkötözői vizsga, tűzvédelmi szakvizsga, stb.). ", szankcio: "50.000 Ft" },
+            16: { leiras: "Időszakos biztonsági és egyéb jogszabályban, szabványokban meghatározott felülvizsgálatok hiánya.", szankcio: "100.000 Ft" },
+            17: { leiras: "Veszélyesnek minősülő vegyi anyagok biztonsági adatlapja nem hozzáférhető a helyszínen (anyagonként), nem megfelelő edényzetben való tárolás. ", szankcio: "10.000 Ft" },
+            18: { leiras: "Építési munkaterületen a munkaterület (árok, gödör, aknák, födémnyílások) elkorlátozásának/lefedésének nem megfelelősége, esetleges hiánya, nem megfelelő elkorlátozás kiépítése (alkalmanként /munkaterületenként) ", szankcio: "50.000 Ft " },
+            19: { leiras: "Emberi tartózkodásra szolgáló munkagödör, munkaárok beomlás elleni védelme, illetve a belőle való menekülés nem megoldott (munkagödrönként). ", szankcio: "50.000 Ft" },
+            20: { leiras: "Munkaárokba biztonságos le- és feljutás nem biztosított, kitermelt föld, egyéb anyagtárolás a szakadó lapon, illetve a földmunkát végző vállalkozás a biztonságos átjárás lehetőségét nem biztosítja (alkalmanként /munkaterületenként). ", szankcio: "30.000 Ft " },
+            21: { leiras: "Veszélyes emelési művelet, nem megfelelő technológia, nem megfelelő teherfelvevő illetve emelőeszköz használata munkavégzéshez (földmunkagép használata teheremeléshez, rögzitőfül, kiakadásgátló hiánya, sérült emelőkötél, lánc használata, stb.) ", szankcio: "20.000 Ft" },
+            22: { leiras: "A kivitelezőnek felróható okokból a munkaterület rendezetlen, éles tárgyak, kiálló szögek, eltorlaszolt közlekedési/menekülési utak, szabálytalan hulladék/anyagtárolás teszi veszélyessé a saját és a hatókörben tartózkodók munkáját (alkalmanként). ", szankcio: "20.000 Ft" },
+            23: { leiras: "Az alvállalkozó munkavállaló a munkaterületen nem azonosítható (fényképes okmány bemutatása), munkakörre vonatkozó érvényes orvosi alkalmasság, a munkaterületre vonatkozó munkabiztonsági oktatás helyszínen nem igazolható. ", szankcio: "20.000 Ft" },
+            24: { leiras: "Megfelelő tűzoltó készülék készenlétben tartásának hiánya (darabonként)", szankcio: "20.000 Ft" },
+            25: { leiras: "Dohányzás szabályainak megszegése.", szankcio: "20.000 Ft" },
+            26: { leiras: "rásos engedélyhez kötött tevékenység végzése engedély nélkül, illetve az engedélyben szereplő feltételek be nem tartása (tűzveszélyes, beszállásos, stb.) ", szankcio: "100.000 Ft" },
+            27: { leiras: "Emelési terv köteles tevékenység engedély nélküli végzése.", szankcio: "100.000 Ft " },
+            28: { leiras: "Elsősegélynyújtás tárgyi és személyi feltételei nem teljesülnek", szankcio: "20.000 Ft" },
+            "29a": { leiras: "Nem veszélyes hulladékok nem megfelelő módon/helyen történő tárolása (hulladékfajta és mennyiség függvényében).", szankcio: "25.000 Ft " },
+            "29b": { leiras: "Veszélyes hulladékok nem megfelelő módon/helyen történő tárolása (hulladékfajta és mennyiség függvényében).", szankcio: "50.000 Ft " },
+            30: { leiras: "A képződött hulladékok gyűjtésére nem áll rendelkezésre a hulladékok jellegének megfelelő mennyiségű és minőségű gyűjtőedényzet (szükséges edényenként, hulladék fajtánként).", szankcio: "20. 000 Ft" },
+            "31a": { leiras: "Munkavégzés után a hulladékok összegyűjtésének elmulasztása nem veszélyes hulladék esetében. ", szankcio: "50.000 Ft " },
+            "31b": { leiras: "Munkavégzés után a hulladékok összegyűjtésének elmulasztása veszélyes hulladék esetében. ", szankcio: "100.000 Ft " },
+            32: { leiras: "Hulladékszállítás adminisztrációjának hiánya, nem megfelelő módja:      Hatósági engedély nélküli, szállítólevél nélküli, „SZ-jegy” nélküli szállítás, nem megfelelően kitöltött szállítólevél. ", szankcio: "10.000 Ft" },
+            33: { leiras: "Szándékos vagy gondatlan talaj- és talajvízszennyezés, élővíz szennyezés (pl.: hátramaradt olaj vagy üzemanyag foltok, veszélyes anyag elfolyás, stb.). ", szankcio: "50.000 Ft + helyreállítási költség " },
+            34: { leiras: "Szükségtelen taposási és mezőgazdasági kár okozása m2-ként.", szankcio: "15.000 Ft + kártérítési költség" },
+            35: { leiras: "A vonatkozó környezetvédelmi határozatban leírt táj- és természetvédelmi feltételek megszegése (pl.: vegetációs időszak, párzási időszak, költési időszak, NATURA 2000 terület, stb.). ", szankcio: "25.000 Ft" },
+            36: { leiras: "Veszélyes anyagok, illetve veszélyes hulladékok tárolása esetén a kármentő tálca hiánya. ", szankcio: "20.000 Ft " },
+            37: { leiras: "A Megrendelő munkaterületén vagy érdekében folytatott tevékenység végzése során bizonyíthatóan alkohol vagy drog befolyása alatti munkavégzés. ", szankcio: "100.000 Ft + aznapi kitiltás" },
+            38: { leiras: "Gondatlan cselekedet vagy magatartás, rendbontás, amellyel a munkavállaló veszélyezteti a hatókörben tartózkodókat vagy önmagát, illetve súlyos együttműködésre való hajlandóság hiánya.  ", szankcio: "Kitiltás a munkaterületről a projekt végrehajtásának idejére " },
+            39: { leiras: "Megrendelő felé jelentendő EBK esemény (munkabaleset, kvázi baleset, tűzeset, stb.) jelentésének elmulasztása és a kötelező egyéb szerződési pontokban meghatározott adatszolgáltatás (ledolgozott órák) elmaradása", szankcio: "100.000 Ft" },
+            40: { leiras: "Közutaknál forgalomkorlátozással járó építési – szerelési munkaterület nem, vagy nem megfelelő kialakítása. (pl. kitáblázás hiánya, jelzőőr, vagy forgalomirányító személyzet hiánya stb.) ", szankcio: "100.000 Ft" },
+            41: { leiras: "Az alvállalkozó munkairányítója nincs a helyszínen, illetve nincs kijelölve munkairányító. ", szankcio: "100.000 Ft" },
+          }; %>
+      
+      <% sorszams.forEach(function(sorszam) { %>
+        <tr>
+          <td class="elso-oszlop"><%= sorszam %></td>
+          <td class="masodik-oszlop"><%= adatok[sorszam]?.leiras || "" %></td>
+          <td class="harmadik-oszlop"><%= adatok[sorszam]?.szankcio || "" %></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+
+  <h2>Munkabiztonsági, Környezetvédelmi EBK (Egészség Biztonság Környezet) ellenőrzések, és a szabályszegési kötbér</h2>
+
+  <p>A Vállalkozó a tevékenységét a vonatkozó munka-, tűz-, valamint környezetvédelmi jogszabályok és követelmények maradéktalan betartásával végzi. Megrendelő az Alvállalkozó munkavégzését bármikor ellenőrizheti a Vállalkozó számára munkavégzésre átadott munkaterületen is. 
+    A  megrendelői ellenőrzés kiterjed  Vállalkozónál   a teljesítésbe bevont vállalkozókra is, ideértve az al-alvállalkozók munkavállalóit és munkaeszközeit, melyért a Vállalkozó, mint saját tevékenységéért felel a Megrendelő felé. Ha az érintettek  az ellenőrzést akadályozzák, vagy a közreműködést megtagadják, az a Vállalkozóval szemben azonnali felmondást  eredményez. 
+    A Megrendelő ellenőrzési jogától függetlenül a Vállalkozó a vonatkozó jogszabályok, valamint a saját belső utasításai szerint rendszeres munka- és tűz-, valamint környezetvédelmi ellenőrzést végez és a feltárt hiányosságokat saját hatáskörben mihamarabb felszámolja. 
+    A Vállalkozó elfogadja, hogy a feltárt munka- és tűz-, valamint környezetvédelmi szabályszegés esetén a Megrendelő az alábbi intézkedésekre jogosult: </p>
+    
+    <ul>
+      <li>felszólítás hiánypótlásra, hiba elhárítására, kijavítására
+        <ul>
+          <li>azonnali hatállyal,</li>
+          <li>vagy határidő kitűzésével,</li>
+          <li>illetve folyamatosan betartandóan</li>
+        </ul>
+      </li>
+      <li>rendkívüli oktatás elrendelése,</li>
+      <li>a szerződésben meghatározott szabályszegési kötbér kiszabása,</li>
+      <li>súlyos veszélyeztetés esetén a munkavégzés azonnali felfüggesztése.</li>
+      <li>súlyos környezeti károkozás, vagy szennyezés esetén a munkavégzés azonnali felfüggesztése, vagy korlátozása</li>
+    </ul>
+
+      <p>A Megrendelő a fenti intézkedéseket a szabályszegés  számától és súlyától függően, szabad értékelése alapján, többször és egymás mellett is alkalmazza, a felsorolás nem jelent alkalmazási sorrendet. .  
+        Megrendelő a munka-, tűz-, valamint környezetvédelmi szabályszegések esetén a jelen fejezet szerinti tételes szabályszegési kötbért alkalmaz. 
+        Megrendelő képviselője az egyértelmű beazonosítást lehetővé tévő dokumentációval együtt (helyszínen érintett alvállalkozó képviselőjével ellenjegyeztetett írásos jegyzőkönyv és/vagy fénykép, videó felvétel, stb.) a szabályszegésekről jegyzőkönyvet készít, és ez alapján dönt a szabályszegési kötbér alkalmazásáról. 
+        A Megrendelő a szabályszegési kötbérről a kötbér értesítőt a jegyzőkönyvek alapján legkésőbb a szerződés teljesítési, vagy véghatáridőtől (sikeres átadás-átvétel, vagy a szerződésben rögzített egyéb teljesítési határidő) számított 30 napon belül kézbesíti. A kötbér értesítő mellékletét képezi az ellenőrzési jegyzőkönyv és a szabályszegést igazoló egyéb dokumentációk. </p>
+        
+        <p>A szabályszegést mindig a bekövetkezéskor hatályos munka- és tűz-, valamint környezetvédelmi jogszabályok és szerződés ide vonatkozó részei szerint kell vizsgálni. 
+          A Vállalkozó vállalja, hogy az ellenőrzési jegyzőkönyvben előírtaknak eleget tesz. </p>
+
+          <p>A kötbér megfizetése nem mentesíti a Vállalkozót az egyéb esetleges hatósági vizsgálatok következményei  alól, és nem ad felmentést  a jogszabályok, illetve egyéb előírások  betartásának kötelezettsége alól.  
+            Amennyiben egy ellenőrzés során a Megrendelő egyszerre több hiányosságot is tapasztal, úgy a kötbér összevontan is alkalmazható.  
+            Szabályszegés megszüntetésére kitűzött határidő esetén a Vállalkozó köteles a legrövidebb időn belül a hiányosság megszüntetésére és a jogszabályoknak megfelelő gyakorlat kialakítására.  
+            Egy korábban megállapított szabályszegés ismételt előfordulása esetén a szabályszegési kötbér korlátlan alkalommal, a korábbihoz képest 25%-al megnövelt mértékkel alkalmazható. 
+            A Megrendelő a munka-, tűz-, vagy környezetvédelmi előírások írásbeli figyelmeztetés ellenére folytatott ismétlődő megsértése esetén a Vállalkozóval szemben jogosult a szerződés azonnali hatályú felmondására és egyéb szerződésszegésből eredő következményék alkalmazására.  </p>
+
+</body>
+</html>

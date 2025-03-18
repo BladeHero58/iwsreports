@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projektek</title>
+
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" 1  href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet"> 
+</head>
+<body>
+    <h1>Az Ön projektjei</h1>
+
+    <% if (projects.length === 0) { %>
+        <p><%= message %></p>
+    <% } else { %>
+        <ul>
+            <% projects.forEach(project => { %>
+                <li>
+                    <strong><%= project.name %></strong><br>
+                    Állapot: <%= project.status %><br>
+                    <form action="/user/projects/<%= project.id %>" method="GET">
+                        <button type="submit" class="btn">Projekt részletei</button>
+                    </form>
+                </li>
+            <% }); %>
+        </ul>
+    <% } %>
+
+    <form action="/dashboard" method="GET">
+        <button type="submit" class="logout-btn">Vissza az írányítópultra</button>
+    </form>
+
+</body>
+</html>
+

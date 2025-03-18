@@ -1,0 +1,31 @@
+{
+  "name": "jegyzokonyv",
+  "version": "1.0.0",
+  "description": "jegyzőkönyv készítés az IWS számára.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "bcryptjs": "^2.4.3",
+    "body-parser": "^1.20.3",
+    "ejs": "^3.1.10",
+    "express": "^4.21.2",
+    "express-session": "^1.18.1",
+    "fs": "^0.0.1-security",
+    "handsontable": "^15.0.0",
+    "mime-types": "^2.1.35",
+    "multer": "^1.4.5-lts.1",
+    "passport": "^0.7.0",
+    "passport-local": "^1.0.0",
+    "pg": "^8.13.1",
+    "pg-promise": "^11.10.2",
+    "puppeteer": "^24.0.0",
+    "sharp": "^0.33.5",
+    "uuid": "^11.0.3",
+    "xlsx": "^0.18.5"
+  }
+}

@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        
+    <!-- Handsontable CSS -->
+    <script src="https://cdn.jsdelivr.net/npm/handsontable@latest/dist/handsontable.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@latest/dist/handsontable.full.min.css"></script>
+       <!-- Undo - Redo CSS-->
+     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+     <style>
+        #hot-container {
+          max-width: 794px;
+          margin: 0 auto;
+          overflow-x: auto;
+        }
+    
+        .handsontable {
+          font-size: 15px;
+          line-height: 1.2;
+        }
+    
+        @media print {
+          #hot-container {
+            max-width: 100% !important;
+            overflow: visible !important;
+          }
+    
+          .handsontable {
+            font-size: 8px !important;
+          }
+    
+          htCore td {
+            padding: 2px !important;
+          }
+        }
+
+        .black-cell {
+    background-color: black !important;
+    color: yellow !important;
+    border-color: yellow !important;
+    font-weight: bold !important;
+    font-size: 16px !important;
+}
+.yellow-row {
+    background-color: yellow !important;
+}
+
+.white-row {
+    background-color: white !important;
+}
+
+.htCenter {
+    text-align: center; /* For horizontal centering */
+    vertical-align: middle; /* For vertical centering */
+  }
+
+  /* Új stílusok az első sorhoz */
+  .first-row-style {
+        text-align: center !important; /* Vízszintes középre igazítás */
+        font-size: 22px !important; /* 22px betűméret */
+        background-color: #ffffff !important; /* Például szürke háttér */
+        color: black !important; /* Például fekete szöveg */
+        font-weight: bold !important;
+        text-align: center !important; /* Vízszintes középre igazítás */
+        vertical-align: middle !important; /* Függőleges középre igazítás */
+        text-decoration: underline !important;
+    }
+
+    /* Új stílusok a 11. sorhoz */
+    .eleventh-row-style {
+        text-align: center !important; /* Vízszintes középre igazítás */
+        vertical-align: middle !important; /* Függőleges középre igazítás */
+    }
+
+    /* ÚJ stílusok az utolsó sorhoz */
+    .last-row-style {
+        font-weight: bold !important; /* Félkövér szöveg */
+        background-color: lightgrey !important; /* Világosszürke háttér */
+        font-size: 18px !important;
+        text-align: center !important; /* Vízszintes középre igazítás */
+    }
+
+    /* Specifikusabb szabály a beszúrt sorokra */
+.handsontable tr.beszurt-sor { /* vagy valamilyen más egyedi osztály */
+    height: 70px !important; /* vagy a kívánt magasság */
+}
+      </style>
+
+    <title>Projekt részletei</title>
+
+    <link rel="stylesheet" href="/css/pages/user-project-details-style.css">
+
+</head>
+<body>
+    <h1>Projekt részletei</h1>
+
+    <h2><%= project.name %></h2>
+    <p><strong>Leírás:</strong> <%= project.description %></p>
+    <p><strong>Állapot:</strong> <%= project.status %></p>
+    <p><strong>Projekt ID:</strong> <%= project.id %></p>
+
+    <section>
+        <!-- Szerkesztés gomb -->
+        <a href="/user/projects/edit/<%= project.id %>">
+            <button type="submit" class="btn">Projekt szerkesztése</button>
+        </a>
+    </section>
+    
+    <!-- Rejtett input mező a projectId-hoz -->
+    <input type="hidden" id="projectId" value="<%= project.id %>">
+     
+    <!-- Gombok -->
+    <button id="generateReportBtn" type="submit" class="btn">Új jegyzőkönyv generálása</button>
+    <button id="loadReportBtn" type="submit" class="btn">Legutóbbi jegyzőkönyv</button>
+    <button id="saveReportBtn" type="submit" class="btn">Jegyzőkönyv mentése</button>
+
+    <a href="/reports/fine-list" target="_blank">
+        <button type="submit" class="btn">Szankciós lista</button>
+    </a>
+
+    <button id="undo" class="btn-blue" style="font-size:10px">
+        <i class="material-icons">undo</i>
+    </button>
+    
+    <button id="redo" class="btn-blue" style="font-size:10px">
+        <i class="material-icons">redo</i>
+    </button>
+
+    <div id="tableContainer" style="margin-top: 20px;"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/handsontable@12.3.1/dist/handsontable.min.js"></script>
+    <script>
+        
+        //project id mező
+        const projectId = document.getElementById('projectId').value; 
+        console.log('Aktuális projekt ID:', projectId);
+
+   // Kép megjelenítő renderer
+   const imageRenderer = (instance, td, row, col, prop, value, cellProperties) => {
+    // Töröljük a meglévő tartalmat
+    while (td.firstChild) {
+        td.removeChild(td.firstChild);
+    }
+
+    if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
+        // Konténer div létrehozása
+        const container = document.createElement('div');
+        container.style.width = '100%';
+        container.style.height = '100%';
+        container.style.display = 'flex';
+        container.style.alignItems = 'center';
+        container.style.justifyContent = 'center';
+        container.style.overflow = 'hidden';
+        container.style.position = 'relative';
+
+        // Forgatási érték lekérése
+        let rotation = instance.getCellMeta(row, col).rotation || 0;
+
+        // Kép elem létrehozása
+        const img = document.createElement('img');
+        img.src = value;
+
+        // Forgatás alkalmazása
+        img.style.position = 'absolute';
+        img.style.transformOrigin = 'center';
+        img.style.transform = `rotate(${rotation}deg)`;
+
+        // Méretezés
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'cover';
+
+        container.appendChild(img);
+        td.appendChild(container);
+    }
+
+    // Cella padding eltávolítása
+    td.style.padding = '0';
+    td.style.overflow = 'hidden';
+
+    return td;
+};
+
+// Kezdeti cella stílusok beállítása a táblázat létrehozásakor
+const setupInitialCellStyles = (hot, data) => {
+    if (data.cellStyles && Array.isArray(data.cellStyles)) {
+        data.cellStyles.forEach(style => {
+            const row = style.row;
+            const col = style.col;
+            const value = hot.getDataAtCell(row, col);
+
+            // Kép renderer és forgatás beállítása
+            if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
+                hot.setCellMeta(row, col, 'renderer', imageRenderer);
+                if (style.rotation !== undefined) {
+                    hot.setCellMeta(row, col, 'rotation', style.rotation);
+                }
+            }
+
+            // Egyéb stílusok beállítása
+            if (style.color) {
+                hot.setCellMeta(row, col, 'color', style.color);
+            }
+        });
+        
+        hot.render();
+    }
+};
+
+// Export Json-ba
+function exportToJson(hotInstance) {
+    const json = hotInstance.getData().map((row, rowIndex) => {
+        return row.map((cell, colIndex) => {
+            const cellMeta = hotInstance.getCellMeta(rowIndex, colIndex);
+            if (cellMeta.renderer === imageRenderer) {
+                // Ha a cella már tartalmaz data URI-t, használd azt
+                if (typeof cell === 'string' && cell.startsWith('data:image')) {
+                    return cell;
+                } else {
+                    // Ha csak base64 string, formázd data URI-vá
+                    return `data:image/png;base64,${cell}`;
+                }
+            }
+            return cell;
+        });
+    });
+    return json;
+}
+
+// Handsontable inicializálása
+let hot;
+
+// Undo/Redo eseménykezelők hozzáadása
+document.getElementById('undo').addEventListener('click', () => {
+    if (hot) {
+        hot.undo();
+    }
+});
+
+document.getElementById('redo').addEventListener('click', () => {
+    if (hot) {
+        hot.redo();
+    }
+});
+
+// Handsontable további inicializálása
+function displayEditableTable(data, mergeCells, colWidths, rowHeights) {
+    const container = document.getElementById('tableContainer');
+
+    // Ellenőrizzük, hogy a hot létezik-e és még nem lett elpusztítva
+    if (hot && !hot.isDestroyed) {
+        hot.destroy();
+    }
+
+    // Dropdown opciók definíciója
+    const typeOptions = [
+        'Munkaterületre való lejutás/feljutás', 'Lehatárolás, elkerítés', 'Viselkedés',
+        'Vegyianyagok', 'Beszállásos munka', 'Emelőgépek, emeléshez használt eszközök',
+        'Emelési művelet', 'Dokumentációk, Iratok', 'Munkaterületen való közlekedés (jármű)',
+        'Elektromos hibák', 'Környezetkárosító hatások', 'Földmunka', 'Leesés elleni védelem',
+        'Tűzvédelem', 'Egészséget károsító', 'Tűzveszélyes munka', 'Rendtartás', 'Megvilágítás',
+        'Felülvzsgálatok, tesztek', 'LMRA, Toolbox, Munkavégzés előtti megbeszélés',
+        'Anyag rendezés', 'Zajterhelés', 'Egyéni védőeszközök', 'Állványozás, Munkaeszközök',
+        'Munka organizáció', 'Munkaengedély', 'Hulladékkezelés', 'Csúszás- és botlásveszély',
+        'Átszúrás elleni védelem', 'Jelölések', 'Gázpalack tárolás',
+        'Munkaterületen való közlekedés (gyalogos)', 'Nem besorolt'
+    ];
+
+    const categoryOptions = [
+        'Nem biztonságos munkavégzés',
+        'Nem biztonságos állapot',
+        'Jó gyakorlat'
+    ];
+
+    const riskOptions = [
+        { value: 'Alacsony', color: '#ffff00' },
+        { value: 'Közepes', color: '#ed7d31' },
+        { value: 'Magas', color: '#ff0000' },
+        { value: '-', color: 'white' }
+    ];
+
+    const statusOptions = [
+        { value: 'Nyitott', color: '#ff0000' },
+        { value: 'Lezárt', color: '#92d050' },
+        { value: 'Folyamatban', color: '#ffff00' },
+        { value: 'Nem teljesített', color: 'grey' },
+        { value: 'Felszólítás után teljesítve', color: '#ffd966' },
+        { value: 'NA', color: 'white' }
+    ];
+
+    // Egyedi renderer a színes cellákhoz
+    function colorRenderer(instance, td, row, col, prop, value, cellProperties) {
+        Handsontable.renderers.TextRenderer.apply(this, arguments);
+
+        if (cellProperties.type === 'dropdown') {
+            Handsontable.renderers.DropdownRenderer.apply(this, arguments);
+        }
+
+        // FEKETE SOROK: Egyszerűsített feltétel
+        if ((row < 7 && row > 2) || row === 10) {
+            td.style.backgroundColor = 'black';
+            td.style.color = 'yellow';
+            td.style.fontWeight = 'bold';
+            return;
+        }
+
+    // A többi feltétel változatlan marad...
+    if (col === 7) {
+        const riskOption = riskOptions.find(option => option.value === value);
+        if (riskOption) {
+            td.style.backgroundColor = riskOption.color;
+            return;
+        }
+    }
+
+    if (col === 10) {
+        const statusOption = statusOptions.find(option => option.value === value);
+        if (statusOption) {
+            td.style.backgroundColor = statusOption.color;
+            return;
+        }
+    }
+
+    const color = cellProperties.color || getInitialRowColor(row);
+    td.style.backgroundColor = color;
+}
+
+     // Kezdeti színek meghatározása
+ function getInitialRowColor(row) {
+        if (row < 7 || row === 10) return 'black';
+    }
+   
+
+    // Define saveRowColor *before* it's used
+function saveRowColor(row, color) {
+    const rowColors = JSON.parse(localStorage.getItem('rowColors')) || {};
+    rowColors[row] = color;
+    localStorage.setItem('rowColors', JSON.stringify(rowColors));
+}
+
+// Define loadRowColors *before* it's used
+function loadRowColors(hotInstance) { // Pass the Handsontable instance
+    const rowColors = JSON.parse(localStorage.getItem('rowColors')) || {};
+
+    for (const row in rowColors) {
+        const color = rowColors[row];
+        const rowNum = parseInt(row);
+
+        if (rowNum >= 0 && rowNum < hotInstance.countRows() && !(rowNum < 7 || rowNum === 10)) {
+            for (let col = 0; col < hotInstance.countCols(); col++) {
+                hotInstance.setCellMeta(rowNum, col, 'renderer', colorRenderer);
+                hotInstance.setCellMeta(rowNum, col, 'color', color);
+            }
+        }
+    }
+
+    hotInstance.render();
+}
+
+    //Handsontable inicializálása
+    hot = new Handsontable(container, {
+        data: data,
+        colHeaders: true,
+        rowHeaders: true,
+        undo: true, // Engedélyezi az undo/redo funkcionalitást
+        redo: true,
+        contextMenu: {
+            items: {
+                "row_above": {
+                    name: "Sor beszúrása felülre",
+    callback: function(key, selection) {
+        const row = selection[0].start.row;
+        this.alter('insert_row_above', row);
+
+        // Frissítjük a rowHeights tömböt
+        const rowHeights = this.getSettings().rowHeights;
+        rowHeights.splice(row, 0, 180); // Beszúrt sor magassága
+        this.updateSettings({ rowHeights: rowHeights });
+
+        const cols = this.countCols();
+        for (let col = 0; col < cols; col++) {
+            if (row < 7 || row === 10) continue;
+            this.setCellMeta(row, col, 'renderer', colorRenderer);
+            this.setCellMeta(row, col, 'color', getInitialRowColor(row));
+        }
+        this.render();
+    }
+},
+"row_below": {
+    name: "Sor beszúrása alulra",
+    callback: function(key, selection) {
+        const row = selection[0].start.row;
+        this.alter('insert_row_below', row);
+
+        // Frissítjük a rowHeights tömböt
+        const rowHeights = this.getSettings().rowHeights;
+        rowHeights.splice(row + 1, 0, 180); // Beszúrt sor magassága (alulra szúráskor +1)
+        this.updateSettings({ rowHeights: rowHeights });
+
+        const cols = this.countCols();
+        for (let col = 0; col < cols; col++) {
+            if (row + 1 < 7 || row + 1 === 10) continue; // +1 az alsó beszúráshoz
+            this.setCellMeta(row + 1, col, 'renderer', colorRenderer); // +1 az alsó beszúráshoz
+            this.setCellMeta(row + 1, col, 'color', getInitialRowColor(row + 1)); // +1 az alsó beszúráshoz
+        }
+        this.render();
+    }
+},
+                "col_left": {name: "Oszlop beszúrása balra"},
+                "col_right": {name: "Oszlop beszúrása jobbra"},
+                "remove_row": {name: "Sor eltávolítása"},
+                "remove_col": {name: "Oszlop eltávolítása"},
+               "colorize_row": {
+    name: "Sor színezése",
+    callback: function(key, selection) {
+        const row = selection[0].start.row;
+        const cols = this.countCols();
+        const color = '#fff2cc'; // Rögzített szín
+
+        if (row >= 0 && row < this.countRows() && !(row < 7 || row === 10)) {
+            for (let col = 0; col < cols; col++) {
+                this.setCellMeta(row, col, 'renderer', colorRenderer);
+                this.setCellMeta(row, col, 'color', color);
+            }
+
+            this.render();
+            
+            // Frissítsük a localStorage-ot is
+            const rowColors = JSON.parse(localStorage.getItem('rowColors')) || {};
+            rowColors[row] = color;
+            localStorage.setItem('rowColors', JSON.stringify(rowColors));
+        }
+    }
+},
+                "upload_image": {
+                    name: "Kép feltöltése",
+                    callback: function () {
+                        const coords = hot.getSelected()[0];
+                        const projectId = document.getElementById('projectId').value; // Projekt ID lekérése
+
+                        if (!projectId) {
+                            alert('Kérlek válassz egy projektet!');
+                            return; // Kilépés, ha nincs projectId
+                        }
+
+                        if (coords) {
+                            const fileInput = document.createElement('input');
+                            fileInput.type = 'file';
+                            fileInput.accept = 'image/*';
+
+                            fileInput.addEventListener('change', function (event) {
+                                const file = event.target.files[0];
+                                if (file) {
+                                    const formData = new FormData();
+                                    formData.append('image', file);
+                                    formData.append('projectId', projectId); // Projekt ID hozzáadása
+
+                                    fetch('/reports/upload', {
+                                        method: 'POST',
+                                        body: formData,
+                                    })
+                                    .then(response => response.json())
+                                    .then(data => {
+                                        if (data.success && data.url) {
+                                            hot.setDataAtCell(coords[0], coords[1], data.url); // Frissítjük a cellát az új URL-lel
+                                            hot.setCellMeta(coords[0], coords[1], 'renderer', imageRenderer); // Renderer hozzáadása
+                                            hot.render(); // Frissítjük a táblázatot
+                                        } else {
+                                            alert('Hiba történt a feltöltés során.');
+                                        }
+                                    })
+                                    .catch(error => {
+                                        console.error('Kép feltöltési hiba:', error);
+                                        alert('Hiba történt a fájl feltöltésekor.');
+                                    });
+                                }
+                            });
+
+                            fileInput.click();
+                        } else {
+                            alert('Kérlek válassz egy cellát a kép feltöltéséhez!');
+                        }
+                    }
+                },
+               "rotate_image": {
+    name: "Kép forgatása 90° jobbra",
+    callback: function() {
+        const coords = hot.getSelected()[0];
+        if (coords) {
+            const row = coords[0];
+            const col = coords[1];
+            const value = hot.getDataAtCell(row, col);
+            
+            if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
+                // Get current rotation or default to 0
+                let currentRotation = hot.getCellMeta(row, col).rotation || 0;
+                
+                // Add 90 degrees (modulo 360 to keep it between 0-359)
+                let newRotation = (currentRotation + 90) % 360;
+                
+                // Always ensure the renderer is set before setting rotation
+                hot.setCellMeta(row, col, 'renderer', imageRenderer);
+                hot.setCellMeta(row, col, 'rotation', newRotation);
+                
+                // Explicitly log the new rotation to verify (can be removed in production)
+                console.log(`Image rotated: row=${row}, col=${col}, rotation=${newRotation}`);
+                
+                hot.render();
+            }
+        }
+    }
+},
+                "remove_image": {
+                    name: "Kép eltávolítása",
+                    callback: function () {
+                        const coords = hot.getSelected()[0];
+                        if (coords) {
+                            const value = hot.getDataAtCell(coords[0], coords[1]);
+                            if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
+                                const imageUrl = value.startsWith('data:image') ? null : value;  // Ha base64, ne küldjünk törléshez URL-t
+
+                                hot.setDataAtCell(coords[0], coords[1], null); // Töröljük a cella tartalmát
+                                hot.removeCellMeta(coords[0], coords[1], 'renderer'); // Eltávolítjuk a renderer meta adatot
+                                hot.render(); // Frissítjük a táblázatot
+
+                                if (imageUrl) {
+                                    fetch('/reports/delete-image', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                        },
+                                        body: JSON.stringify({ imageUrl: imageUrl }),
+                                    })
+                                    .then(response => response.json())
+                                    .then(data => {
+                                        if (data.success) {
+                                            console.log('Kép sikeresen törölve a szerverről');
+                                        } else {
+                                            console.error('Hiba a kép törlésében:', data.message);
+                                        }
+                                    })
+                                    .catch(error => {
+                                        console.error('Hiba a szerverrel való kommunikációban:', error);
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        manualRowInsert: true,
+        manualColumnInsert: true,
+        manualRowMove: true,
+        manualColumnMove: true,
+        manualRowResize: true,
+        manualColumnResize: true,
+        licenseKey: 'non-commercial-and-evaluation',
+        mergeCells: mergeCells, // Egyesített cellák beállítása
+        colWidths: Array.isArray(colWidths) && colWidths.length > 0 ? colWidths : undefined,
+        rowHeights: Array.isArray(rowHeights) && rowHeights.length > 0 ? rowHeights : undefined,
+        // Oszlopok konfigurációja
+        columns: [
+            { type: 'text' }, // 0-5 oszlop - szöveg típusúak maradnak
+            { type: 'text' },
+            { type: 'text' },
+            { type: 'text' },
+            { type: 'text' },
+            {
+                type: 'dropdown', // 6. oszlop - dropdown típus
+                source: function(query, process) { // Forrás dinamikus beállítása
+                    if (hot.getSelectedLast()[0] >= 7 && hot.getSelectedLast()[0] !== 10) { // Csak a beszúrt sorokra
+                        process(typeOptions);
+                    } else {
+                        process([]); // Egyéb sorokra üres lista
+                    }
+                }
+            },
+            {
+                type: 'dropdown', // 7. oszlop - dropdown típus
+                source: function(query, process) { // Forrás dinamikus beállítása
+                    if (hot.getSelectedLast()[0] >= 7 && hot.getSelectedLast()[0] !== 10) { // Csak a beszúrt sorokra
+                        process(categoryOptions);
+                    } else {
+                        process([]); // Egyéb sorokra üres lista
+                    }
+                }
+            },
+            {
+                type: 'dropdown', // 8. oszlop - dropdown típus
+                source: function(query, process) { // Forrás dinamikus beállítása
+                    if (hot.getSelectedLast()[0] >= 7 && hot.getSelectedLast()[0] !== 10) { // Csak a beszúrt sorokra
+                        process(riskOptions.map(option => option.value)); // Fontos: csak az értékeket adjuk át a forráshoz, nem a teljes objektumot
+                    } else {
+                        process([]); // Egyéb sorokra üres lista
+                    }
+                },
+                renderer: colorRenderer // Alkalmazzuk a colorRenderer-t a 8. oszlopra
+            },
+            { type: 'text' },
+            { type: 'text' },
+            {
+                type: 'dropdown', // 11. oszlop - dropdown típus
+                source: function(query, process) { // Forrás dinamikus beállítása
+                    if (hot.getSelectedLast()[0] >= 7 && hot.getSelectedLast()[0] !== 10) { // Csak a beszúrt sorokra
+                        process(statusOptions.map(option => option.value));
+                    } else {
+                        process([]); // Egyéb sorokra üres lista
+                    }
+                },
+                renderer: colorRenderer // Alkalmazzuk a colorRenderer-t a 11. oszlopra is
+            },
+            { type: 'text' }
+        ],
+        beforeChange: function(changes, source) {
+        if (source === 'insert_row_above' || source === 'insert_row_below') {
+            const rowCount = this.countRows();
+            for (let i = 0; i < rowCount; i++) {
+                // Kivéve az első 7 sort és a 10. sort
+                if (i < 7 || i === 10) continue;
+                this.setRowHeight(i, 180);
+            }
+        }
+    },
+    afterCreateRow: function(index, amount) {
+    const cols = this.countCols();
+    for (let col = 0; col < cols; col++) {
+        if (index < 7 || index === 10) continue;
+        this.setCellMeta(index, col, 'renderer', colorRenderer);
+        this.setCellMeta(index, col, 'color', getInitialRowColor(index));
+    }
+    this.render();
+},
+// Adjunk hozzá egy beforeRender hook-ot
+beforeRender: function(isForced) {
+            // Végigmegyünk az összes cellán
+            const rows = this.countRows();
+            const cols = this.countCols();
+
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    const value = this.getDataAtCell(row, col);
+                    if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
+                        this.setCellMeta(row, col, 'renderer', imageRenderer);
+                    }
+                }
+            }
+        },
+
+        // Adjunk hozzá egy afterLoadData hook-ot
+        afterLoadData: function(initialLoad) {
+            if (initialLoad) {
+                // Cellastílusok visszaállítása
+                if (data.cellStyles && Array.isArray(data.cellStyles)) {
+                    data.cellStyles.forEach(style => {
+                        const row = style.row;
+                        const col = style.col;
+                        
+                        // Beállítjuk a renderereket és metaadatokat
+                        const value = this.getDataAtCell(row, col);
+                        if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
+                            this.setCellMeta(row, col, 'renderer', imageRenderer);
+                            if (style.rotation !== undefined) {
+                                this.setCellMeta(row, col, 'rotation', style.rotation);
+                                console.log(`Kép forgatás visszaállítva: sor=${row}, oszlop=${col}, forgatás=${style.rotation}`);
+                            }
+                        }
+                        
+                        if (style.color) {
+                            this.setCellMeta(row, col, 'color', style.color);
+                        }
+                    });
+                    
+                    this.render(); // Újrarajzolás
+                }
+            }
+        },
+        // Adjunk hozzá egy afterRemoveRow eseménykezelőt a Handsontable inicializálásához
+afterRemoveRow: function(index, amount) {
+    // Frissítsük a cellastílusokat a törölt sorok után
+    const rowsRemoved = amount || 1;
+    
+    // Eredeti cellStyle tömb másolása
+    const storedStyles = JSON.parse(localStorage.getItem('rowColors')) || {};
+    const updatedStyles = {};
+    
+    // Soronként újraindexeljük a cellastílusokat
+    Object.keys(storedStyles).forEach(rowStr => {
+        const row = parseInt(rowStr);
+        
+        if (row < index) {
+            // A törlés előtti sorok maradnak
+            updatedStyles[row] = storedStyles[row];
+        } else if (row >= index + rowsRemoved) {
+            // A törlés utáni sorok indexét csökkentjük a törölt sorok számával
+            updatedStyles[row - rowsRemoved] = storedStyles[row];
+        }
+        // A törölt sorok stílusait nem vesszük figyelembe
+    });
+    
+    // Új stílusok mentése
+    localStorage.setItem('rowColors', JSON.stringify(updatedStyles));
+    
+    // Táblázat újrarajzolása a helyes színekkel
+    this.render();
+},
+cells: function (row, col) {
+        const cellMeta = {};
+        const value = this.instance.getDataAtCell(row, col);
+
+        if ((row < 7 && row > 2) || row === 8 || row === 10) {
+            cellMeta.renderer = 'html';
+            cellMeta.className = 'black-cell';
+        }
+
+        if (typeof value === 'string' && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
+            cellMeta.renderer = imageRenderer;
+            cellMeta.className = 'image-cell'; // Kép cella stílus alkalmazása - MÓDOSÍTVA
+        }
+
+        if (row === 0) {
+            cellMeta.className = 'first-row-style';
+        }
+
+        if (row === 10) {
+            cellMeta.className = cellMeta.className ? cellMeta.className + ' eleventh-row-style' : 'eleventh-row-style';
+        }
+
+        if (row === this.instance.countRows() - 1) {
+            cellMeta.className = cellMeta.className ? cellMeta.className + ' last-row-style' : 'last-row-style';
+        }
+
+        // 8. sor és 11. sor középre igazítása, *mindig* - MÓDOSÍTVA
+        if (row === 8 || row === 10) {
+            cellMeta.className = cellMeta.className ? cellMeta.className + ' htCenter' : 'htCenter';
+        }
+
+        // 11. sor felett középre igazítás, *mindig* (de csak 5. oszloptól kezdve) - MÓDOSÍTVA
+        if (row > 10 && col >= 5) {
+            cellMeta.className = cellMeta.className ? cellMeta.className + ' htCenter' : 'htCenter';
+        }
+
+        return cellMeta;
+    },
+    });
+    loadRowColors(hot); // <--- IDE, közvetlenül a Handsontable létrehozása UTÁN
+    // Új: Képek forgatásának explicit visszaállítása
+    if (data.cellStyles && Array.isArray(data.cellStyles)) {
+        setTimeout(() => {
+            data.cellStyles.forEach(style => {
+                if (style.rotation !== undefined) {
+                    const row = style.row;
+                    const col = style.col;
+                    const value = hot.getDataAtCell(row, col);
+                    
+                    if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
+                        hot.setCellMeta(row, col, 'renderer', imageRenderer);
+                        hot.setCellMeta(row, col, 'rotation', style.rotation);
+                        console.log(`Késleltetett kép forgatás beállítva: sor=${row}, oszlop=${col}, forgatás=${style.rotation}`);
+                    }
+                }
+            });
+            hot.render();
+        }, 200); // Kis késleltetés a DOM frissítésének biztosítása érdekében
+    }
+}
+
+// Új jegyzőkönyv generálása
+document.getElementById('generateReportBtn').addEventListener('click', () => {
+    const data = Array(22).fill().map(() => Array(12).fill(''));
+
+    // Statikus tartalom beállítása
+    data[0][3] = "Heti munkavédelmi bejárási jegyzőkönyv";
+    data[0][1] = "Kép helye";
+    data[0][9] = "Kép helye";
+    data[3][1] = "Dátum:";
+    data[3][6] = "Bejárást végezte:";
+    data[4][1] = "Projekt megnevezése:";
+    data[4][6] = "Telefonszám:";
+    data[5][6] = "HSE megbízott:";
+    data[5][7] = "IWS Solutions Kft.";
+    data[5][1] = "Helyszín:";
+    data[6][6] = "Cím:";
+    data[6][7] = "2040 Budaörs (Terrapark), Puskás Tivadar út 14/C.";
+    data[6][1] = "Építkezés jellege:";
+    data[8][3] = "Észrevételek, megfigyelések, megjegyzések";
+    data[16][3] = "Pecsét helye";
+
+    data[10] = [
+        "Sorszám", "Megfigyelés", "Megoldás/ Javaslat/ Megjegyzés",
+        "Érintett Cég", "Fénykép", "Kategória", "Osztályozás",
+        "Hiba súlyossága", "Jegyzőkönyvbe felvéve", "Határidő",
+        "Státusz", "Kiszabható bírság összege, szankciós listában szereplő sorszáma"
+    ];
+    
+    data[12][0] = "Sorszám";
+    data[12][1] = "Ellenőrzéskor a helyszínen dolgozó cégek listája";
+
+    // Számozott sorok
+    for (let i = 13; i <= 20; i++) {
+        data[i][0] = (i - 12).toString();
+    }
+    data[21][0] = "A fenti jegyzőkönyv tartalma az érintett cégek aláírása nélkül is érvényesnek tekintendő!";
+
+    // Egyesített cellák beállítása
+    const mergeCells = [
+        { row: 0, col: 3, rowspan: 1, colspan: 5 },
+        { row: 0, col: 9, rowspan: 1, colspan: 2 },
+        { row: 1, col: 0, rowspan: 1, colspan: 12 },
+        { row: 3, col: 2, rowspan: 1, colspan: 2 },
+        { row: 4, col: 2, rowspan: 1, colspan: 2 },
+        { row: 5, col: 2, rowspan: 1, colspan: 2 },
+        { row: 5, col: 7, rowspan: 1, colspan: 4 },
+        { row: 6, col: 2, rowspan: 1, colspan: 2 },
+        { row: 6, col: 7, rowspan: 1, colspan: 4 },
+        { row: 8, col: 3, rowspan: 1, colspan: 5 },
+        { row: 8, col: 9, rowspan: 1, colspan: 2 },
+        { row: 12, col: 1, rowspan: 1, colspan: 2 },
+        { row: 13, col: 1, rowspan: 1, colspan: 2 },
+        { row: 12, col: 5, rowspan: 9, colspan: 7 },
+        { row: 14, col: 1, rowspan: 1, colspan: 2 },
+        { row: 15, col: 1, rowspan: 1, colspan: 2 },
+        { row: 16, col: 1, rowspan: 1, colspan: 2 },
+        { row: 16, col: 3, rowspan: 2, colspan: 2 },
+        { row: 17, col: 1, rowspan: 1, colspan: 2 },
+        { row: 18, col: 1, rowspan: 1, colspan: 2 },
+        { row: 19, col: 1, rowspan: 1, colspan: 2 },
+        { row: 20, col: 1, rowspan: 1, colspan: 2 },
+        { row: 21, col: 0, rowspan: 1, colspan: 12 }
+    ];
+
+    // Üres sorok jelölése
+    [2, 7, 9].forEach(row => {
+        mergeCells.push({ row, col: 0, rowspan: 1, colspan: 12 });
+    });
+
+    // localStorage ürítése
+    localStorage.removeItem('rowColors');
+
+    // A kívánt kezdeti oszlop szélességek
+    const initialColWidths = [
+        40,   // 1. oszlop: 40px
+        180,  // 2. oszlop: 180px
+        180,  // 3. oszlop: 180px
+        80,   // 4. oszlop: 80px
+        120,  // 5. oszlop: 120px
+        120,  // 6. oszlop: 120px
+        120,  // 7. oszlop: 120px
+        120,  // 8. oszlop: 120px
+        120,  // 9. oszlop: 120px
+        90,   // 10. oszlop: 90px
+        90,   // 11. oszlop: 90px
+        110   // 12. oszlop: 110px
+    ];
+
+    // Táblázat létrehozása a kezdeti beállításokkal
+    const hot = displayEditableTable(data, mergeCells, {
+        // Az oszlopok szélességét beállítjuk kezdeti értékként
+        colWidths: initialColWidths,
+        
+        // Engedélyezzük a sorok és oszlopok átméretezését a felhasználók számára
+        manualRowResize: true,
+        manualColumnResize: true,
+        
+        // A cellák beállítása
+        cells: function (row, col) {
+            const cellMeta = {};
+            const value = this.instance.getDataAtCell(row, col);
+
+            if ((row < 7 && row > 2) || row === 8 || row === 10) {
+                cellMeta.renderer = 'html';
+                cellMeta.className = 'black-cell';
+            }
+
+            if (typeof value === 'string' && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
+                cellMeta.renderer = imageRenderer;
+                cellMeta.className = 'image-cell'; // Kép cella stílus alkalmazása
+            }
+
+            if (row === 0) {
+                cellMeta.className = 'first-row-style';
+            }
+
+            if (row === 10) {
+                cellMeta.className = cellMeta.className ? cellMeta.className + ' eleventh-row-style' : 'eleventh-row-style';
+            }
+
+            if (row === this.instance.countRows() - 1) {
+                cellMeta.className = cellMeta.className ? cellMeta.className + ' last-row-style' : 'last-row-style';
+            }
+
+            // 8. sor és 11. sor középre igazítása, *mindig*
+            if (row === 8 || row === 10) {
+                cellMeta.className = cellMeta.className ? cellMeta.className + ' htCenter' : 'htCenter';
+            }
+
+            // 11. sor felett középre igazítás, *mindig* (de csak 5. oszloptól kezdve)
+            if (row > 10 && col >= 5) {
+                cellMeta.className = cellMeta.className ? cellMeta.className + ' htCenter' : 'htCenter';
+            }
+
+            return cellMeta;
+        },
+        
+        afterCreateRow: function(index, amount) {
+    // Beállítjuk az új sorok magasságát 180px-re
+    for (let i = 0; i < amount; i++) {
+        this.setRowHeight(index + i, 180);
+    }
+    this.render(); // Táblázat újrarajzolása sor hozzáadása után
+},
+        
+        // A táblázat betöltése után beállítjuk az első sor magasságát egyszer
+        afterInit: function() {
+            this.setRowHeight(0, 180); // Az első sor magassága 180px
+            this.render();
+        }
+    });
+
+    // Sorok színezése (ha szükséges)
+    loadRowColors(hot);
+
+    // Képek forgatási beállításainak visszaállítása, ha szükséges
+    if (data.cellStyles && Array.isArray(data.cellStyles)) {
+        setTimeout(() => {
+            data.cellStyles.forEach(style => {
+                if (style.rotation !== undefined) {
+                    const row = style.row;
+                    const col = style.col;
+                    const value = hot.getDataAtCell(row, col);
+                    
+                    if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
+                        hot.setCellMeta(row, col, 'renderer', imageRenderer);
+                        hot.setCellMeta(row, col, 'rotation', style.rotation);
+                        console.log(`Késleltetett kép forgatás beállítva: sor=${row}, oszlop=${col}, forgatás=${style.rotation}`);
+                    }
+                }
+            });
+            hot.render();
+        }, 200);
+    }
+});
+
+// Jegyzőkönyv betöltése
+document.getElementById('loadReportBtn').addEventListener('click', () => {
+    const projectId = document.getElementById('projectId').value;
+
+    fetch(`/reports/${projectId}/report`)
+        .then(response => response.json())
+        .then(data => {
+            console.log("Teljes API válasz:", data);
+
+            if (data.success && data.data) {
+                console.log("Betöltött cellStyles:", data.cellStyles);
+                console.log("cellStyles típusa:", typeof data.cellStyles);
+                console.log("cellStyles tömb?:", Array.isArray(data.cellStyles));
+                console.log("cellStyles hossza:", data.cellStyles ? data.cellStyles.length : 0);
+
+                if (data.debug) {
+                    console.log("Debug információk:", data.debug);
+                }
+
+                const mergeCells = data.mergeCells || [];
+                const colWidths = Array.isArray(data.colWidths) && data.colWidths.length ? data.colWidths : undefined;
+                const rowHeights = Array.isArray(data.rowHeights) && data.rowHeights.length ? data.rowHeights : undefined;
+
+                displayEditableTable(data.data, mergeCells, colWidths, rowHeights);
+
+                setTimeout(() => {
+                    let stylesToApply = data.cellStyles;
+
+                    if (!Array.isArray(stylesToApply)) {
+                        try {
+                            stylesToApply = JSON.parse(stylesToApply);
+                        } catch (e) {
+                            console.error("Hiba a cellStyles parse-olásakor a frontend-en:", e);
+                            stylesToApply = [];
+                        }
+                    }
+
+                    if (stylesToApply && Array.isArray(stylesToApply) && stylesToApply.length > 0) {
+                        console.log("Cellastílusok feldolgozása...");
+
+                        // Töröljük a helyi tárolt színeket a betöltés előtt
+            localStorage.removeItem('rowColors');
+            const rowColors = {};
+
+                        stylesToApply.forEach(style => {
+                            const row = style.row;
+                            const col = style.col;
+                            const cellValue = hot.getDataAtCell(row, col);
+
+                            console.log(`Cella ellenőrzése: sor=${row}, oszlop=${col}, érték=${cellValue}, forgatás=${style.rotation}`);
+
+                             // Ellenőrizzük, hogy a sor még létezik-e
+                if (row >= 0 && row < hot.countRows()) {
+                    // Meglévő kód stílusok alkalmazásához
+                    
+                    // Mentsük el a szín információkat is
+                    if (style.color && !(row < 7 || row === 10)) {
+                        rowColors[row] = style.color;
+                    }
+                }
+
+                // Mentsük el az új színeket
+            localStorage.setItem('rowColors', JSON.stringify(rowColors));
+
+                            if (cellValue && (cellValue.startsWith('data:image') || cellValue.startsWith('/uploads/'))) {
+                                console.log(`Kép cella: sor=${row}, oszlop=${col}, érték=${cellValue}`);
+
+                                if (typeof style.rotation === 'number') {
+                                    hot.setCellMeta(row, col, 'rotation', style.rotation);
+                                    console.log(`Forgatás beállítva betöltéskor: sor=${row}, oszlop=${col}, forgatás=${style.rotation}°`);
+                                } else {
+                                    console.log(`Nincs forgatási érték a cellában: sor=${row}, oszlop=${col}`);
+                                    hot.setCellMeta(row, col, 'rotation', 0);
+                                }
+
+                                hot.setCellMeta(row, col, 'renderer', imageRenderer);
+                            }
+                        });
+
+                        hot.render();
+                        console.log("Táblázat újrarajzolva a forgatások alkalmazása után.");
+                    } else {
+                        console.log("Nincsenek cellastílusok a betöltött adatokban vagy nem tömb formátumban érkeztek.");
+                    }
+                }, 500);
+
+            } else {
+                alert(data.message || 'Nem található jelentés.');
+            }
+        })
+        .catch(error => {
+            console.error('Hiba történt a jelentés betöltésekor:', error);
+        });
+});
+
+// Jegyzőkönyv mentése
+document.getElementById('saveReportBtn').addEventListener('click', async () => {
+    const projectId = document.getElementById('projectId').value;
+
+    if (!hot) {
+        alert('Nincs betöltött jegyzőkönyv a mentéshez!');
+        return;
+    }
+
+    // Megerősítő alert hozzáadása
+    const confirmSave = window.confirm('Biztosan szeretné menteni a jegyzőkönyvet?');
+    if (!confirmSave) {
+        return; // Ha a felhasználó a "Nem" gombra kattint, a mentés megszakad
+    }
+
+    // Alapadatok összegyűjtése
+    const data = hot.getData();
+    const mergePlugin = hot.getPlugin('mergeCells');
+    const currentMergeCells = mergePlugin
+        ? mergePlugin.mergedCellsCollection.mergedCells
+        : [];
+
+    // Oszlop és sor méretek lekérése
+    const columnSizes = Array.from(
+        { length: hot.countCols() },
+        (_, index) => hot.getColWidth(index)
+    );
+
+    const rowSizes = Array.from(
+        { length: hot.countRows() },
+        (_, index) => hot.getRowHeight(index)
+    );
+
+    // Cellastílusok összegyűjtése
+    const cellStyles = [];
+    const totalRows = hot.countRows();
+    const totalCols = hot.countCols();
+
+    console.log("Cellastílusok összegyűjtése...");
+    for (let row = 0; row < totalRows; row++) {
+        for (let col = 0; col < totalCols; col++) {
+            const td = hot.getCell(row, col);
+            const cellMeta = hot.getCellMeta(row, col);
+            const value = hot.getDataAtCell(row, col);
+
+            if (td) {
+                const computedStyle = window.getComputedStyle(td);
+                const className = td.className;
+                const color = cellMeta.color;
+
+                // Kép forgatás ellenőrzése és mentése
+                let rotation = undefined;
+                if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
+                    rotation = cellMeta.rotation || 0;
+                    console.log(`Kép cella: sor=${row}, oszlop=${col}, forgatás=${rotation}°`);
+                }
+
+                if (computedStyle.backgroundColor !== 'transparent' ||
+                    computedStyle.color !== 'rgb(0, 0, 0)' ||
+                    computedStyle.fontWeight !== '400' ||
+                    computedStyle.fontSize !== '14px' ||
+                    computedStyle.textAlign !== 'left' ||
+                    className ||
+                    color ||
+                    rotation !== undefined // Forgatás figyelése
+                ) {
+                    cellStyles.push({
+                        row: row,
+                        col: col,
+                        backgroundColor: computedStyle.backgroundColor,
+                        color: color,
+                        fontWeight: computedStyle.fontWeight,
+                        fontSize: computedStyle.fontSize,
+                        textAlign: computedStyle.textAlign,
+                        borderColor: computedStyle.borderColor,
+                        className: className,
+                        rotation: typeof rotation === 'number' ? rotation : 0 // Forgatás mentése
+                    });
+                }
+            }
+        }
+    }
+
+    // Debug: Ellenőrizzük a mentett cellastílusokat
+    console.log("Mentett cellStyles:", cellStyles);
+
+    try {
+        const response = await fetch('/reports/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                data: data,
+                projectId: projectId,
+                mergeCells: currentMergeCells,
+                columnSizes: columnSizes,
+                rowSizes: rowSizes,
+                cellStyles: cellStyles
+            }),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+        } else {
+            alert(result.message || 'Hiba történt a mentés során.');
+        }
+    } catch (error) {
+        console.error('Hiba történt a mentéskor:', error);
+        alert('Hiba történt a mentés során. Kérjük próbálja újra.');
+    }
+});
+    </script>
+
+<!-- .xlsx letöltés -->
+<!--<form action="/reports//download" method="GET">
+    <button type="submit">Letöltés .xlsx</button>
+</form> -->
+
+<!-- .pdf letöltés -->
+ <form action="/reports/<%= projectId %>/download-pdf" method="GET">
+    <button type="submit" class="btn-blue">Letöltés .pdf</button>
+</form>
+    
+    <form action="/user/projects" method="GET">
+        <button type="submit" class="logout-btn">Vissza a projektekhez</button>
+    </form>
+
+</body>
+</html>

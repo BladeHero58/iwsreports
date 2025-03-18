@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" 1  href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet"> 
+    
+</head>
+<body>
+    <h1>Üdvözlünk, <%= user.username %>!</h1>
+        <p>Felhasználói jogosultságokkal rendelkezel</p>
+    <h2>Felhasználói információk:</h2>
+<!-- További információk -->
+
+    <ul>
+        <li><strong>Felhasználónév:</strong> <%= user.username %></li>
+        <li><strong>ID:</strong> <%= user.id %></li>
+    </ul>
+
+    <section>
+        <form action="/user/projects" method="get">
+            <button type="submit" class="btn">Projektjeim</button>
+        </form>
+    </section>
+    
+    <form action="/profile" method="get">
+        <button type="submit" class="btn">Profil megtekintése</button>
+    </form>
+
+    <form action="/logout" method="GET">
+        <button type="submit" class="logout-btn">Kijelentkezés</button>
+    </form>
+
+    
+</body>
+</html>

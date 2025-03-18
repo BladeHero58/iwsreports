@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projekt szerkesztése</title>
+
+    <link rel="stylesheet" href="/css/style.css">
+
+</head>
+<body>
+    <h1>Projekt szerkesztése: <%= project.name %></h1>
+
+    <form action="/user/projects/edit/<%= project.id %>" method="post" onsubmit="return confirm('Biztosan szeretné módosítani ezt a projektet?');">
+        <label for="name">Projekt neve:</label><br>
+        <input type="text" id="name" name="name" value="<%= project.name %>" required><br><br>
+
+        <label for="description">Leírás:</label><br>
+        <textarea id="description" name="description" required><%= project.description %></textarea><br><br>
+
+        <label for="status">Állapot:</label><br>
+        <select id="status" name="status">
+            <option value="Elindítandó" <%= project.status === 'Elindítandó' ? 'selected' : '' %>>Elindítandó</option>
+            <option value="Folyamatban" <%= project.status === 'Folyamatban' ? 'selected' : '' %>>Folyamatban</option>
+            <option value="Befejezett" <%= project.status === 'Befejezett' ? 'selected' : '' %>>Befejezett</option>
+        </select><br><br>
+
+        <button type="submit" class="btn">Mentés</button>
+    </form>
+
+    <br>
+    
+    <form action="/user/projects/<%= projectId %>" method="GET">
+        <button type="submit" class="logout-btn">Vissza a projekt részleteihez</button>
+    </form>
+    
+</body>
+</html>

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Felhasználók Hozzárendelése</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <h1>Felhasználók hozzárendelése a projekthez</h1>
+    <nav>
+      <a href="/admin-dashboard">Vissza a Dashboard-ra</a>
+    </nav>
+  </header>
+
+  <section>
+    <form action="/admin/projects/<%= project.id %>/assign-users" method="POST">
+      <h2>Felhasználók listája</h2>
+      <label for="assignedUsers">Felhasználók kiválasztása:</label>
+      <select name="assignedUsers" id="assignedUsers" multiple>
+        <% users.forEach((user) => { %>
+          <option value="<%= user.id %>"
+            <%= project.assignedUsers && project.assignedUsers.includes(user.id) ? 'selected' : '' %>
+          >
+            <%= user.username %>
+          </option>
+        <% }) %>
+      </select>
+
+      <button type="submit" class="btn">Felhasználók hozzárendelése</button>
+    </form>
+  </section>
+</body>
+</html>
+

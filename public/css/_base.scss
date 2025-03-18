@@ -1,0 +1,14 @@
+$primary-color: #f6ee48;
+
+body {
+    background-color: #ffffff;
+    background-image: url('../images/7.jpg');
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    margin-left: 3%; /* 3% margó balról */
+}
+
+h1, h2, h3, h4, h5, h6, p, li, a, button {
+  font-family: 'Montserrat', sans-serif; /* Montserrat betűtípus minden szövegelemhez */
+}
