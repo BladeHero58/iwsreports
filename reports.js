@@ -9,6 +9,7 @@ const path = require('path');
 const mime = require('mime-types');
 
 // PostgreSQL konfiguráció
+/*
 const pool = new Pool({
     user: 'postgres', // PostgreSQL felhasználónév
     host: 'localhost',     // Ha helyi gépen fut, ez marad
@@ -16,6 +17,17 @@ const pool = new Pool({
     password: 'dbzzed58', // Az adatbázishoz tartozó jelszó
     port: 5432,            // PostgreSQL alapértelmezett portja
 });
+*/
+
+const pool = new Pool({
+    user: process.env.PGUSER,
+    host: process.env.PGHOST,
+    database: process.env.PGDATABASE,
+    password: process.env.PGPASSWORD,
+    port: process.env.PGPORT,
+  });
+  
+  module.exports = pool;
 
 const router = express.Router(); 
 
