@@ -144,10 +144,25 @@ app.post('/register', async (req, res) => {
   }
 });
 
-//login
+// login
 app.post(
   '/login',
-  passport.authenticate('local', { failureRedirect: '/login' }),
+  (req, res, next) => {
+    passport.authenticate('local', (err, user, info) => {
+      if (err) {
+        return next(err);
+      }
+      if (!user) {
+        return res.status(401).json({ message: 'A felhasználónév és jelszó páros nem megfelelő.' });
+      }
+      req.logIn(user, (err) => {
+        if (err) {
+          return next(err);
+        }
+        return next(); // Sikeres hitelesítés, folytatjuk a következő middleware-rel
+      });
+    })(req, res, next);
+  },
   async (req, res) => {
     try {
       // A bejelentkezett felhasználó adatainak ellenőrzése
