@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: iwsreports # Cseréld ki a szolgáltatásod nevére
+    runtime: docker
+    build:
+      dockerfile: Dockerfile
+    routes:
+      - type: path
+        path: /*
+    envVars:
+      - key: PUPPETEER_CACHE_DIR
+        value: /tmp/puppeteer_cache
+      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+        value: true
