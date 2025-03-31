@@ -755,19 +755,31 @@ router.get('/:projectId/download-pdf', async (req, res) => {
         // Enhanced PDF generation settings
         const browser = await puppeteer.launch({
             headless: "new",
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--disable-software-rasterizer'
+            ],
+            defaultViewport: {
+                width: 4000, // Nagyobb szélesség
+                height: 3000, // Nagyobb magasság
+                deviceScaleFactor: 3.0 // Növelt felbontás a jobb láthatóságért
+            },
+            // Próbáljuk meg használni a telepített Chrome-ot,
+            // ha elérhető, különben használja a Puppeteer beépített böngészőjét
+            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined
         });
         
         const page = await browser.newPage();
-        await page.setViewport({
-            width: 4000, // Nagyobb szélesség
-            height: 3000, // Nagyobb magasság
-            deviceScaleFactor: 3.0 // Növelt felbontás a jobb láthatóságért (2.5 helyett 3.0)
-        });
+        
+        // Időtúllépések növelése, hogy több idő legyen a nagy tartalom feldolgozására
+        await page.setDefaultNavigationTimeout(90000);
         
         await page.setContent(htmlContent, {
             waitUntil: ['load', 'networkidle0'],
-            timeout: 60000
+            timeout: 90000 // Megnövelt időkorlát (60000-ről 90000-re)
         });
         
         const tempDir = path.join(__dirname, 'tmp');
