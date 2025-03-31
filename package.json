@@ -5,8 +5,6 @@
   "main": "server.js",
   "scripts": {
     "start": "node migrate.js && node server.js",
-    "build": "npx puppeteer browsers install chrome",
-    "postinstall": "npx puppeteer browsers install chrome",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
@@ -29,11 +27,9 @@
     "pg": "^8.14.1",
     "pg-promise": "^11.10.2",
     "puppeteer": "^24.0.0",
+    "puppeteer-core": "^24.4.0",
     "sharp": "^0.33.5",
     "uuid": "^11.0.3",
     "xlsx": "^0.18.5"
-  },
-  "engines": {
-    "node": ">=16"
   }
 }
