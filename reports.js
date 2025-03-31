@@ -8,6 +8,7 @@ const sharp = require('sharp');
 const path = require('path');
 const mime = require('mime-types');
 
+
 // PostgreSQL konfiguráció
 /*
 const pool = new Pool({
@@ -754,8 +755,8 @@ router.get('/:projectId/download-pdf', async (req, res) => {
 
         // Enhanced PDF generation settings
         const browser = await puppeteer.launch({
-            executablePath: '/usr/bin/google-chrome', // Vagy a megfelelő elérési út
-            args: ['--no-sandbox', '--disable-setuid-sandbox'] // Fontos a Render esetén
+            executablePath: '/usr/bin/chromium-browser',
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
           });
         
         const page = await browser.newPage();
