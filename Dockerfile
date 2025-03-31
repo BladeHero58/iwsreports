@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y wget gnupg ca-c
 
 # Puppeteer cache mappa beállítása
 ENV PUPPETEER_CACHE_DIR=/tmp/puppeteer_cache
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 # Port beállítása (ha szükséges)
 EXPOSE 3000
