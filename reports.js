@@ -755,7 +755,7 @@ router.get('/:projectId/download-pdf', async (req, res) => {
 
         // Enhanced PDF generation settings
         const browser = await puppeteer.launch({
-            executablePath: '/usr/bin/chromium',
+            executablePath: '/opt/google/chrome/chrome',
             args: ['--no-sandbox', '--disable-setuid-sandbox']
           });
         
