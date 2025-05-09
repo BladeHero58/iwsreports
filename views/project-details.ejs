@@ -90,6 +90,17 @@
 .handsontable tr.beszurt-sor { /* vagy valamilyen más egyedi osztály */
     height: 70px !important; /* vagy a kívánt magasság */
 }
+
+.vertical-text {
+    writing-mode: vertical-lr; /* Balról jobbra, függőlegesen */
+    /* vagy */
+    /* writing-mode: vertical-rl; /* Jobbról balra, függőlegesen */
+}
+
+.cell-centered {
+    text-align: center !important;
+    vertical-align: middle !important;
+}
       </style>
 
     <title>Projekt részletei</title>
@@ -187,11 +198,14 @@
 
 // Kezdeti cella stílusok beállítása a táblázat létrehozásakor
 const setupInitialCellStyles = (hot, data) => {
+    console.log("Frontend oldali data.cellStyles a setupInitialCellStyles függvényben:", data.cellStyles);
     if (data.cellStyles && Array.isArray(data.cellStyles)) {
         data.cellStyles.forEach(style => {
             const row = style.row;
             const col = style.col;
             const value = hot.getDataAtCell(row, col);
+
+            console.log(`setupInitialCellStyles: Sor=${row}, Oszlop=${col}, Stílus=${JSON.stringify(style)}`);
 
             // Kép renderer és forgatás beállítása
             if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
@@ -201,12 +215,33 @@ const setupInitialCellStyles = (hot, data) => {
                 }
             }
 
-            // Egyéb stílusok beállítása
+            // Egyéb stílusok beállítása a cellMeta-ban
+            if (style.backgroundColor) {
+                hot.setCellMeta(row, col, 'backgroundColor', style.backgroundColor);
+            }
             if (style.color) {
                 hot.setCellMeta(row, col, 'color', style.color);
             }
+            if (style.fontWeight) {
+                hot.setCellMeta(row, col, 'fontWeight', style.fontWeight);
+            }
+            if (style.fontSize) {
+                hot.setCellMeta(row, col, 'fontSize', style.fontSize);
+            }
+            if (style.textAlign) {
+                hot.setCellMeta(row, col, 'textAlign', style.textAlign);
+            }
+            if (style.borderColor) {
+                hot.setCellMeta(row, col, 'borderColor', style.borderColor);
+            }
+            if (style.className) {
+                hot.setCellMeta(row, col, 'className', style.className);
+            }
+            if (style.rotation !== undefined) {
+                hot.setCellMeta(row, col, 'rotation', style.rotation);
+            }
         });
-        
+
         hot.render();
     }
 };
@@ -229,6 +264,25 @@ function exportToJson(hotInstance) {
         });
     });
     return json;
+}
+
+// Sorszámozás frissítése függvény - utolsó 10 sorban nem módosít semmit
+function updateRowNumbers(hot) {
+    const rowCount = hot.countRows();
+    
+    // Ne számozzuk az utolsó 10 sort
+    const lastNumberedRow = rowCount - 11; // Az utolsó számozott sor indexe
+    
+    // Csak a 11. és az utolsó 10 sor közötti sorokat számozzuk
+    let counter = 1; // Kezdő sorszám
+    
+    for (let row = 11; row <= lastNumberedRow; row++) {
+        // A 0. oszlopba beírjuk a sorszámot
+        hot.setDataAtCell(row, 0, counter.toString());
+        counter++;
+    }
+    
+    // Az utolsó 10 sort nem módosítjuk, meghagyjuk az eredeti tartalmukat
 }
 
 // Handsontable inicializálása
@@ -292,27 +346,44 @@ function displayEditableTable(data, mergeCells, colWidths, rowHeights) {
         { value: 'NA', color: 'white' }
     ];
 
-    // Egyedi renderer a színes cellákhoz
-    function colorRenderer(instance, td, row, col, prop, value, cellProperties) {
-        Handsontable.renderers.TextRenderer.apply(this, arguments);
+// Egyedi renderer a színes cellákhoz
+function colorRenderer(instance, td, row, col, prop, value, cellProperties) {
+    Handsontable.renderers.TextRenderer.apply(this, arguments);
 
-        if (cellProperties.type === 'dropdown') {
-            Handsontable.renderers.DropdownRenderer.apply(this, arguments);
-        }
+    if (cellProperties.type === 'dropdown') {
+        Handsontable.renderers.DropdownRenderer.apply(this, arguments);
+    }
 
-        // FEKETE SOROK: Egyszerűsített feltétel
-        if ((row < 7 && row > 2) || row === 10) {
-            td.style.backgroundColor = 'black';
-            td.style.color = 'yellow';
-            td.style.fontWeight = 'bold';
-            return;
-        }
+    const rowCount = instance.countRows();
+    const tenthRowFromBottom = rowCount - 10;
 
-    // A többi feltétel változatlan marad...
+    if (row === tenthRowFromBottom && (col === 0 || col === 1)) {
+        td.style.backgroundColor = 'black';
+        td.style.color = 'yellow';
+        td.style.fontWeight = 'bold';
+        instance.setCellMeta(row, col, 'backgroundColor', 'black');
+        instance.setCellMeta(row, col, 'color', 'yellow');
+        instance.setCellMeta(row, col, 'fontWeight', 'bold');
+        return;
+    }
+
+    if ((row < 7 && row > 2) || row === 8 || row === 10) {
+        td.style.backgroundColor = 'black';
+        td.style.color = 'yellow';
+        td.style.fontWeight = 'bold';
+        instance.setCellMeta(row, col, 'backgroundColor', 'black');
+        instance.setCellMeta(row, col, 'color', 'yellow');
+        instance.setCellMeta(row, col, 'fontWeight', 'bold');
+        return;
+    }
+
     if (col === 7) {
         const riskOption = riskOptions.find(option => option.value === value);
         if (riskOption) {
             td.style.backgroundColor = riskOption.color;
+            td.style.color = 'black';
+            instance.setCellMeta(row, col, 'backgroundColor', riskOption.color);
+            instance.setCellMeta(row, col, 'color', 'black');
             return;
         }
     }
@@ -321,46 +392,164 @@ function displayEditableTable(data, mergeCells, colWidths, rowHeights) {
         const statusOption = statusOptions.find(option => option.value === value);
         if (statusOption) {
             td.style.backgroundColor = statusOption.color;
+            td.style.color = 'black';
+            instance.setCellMeta(row, col, 'backgroundColor', statusOption.color);
+            instance.setCellMeta(row, col, 'color', 'black');
             return;
         }
     }
 
-    const color = cellProperties.color || getInitialRowColor(row);
-    td.style.backgroundColor = color;
+    if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
+        return;
+    }
+
+    // Először a 'backgroundColor' metaadatot ellenőrizzük
+    const storedBackgroundColor = cellProperties.backgroundColor;
+    if (storedBackgroundColor) {
+        td.style.backgroundColor = storedBackgroundColor;
+        td.style.color = storedBackgroundColor === 'black' ? 'yellow' : 'black';
+        return;
+    }
+
+    // Ha nincs 'backgroundColor', akkor nézzük a 'color' metaadatot a beszúrt sorokhoz
+    const storedColor = cellProperties.color;
+    if (row >= 11 && row < tenthRowFromBottom && storedColor) {
+        td.style.backgroundColor = storedColor;
+        td.style.color = 'black'; // A szöveg színe maradjon fekete a beszúrt sorokban
+        return;
+    }
+
+    // Ha nincs tárolt szín a metaadatokban, akkor nézzük a localStorage-t
+    const rowColors = JSON.parse(localStorage.getItem('rowColors')) || {};
+    if (rowColors[row]) {
+        td.style.backgroundColor = rowColors[row];
+        td.style.color = rowColors[row] === 'black' ? 'yellow' : 'black';
+        return;
+    }
+
+    // Beszúrt dinamikus sorok alternáló színezése (átdolgozva)
+    if (row >= 11 && row < tenthRowFromBottom) {
+        // Az eltolás biztosítja, hogy az első dinamikus sor fehér legyen
+        const isEven = (row - 11) % 2 === 0;
+        const backgroundColor = isEven ? 'white' : '#D7D7D7';
+        td.style.backgroundColor = backgroundColor;
+        td.style.color = 'black';
+        
+        // Beállítjuk a metaadatot és mentjük a LocalStorage-ba is
+        instance.setCellMeta(row, col, 'backgroundColor', backgroundColor);
+        instance.setCellMeta(row, col, 'color', 'black');
+        
+        // Frissítjük a rowColors objektumot
+        if (!rowColors[row]) {
+            rowColors[row] = backgroundColor;
+            localStorage.setItem('rowColors', JSON.stringify(rowColors));
+        }
+    }
 }
 
-     // Kezdeti színek meghatározása
- function getInitialRowColor(row) {
-        if (row < 7 || row === 10) return 'black';
+// Dinamikusan meghatározza a sor színét
+function getRowColor(row, hotInstance) {
+    if ((row < 7 && row > 2) || row === 10) {
+        return 'black';
     }
+
+    // Az első 11 sor színe ne változzon alapértelmezetten
+    if (row < 11) {
+        return ''; // Vagy 'white', ha alapértelmezetten fehérnek kell lennie
+    }
+
+    const rowCount = hotInstance.countRows();
+    const tenthRowFromBottom = rowCount - 10;
+    
+    // Ha az utolsó 10 sorban vagyunk, nem alkalmazunk színt
+    if (row >= tenthRowFromBottom) {
+        return '';
+    }
+    
+    // Beszúrt dinamikus sorok - az első FEHÉR legyen, nem szürke
+    const isEven = (row - 11) % 2 === 0;
+    return isEven ? 'white' : '#D7D7D7';
+}
+
+// A getInitialRowColor függvényt is módosítjuk
+function getInitialRowColor(row, hotInstance) {
+    const rowCount = hotInstance.countRows();
+    const tenthRowFromBottom = rowCount - 10;
+    
+    if ((row < 7 && row > 2) || row === 10) return 'black';
+    
+    // A 11. sortól az utolsó 10 sor kezdetéig alkalmazzuk a váltakozó színeket
+    if (row >= 11 && row < tenthRowFromBottom) {
+        const isEven = (row - 11) % 2 === 0;
+        return isEven ? 'white' : '#D7D7D7';
+    }
+    
+    return ''; // Alapértelmezett érték
+}
    
 
-    // Define saveRowColor *before* it's used
+  // Define saveRowColor (módosítva, hogy figyelembe vegye az első 11 sort)
 function saveRowColor(row, color) {
     const rowColors = JSON.parse(localStorage.getItem('rowColors')) || {};
-    rowColors[row] = color;
-    localStorage.setItem('rowColors', JSON.stringify(rowColors));
+    
+    // A dinamikus sorok színeinek mentése
+    if (row >= 11) {
+        rowColors[row] = color;
+        localStorage.setItem('rowColors', JSON.stringify(rowColors));
+    }
 }
 
-// Define loadRowColors *before* it's used
-function loadRowColors(hotInstance) { // Pass the Handsontable instance
+// Define loadRowColors (módosítva)
+function loadRowColors(hotInstance) {
+    console.log("loadRowColors függvény meghívva");
+
     const rowColors = JSON.parse(localStorage.getItem('rowColors')) || {};
+    console.log("Betöltött sor színek:", rowColors);
 
-    for (const row in rowColors) {
-        const color = rowColors[row];
-        const rowNum = parseInt(row);
+    const rows = hotInstance.countRows();
+    const cols = hotInstance.countCols();
+    const lastTenRowsStart = rows - 10;
 
-        if (rowNum >= 0 && rowNum < hotInstance.countRows() && !(rowNum < 7 || rowNum === 10)) {
-            for (let col = 0; col < hotInstance.countCols(); col++) {
-                hotInstance.setCellMeta(rowNum, col, 'renderer', colorRenderer);
-                hotInstance.setCellMeta(rowNum, col, 'color', color);
+    for (let row = 0; row < rows; row++) {
+        // Hagyjuk ki a fekete sorokat ÉS az utolsó 10 sort
+        if ((row < 7 && row > 2) || row === 8 || row === 10 || row >= lastTenRowsStart) continue;
+
+        if (rowColors[row]) {
+            console.log(`Szín alkalmazása a ${row}. sorra: ${rowColors[row]}`);
+            for (let col = 0; col < cols; col++) {
+                hotInstance.setCellMeta(row, col, 'renderer', colorRenderer);
+                hotInstance.setCellMeta(row, col, 'color', rowColors[row]);
+            }
+        } else if (row >= 11 && row < lastTenRowsStart) {
+            // Módosított sor a váltakozó színezéshez - az első dinamikus sor FEHÉR
+            const isEven = (row - 11) % 2 === 0;
+            const color = isEven ? 'white' : '#D7D7D7';
+            
+            for (let col = 0; col < cols; col++) {
+                hotInstance.setCellMeta(row, col, 'renderer', colorRenderer);
+                hotInstance.setCellMeta(row, col, 'backgroundColor', color);
+                hotInstance.setCellMeta(row, col, 'color', 'black');
+            }
+            
+            // Mentsük el a színt a localStorage-ba is
+            rowColors[row] = color;
+        } else if (row >= lastTenRowsStart) {
+            // Az utolsó 10 sorban töröljük a 'color' és 'backgroundColor' metaadatot
+            for (let col = 0; col < cols; col++) {
+                hotInstance.setCellMeta(row, col, 'color', undefined);
+                hotInstance.setCellMeta(row, col, 'backgroundColor', undefined);
             }
         }
     }
+    
+    // Mentsük el a frissített színeket
+    localStorage.setItem('rowColors', JSON.stringify(rowColors));
 
     hotInstance.render();
+    console.log("Sorszínek betöltve és alkalmazva");
 }
 
+console.log("A data objektum a Handsontable inicializálása előtt:", data);
     //Handsontable inicializálása
     hot = new Handsontable(container, {
         data: data,
@@ -371,55 +560,54 @@ function loadRowColors(hotInstance) { // Pass the Handsontable instance
         contextMenu: {
             items: {
                 "row_above": {
-                    name: "Sor beszúrása felülre",
-    callback: function(key, selection) {
-        const row = selection[0].start.row;
-        this.alter('insert_row_above', row);
-
-        // Frissítjük a rowHeights tömböt
-        const rowHeights = this.getSettings().rowHeights;
-        rowHeights.splice(row, 0, 180); // Beszúrt sor magassága
-        this.updateSettings({ rowHeights: rowHeights });
-
-        const cols = this.countCols();
-        for (let col = 0; col < cols; col++) {
-            if (row < 7 || row === 10) continue;
-            this.setCellMeta(row, col, 'renderer', colorRenderer);
-            this.setCellMeta(row, col, 'color', getInitialRowColor(row));
-        }
-        this.render();
+  name: "Sor beszúrása felülre",
+  callback: function(key, selection) {
+    const row = selection[0].start.row;
+    this.alter('insert_row_above', row);
+    const rowHeights = this.getSettings().rowHeights;
+    rowHeights.splice(row, 0, 180);
+    this.updateSettings({ rowHeights: rowHeights });
+    const cols = this.countCols();
+    for (let col = 0; col < cols; col++) {
+      if (row < 7 || row === 10) continue;
+      this.setCellMeta(row, col, 'renderer', colorRenderer);
+      // A szín a getRowColor függvényben dinamikusan generálódik
     }
+    // Sorszámozás frissítése
+    if (row >= 11) {
+      updateRowNumbers(this);
+    }
+    this.render();
+  }
 },
 "row_below": {
-    name: "Sor beszúrása alulra",
-    callback: function(key, selection) {
-        const row = selection[0].start.row;
-        this.alter('insert_row_below', row);
-
-        // Frissítjük a rowHeights tömböt
-        const rowHeights = this.getSettings().rowHeights;
-        rowHeights.splice(row + 1, 0, 180); // Beszúrt sor magassága (alulra szúráskor +1)
-        this.updateSettings({ rowHeights: rowHeights });
-
-        const cols = this.countCols();
-        for (let col = 0; col < cols; col++) {
-            if (row + 1 < 7 || row + 1 === 10) continue; // +1 az alsó beszúráshoz
-            this.setCellMeta(row + 1, col, 'renderer', colorRenderer); // +1 az alsó beszúráshoz
-            this.setCellMeta(row + 1, col, 'color', getInitialRowColor(row + 1)); // +1 az alsó beszúráshoz
-        }
-        this.render();
+  name: "Sor beszúrása alulra",
+  callback: function(key, selection) {
+    const row = selection[0].start.row;
+    this.alter('insert_row_below', row);
+    const rowHeights = this.getSettings().rowHeights;
+    rowHeights.splice(row + 1, 0, 180);
+    this.updateSettings({ rowHeights: rowHeights });
+    const cols = this.countCols();
+    for (let col = 0; col < cols; col++) {
+      if (row + 1 < 7 || row + 1 === 10) continue; // +1 az alsó beszúráshoz
+      this.setCellMeta(row + 1, col, 'renderer', colorRenderer);
+      // A szín a getRowColor függvényben dinamikusan generálódik
     }
+    // Sorszámozás frissítése
+    if (row >= 10) { // Alulra beszúrás esetén már a 10. sortól
+      updateRowNumbers(this);
+    }
+    this.render();
+  }
 },
-                "col_left": {name: "Oszlop beszúrása balra"},
-                "col_right": {name: "Oszlop beszúrása jobbra"},
                 "remove_row": {name: "Sor eltávolítása"},
-                "remove_col": {name: "Oszlop eltávolítása"},
                "colorize_row": {
     name: "Sor színezése",
     callback: function(key, selection) {
         const row = selection[0].start.row;
         const cols = this.countCols();
-        const color = '#fff2cc'; // Rögzített szín
+        const color = '#D7D7D7'; // Rögzített szín
 
         if (row >= 0 && row < this.countRows() && !(row < 7 || row === 10)) {
             for (let col = 0; col < cols; col++) {
@@ -617,135 +805,176 @@ function loadRowColors(hotInstance) { // Pass the Handsontable instance
             { type: 'text' }
         ],
         beforeChange: function(changes, source) {
-        if (source === 'insert_row_above' || source === 'insert_row_below') {
-            const rowCount = this.countRows();
-            for (let i = 0; i < rowCount; i++) {
-                // Kivéve az első 7 sort és a 10. sort
-                if (i < 7 || i === 10) continue;
-                this.setRowHeight(i, 180);
-            }
-        }
-    },
-    afterCreateRow: function(index, amount) {
-    const cols = this.countCols();
-    for (let col = 0; col < cols; col++) {
-        if (index < 7 || index === 10) continue;
-        this.setCellMeta(index, col, 'renderer', colorRenderer);
-        this.setCellMeta(index, col, 'color', getInitialRowColor(index));
+  if (source === 'insert_row_above' || source === 'insert_row_below') {
+    const rowHeights = this.getSettings().rowHeights || [];
+    const rowCount = this.countRows();
+    while (rowHeights.length < rowCount) {
+      rowHeights.push(undefined); // Alapértelmezett magasság
     }
-    this.render();
+    for (let i = 0; i < rowCount; i++) {
+      if (i < 7 || i === 10) continue;
+      if (!rowHeights[i]) {
+        rowHeights[i] = 180;
+      }
+    }
+    this.updateSettings({ rowHeights: rowHeights });
+  }
+},
+afterCreateRow: function(index, amount) {
+  const cols = this.countCols();
+  for (let col = 0; col < cols; col++) {
+    if (index < 7 || index === 10) continue;
+    this.setCellMeta(index, col, 'renderer', colorRenderer);
+    // Új: A szín dinamikus beállítása a cellMeta-ban
+    const rowColor = getRowColor(index, this);
+    if (rowColor) {
+      this.setCellMeta(index, col, 'color', rowColor);
+    }
+  }
+  this.render();
 },
 // Adjunk hozzá egy beforeRender hook-ot
 beforeRender: function(isForced) {
-            // Végigmegyünk az összes cellán
-            const rows = this.countRows();
-            const cols = this.countCols();
-
-            for (let row = 0; row < rows; row++) {
-                for (let col = 0; col < cols; col++) {
-                    const value = this.getDataAtCell(row, col);
-                    if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
-                        this.setCellMeta(row, col, 'renderer', imageRenderer);
-                    }
-                }
-            }
-        },
+  // Végigmegyünk az összes cellán
+  const rows = this.countRows();
+  const cols = this.countCols();
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const value = this.getDataAtCell(row, col);
+      if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
+        this.setCellMeta(row, col, 'renderer', imageRenderer);
+      }
+    }
+  }
+},
 
         // Adjunk hozzá egy afterLoadData hook-ot
         afterLoadData: function(initialLoad) {
-            if (initialLoad) {
-                // Cellastílusok visszaállítása
-                if (data.cellStyles && Array.isArray(data.cellStyles)) {
-                    data.cellStyles.forEach(style => {
-                        const row = style.row;
-                        const col = style.col;
-                        
-                        // Beállítjuk a renderereket és metaadatokat
-                        const value = this.getDataAtCell(row, col);
-                        if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
-                            this.setCellMeta(row, col, 'renderer', imageRenderer);
-                            if (style.rotation !== undefined) {
-                                this.setCellMeta(row, col, 'rotation', style.rotation);
-                                console.log(`Kép forgatás visszaállítva: sor=${row}, oszlop=${col}, forgatás=${style.rotation}`);
-                            }
-                        }
-                        
-                        if (style.color) {
-                            this.setCellMeta(row, col, 'color', style.color);
-                        }
-                    });
-                    
-                    this.render(); // Újrarajzolás
-                }
-            }
-        },
-        // Adjunk hozzá egy afterRemoveRow eseménykezelőt a Handsontable inicializálásához
-afterRemoveRow: function(index, amount) {
-    // Frissítsük a cellastílusokat a törölt sorok után
-    const rowsRemoved = amount || 1;
-    
-    // Eredeti cellStyle tömb másolása
-    const storedStyles = JSON.parse(localStorage.getItem('rowColors')) || {};
-    const updatedStyles = {};
-    
-    // Soronként újraindexeljük a cellastílusokat
-    Object.keys(storedStyles).forEach(rowStr => {
-        const row = parseInt(rowStr);
-        
-        if (row < index) {
-            // A törlés előtti sorok maradnak
-            updatedStyles[row] = storedStyles[row];
-        } else if (row >= index + rowsRemoved) {
-            // A törlés utáni sorok indexét csökkentjük a törölt sorok számával
-            updatedStyles[row - rowsRemoved] = storedStyles[row];
+  if (initialLoad) {
+    // Cellastílusok visszaállítása
+    if (data.cellStyles && Array.isArray(data.cellStyles)) {
+      data.cellStyles.forEach(style => {
+        const row = style.row;
+        const col = style.col;
+        // Beállítjuk a renderereket és metaadatokat
+        const value = this.getDataAtCell(row, col);
+        if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
+          this.setCellMeta(row, col, 'renderer', imageRenderer);
+          if (style.rotation !== undefined) {
+            this.setCellMeta(row, col, 'rotation', style.rotation);
+            console.log(`Kép forgatás visszaállítva: sor=${row}, oszlop=${col}, forgatás=${style.rotation}`);
+          }
         }
-        // A törölt sorok stílusait nem vesszük figyelembe
-    });
-    
-    // Új stílusok mentése
-    localStorage.setItem('rowColors', JSON.stringify(updatedStyles));
-    
-    // Táblázat újrarajzolása a helyes színekkel
-    this.render();
+        if (style.color) {
+          // Itt nem állítjuk be a színt, mert a colorRenderer kezeli
+        }
+      });
+      this.render(); // Újrarajzolás
+    }
+  }
+},
+        // Adjunk hozzá egy afterRemoveRow eseménykezelőt a Handsontable inicializálásához
+        afterRemoveRow: function(index, amount) {
+  const rowsRemoved = amount || 1;
+  const storedColors = JSON.parse(localStorage.getItem('rowColors')) || {};
+  const updatedColors = {};
+
+  Object.keys(storedColors).forEach(rowStr => {
+    const row = parseInt(rowStr);
+    if (row < index) {
+      updatedColors[row] = storedColors[row];
+    } else if (row >= index + rowsRemoved) {
+      updatedColors[row - rowsRemoved] = storedColors[row];
+    }
+  });
+  localStorage.setItem('rowColors', JSON.stringify(updatedColors));
+
+  const rowHeights = this.getSettings().rowHeights || [];
+  if (Array.isArray(rowHeights) && rowHeights.length > 0) {
+    rowHeights.splice(index, rowsRemoved);
+    this.updateSettings({ rowHeights: rowHeights });
+  }
+
+  if (index >= 11) {
+    updateRowNumbers(this);
+  }
+  this.render();
 },
 cells: function (row, col) {
-        const cellMeta = {};
-        const value = this.instance.getDataAtCell(row, col);
+    const cellMeta = {};
+    const value = this.instance.getDataAtCell(row, col);
+    const lastRowIndex = this.instance.countRows() - 1;
+    const tenthFromLastRowIndex = lastRowIndex - 9; // Utolsó előtti 10. sor indexe
 
-        if ((row < 7 && row > 2) || row === 8 || row === 10) {
-            cellMeta.renderer = 'html';
-            cellMeta.className = 'black-cell';
-        }
+    // FEKETE CELLÁK BEÁLLÍTÁSA (hozzáadva a row === 10 feltétel)
+    if ((row < 7 && row > 2) || row === 8 || row === 10 || (row === tenthFromLastRowIndex && (col === 0 || col === 1))) {
+        cellMeta.renderer = 'html';
+        cellMeta.className = cellMeta.className ? cellMeta.className + ' black-cell' : 'black-cell';
+    }
 
-        if (typeof value === 'string' && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
-            cellMeta.renderer = imageRenderer;
-            cellMeta.className = 'image-cell'; // Kép cella stílus alkalmazása - MÓDOSÍTVA
-        }
+    // KÖZÉPRE IGAZÍTÁS az utolsó sortól visszafelé számolt 10. sor első két cellájában
+    if (row === tenthFromLastRowIndex && (col === 0 || col === 1)) {
+        const style = {
+            'display': 'flex',
+            'justify-content': 'center',
+            'align-items': 'center',
+            'text-align': 'center'  // Horizontális igazítás biztosítása
+        };
+        cellMeta.style = style;
+        // Adjunk hozzá egy extra osztályt a középre igazításhoz
+        cellMeta.className = cellMeta.className ? cellMeta.className + ' cell-centered' : 'cell-centered';
+    }
 
-        if (row === 0) {
-            cellMeta.className = 'first-row-style';
-        }
+    // Egyéb fekete cellák esetén is középre igazítás, ha szükséges (hozzáadva a row === 10 feltétel)
+    else if ((row < 7 && row > 2) || row === 8 || row === 10) {
+        const style = {
+            'display': 'flex',
+            'justify-content': 'center',
+            'align-items': 'center',
+            'text-align': 'center' // Fontos a vízszintes igazítás!
+        };
+        cellMeta.style = style;
+    }
 
-        if (row === 10) {
-            cellMeta.className = cellMeta.className ? cellMeta.className + ' eleventh-row-style' : 'eleventh-row-style';
-        }
+    if (typeof value === 'string' && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
+        cellMeta.renderer = imageRenderer;
+        cellMeta.className = 'image-cell';
+    }
 
-        if (row === this.instance.countRows() - 1) {
-            cellMeta.className = cellMeta.className ? cellMeta.className + ' last-row-style' : 'last-row-style';
-        }
+    if (row === 0) {
+        cellMeta.className = 'first-row-style';
+    }
 
-        // 8. sor és 11. sor középre igazítása, *mindig* - MÓDOSÍTVA
-        if (row === 8 || row === 10) {
-            cellMeta.className = cellMeta.className ? cellMeta.className + ' htCenter' : 'htCenter';
-        }
+    if (row === 10) {
+        cellMeta.className = cellMeta.className ? cellMeta.className + ' eleventh-row-style' : 'eleventh-row-style';
+    }
 
-        // 11. sor felett középre igazítás, *mindig* (de csak 5. oszloptól kezdve) - MÓDOSÍTVA
-        if (row > 10 && col >= 5) {
-            cellMeta.className = cellMeta.className ? cellMeta.className + ' htCenter' : 'htCenter';
-        }
+    if (row === lastRowIndex) {
+        cellMeta.className = cellMeta.className ? cellMeta.className + ' last-row-style' : 'last-row-style';
+    }
 
-        return cellMeta;
-    },
+    // Függőleges szöveg beállítása a 11. sor 1. oszlopában (ez már itt van)
+    if (row === 10 && col === 0) {
+        cellMeta.className = cellMeta.className ? cellMeta.className + ' vertical-text' : 'vertical-text';
+    }
+
+    // Függőleges szöveg beállítása az utolsótól visszafelé számított 10. sor 1. oszlopában
+    if (row === tenthFromLastRowIndex && col === 0) {
+        cellMeta.className = cellMeta.className ? cellMeta.className + ' vertical-text' : 'vertical-text';
+    }
+
+    // 8. sor és 11. sor középre igazítása, *mindig* (itt a 11. sorra vonatkozó rész már jó)
+    if (row === 8 || row === 10) {
+        cellMeta.className = cellMeta.className ? cellMeta.className + ' htCenter' : 'htCenter';
+    }
+
+    // 11. sor felett középre igazítás, *mindig* (de csak 5. oszloptól kezdve)
+    if (row > 10 && col >= 5) {
+        cellMeta.className = cellMeta.className ? cellMeta.className + ' htCenter' : 'htCenter';
+    }
+
+    return cellMeta;
+},
     });
     loadRowColors(hot); // <--- IDE, közvetlenül a Handsontable létrehozása UTÁN
     // Új: Képek forgatásának explicit visszaállítása
@@ -767,6 +996,10 @@ cells: function (row, col) {
             hot.render();
         }, 200); // Kis késleltetés a DOM frissítésének biztosítása érdekében
     }
+    // Frissítsük a sorok színeit a táblázat inicializálásakor is
+if (hot && hot.render) {
+  hot.render();
+}
 }
 
 // Új jegyzőkönyv generálása
@@ -788,6 +1021,7 @@ document.getElementById('generateReportBtn').addEventListener('click', () => {
     data[6][7] = "2040 Budaörs (Terrapark), Puskás Tivadar út 14/C.";
     data[6][1] = "Építkezés jellege:";
     data[8][3] = "Észrevételek, megfigyelések, megjegyzések";
+    data[11][0] = "1";
     data[16][3] = "Pecsét helye";
 
     data[10] = [
@@ -796,7 +1030,7 @@ document.getElementById('generateReportBtn').addEventListener('click', () => {
         "Hiba súlyossága", "Jegyzőkönyvbe felvéve", "Határidő",
         "Státusz", "Kiszabható bírság összege, szankciós listában szereplő sorszáma"
     ];
-    
+
     data[12][0] = "Sorszám";
     data[12][1] = "Ellenőrzéskor a helyszínen dolgozó cégek listája";
 
@@ -846,103 +1080,37 @@ document.getElementById('generateReportBtn').addEventListener('click', () => {
         40,   // 1. oszlop: 40px
         180,  // 2. oszlop: 180px
         180,  // 3. oszlop: 180px
-        80,   // 4. oszlop: 80px
-        120,  // 5. oszlop: 120px
+        100,   // 4. oszlop: 80px
+        160,  // 5. oszlop: 120px
         120,  // 6. oszlop: 120px
-        120,  // 7. oszlop: 120px
+        150,  // 7. oszlop: 120px
         120,  // 8. oszlop: 120px
-        120,  // 9. oszlop: 120px
+        130,  // 9. oszlop: 120px
         90,   // 10. oszlop: 90px
-        90,   // 11. oszlop: 90px
+        100,   // 11. oszlop: 90px
         110   // 12. oszlop: 110px
     ];
 
+    // A kívánt kezdeti sor magasságok
+    const initialRowHeights = Array(22).fill(30); // Alapértelmezett magasság minden sornak
+    
+    // Speciális magasságú sorok beállítása
+    initialRowHeights[0] = 80;  // 1. sor: 
+    // 2-9. sor marad 30px
+    initialRowHeights[10] = 180; // 11. sor: 180px
+    initialRowHeights[11] = 180; // 
+    initialRowHeights[12] = 70; // 
+    initialRowHeights[13] = 50; // 
+    initialRowHeights[14] = 50; // 
+    initialRowHeights[15] = 50; // 
+    initialRowHeights[16] = 50; // 
+    initialRowHeights[17] = 50; // 
+    initialRowHeights[18] = 50; // 
+    initialRowHeights[19] = 50; // 
+    initialRowHeights[20] = 50; // 
+    
     // Táblázat létrehozása a kezdeti beállításokkal
-    const hot = displayEditableTable(data, mergeCells, {
-        // Az oszlopok szélességét beállítjuk kezdeti értékként
-        colWidths: initialColWidths,
-        
-        // Engedélyezzük a sorok és oszlopok átméretezését a felhasználók számára
-        manualRowResize: true,
-        manualColumnResize: true,
-        
-        // A cellák beállítása
-        cells: function (row, col) {
-            const cellMeta = {};
-            const value = this.instance.getDataAtCell(row, col);
-
-            if ((row < 7 && row > 2) || row === 8 || row === 10) {
-                cellMeta.renderer = 'html';
-                cellMeta.className = 'black-cell';
-            }
-
-            if (typeof value === 'string' && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
-                cellMeta.renderer = imageRenderer;
-                cellMeta.className = 'image-cell'; // Kép cella stílus alkalmazása
-            }
-
-            if (row === 0) {
-                cellMeta.className = 'first-row-style';
-            }
-
-            if (row === 10) {
-                cellMeta.className = cellMeta.className ? cellMeta.className + ' eleventh-row-style' : 'eleventh-row-style';
-            }
-
-            if (row === this.instance.countRows() - 1) {
-                cellMeta.className = cellMeta.className ? cellMeta.className + ' last-row-style' : 'last-row-style';
-            }
-
-            // 8. sor és 11. sor középre igazítása, *mindig*
-            if (row === 8 || row === 10) {
-                cellMeta.className = cellMeta.className ? cellMeta.className + ' htCenter' : 'htCenter';
-            }
-
-            // 11. sor felett középre igazítás, *mindig* (de csak 5. oszloptól kezdve)
-            if (row > 10 && col >= 5) {
-                cellMeta.className = cellMeta.className ? cellMeta.className + ' htCenter' : 'htCenter';
-            }
-
-            return cellMeta;
-        },
-        
-        afterCreateRow: function(index, amount) {
-    // Beállítjuk az új sorok magasságát 180px-re
-    for (let i = 0; i < amount; i++) {
-        this.setRowHeight(index + i, 180);
-    }
-    this.render(); // Táblázat újrarajzolása sor hozzáadása után
-},
-        
-        // A táblázat betöltése után beállítjuk az első sor magasságát egyszer
-        afterInit: function() {
-            this.setRowHeight(0, 180); // Az első sor magassága 180px
-            this.render();
-        }
-    });
-
-    // Sorok színezése (ha szükséges)
-    loadRowColors(hot);
-
-    // Képek forgatási beállításainak visszaállítása, ha szükséges
-    if (data.cellStyles && Array.isArray(data.cellStyles)) {
-        setTimeout(() => {
-            data.cellStyles.forEach(style => {
-                if (style.rotation !== undefined) {
-                    const row = style.row;
-                    const col = style.col;
-                    const value = hot.getDataAtCell(row, col);
-                    
-                    if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
-                        hot.setCellMeta(row, col, 'renderer', imageRenderer);
-                        hot.setCellMeta(row, col, 'rotation', style.rotation);
-                        console.log(`Késleltetett kép forgatás beállítva: sor=${row}, oszlop=${col}, forgatás=${style.rotation}`);
-                    }
-                }
-            });
-            hot.render();
-        }, 200);
-    }
+    displayEditableTable(data, mergeCells, initialColWidths, initialRowHeights);
 });
 
 // Jegyzőkönyv betöltése
@@ -970,66 +1138,15 @@ document.getElementById('loadReportBtn').addEventListener('click', () => {
 
                 displayEditableTable(data.data, mergeCells, colWidths, rowHeights);
 
-                setTimeout(() => {
-                    let stylesToApply = data.cellStyles;
-
-                    if (!Array.isArray(stylesToApply)) {
-                        try {
-                            stylesToApply = JSON.parse(stylesToApply);
-                        } catch (e) {
-                            console.error("Hiba a cellStyles parse-olásakor a frontend-en:", e);
-                            stylesToApply = [];
-                        }
-                    }
-
-                    if (stylesToApply && Array.isArray(stylesToApply) && stylesToApply.length > 0) {
-                        console.log("Cellastílusok feldolgozása...");
-
-                        // Töröljük a helyi tárolt színeket a betöltés előtt
-            localStorage.removeItem('rowColors');
-            const rowColors = {};
-
-                        stylesToApply.forEach(style => {
-                            const row = style.row;
-                            const col = style.col;
-                            const cellValue = hot.getDataAtCell(row, col);
-
-                            console.log(`Cella ellenőrzése: sor=${row}, oszlop=${col}, érték=${cellValue}, forgatás=${style.rotation}`);
-
-                             // Ellenőrizzük, hogy a sor még létezik-e
-                if (row >= 0 && row < hot.countRows()) {
-                    // Meglévő kód stílusok alkalmazásához
-                    
-                    // Mentsük el a szín információkat is
-                    if (style.color && !(row < 7 || row === 10)) {
-                        rowColors[row] = style.color;
-                    }
+                // A cellastílusok beállítása a setupInitialCellStyles függvény segítségével
+                if (data.cellStyles && Array.isArray(data.cellStyles)) {
+                    setTimeout(() => {
+                        setupInitialCellStyles(hot, { cellStyles: data.cellStyles });
+                        console.log("Kezdeti cellastílusok beállítva a betöltés után.");
+                    }, 300); // Kis késleltetés a táblázat inicializálódásához
+                } else {
+                    console.log("Nincsenek cellastílusok a betöltött adatokban vagy nem tömb formátumban érkeztek.");
                 }
-
-                // Mentsük el az új színeket
-            localStorage.setItem('rowColors', JSON.stringify(rowColors));
-
-                            if (cellValue && (cellValue.startsWith('data:image') || cellValue.startsWith('/uploads/'))) {
-                                console.log(`Kép cella: sor=${row}, oszlop=${col}, érték=${cellValue}`);
-
-                                if (typeof style.rotation === 'number') {
-                                    hot.setCellMeta(row, col, 'rotation', style.rotation);
-                                    console.log(`Forgatás beállítva betöltéskor: sor=${row}, oszlop=${col}, forgatás=${style.rotation}°`);
-                                } else {
-                                    console.log(`Nincs forgatási érték a cellában: sor=${row}, oszlop=${col}`);
-                                    hot.setCellMeta(row, col, 'rotation', 0);
-                                }
-
-                                hot.setCellMeta(row, col, 'renderer', imageRenderer);
-                            }
-                        });
-
-                        hot.render();
-                        console.log("Táblázat újrarajzolva a forgatások alkalmazása után.");
-                    } else {
-                        console.log("Nincsenek cellastílusok a betöltött adatokban vagy nem tömb formátumban érkeztek.");
-                    }
-                }, 500);
 
             } else {
                 alert(data.message || 'Nem található jelentés.');
@@ -1073,58 +1190,53 @@ document.getElementById('saveReportBtn').addEventListener('click', async () => {
         (_, index) => hot.getRowHeight(index)
     );
 
-    // Cellastílusok összegyűjtése
+    // Cellastílusok összegyűjtése a cellMeta-ból
     const cellStyles = [];
     const totalRows = hot.countRows();
     const totalCols = hot.countCols();
 
-    console.log("Cellastílusok összegyűjtése...");
+    console.log("Cellastílusok összegyűjtése a cellMeta-ból...");
     for (let row = 0; row < totalRows; row++) {
         for (let col = 0; col < totalCols; col++) {
-            const td = hot.getCell(row, col);
             const cellMeta = hot.getCellMeta(row, col);
-            const value = hot.getDataAtCell(row, col);
+            const styleObject = {};
 
-            if (td) {
-                const computedStyle = window.getComputedStyle(td);
-                const className = td.className;
-                const color = cellMeta.color;
+            if (cellMeta.backgroundColor) {
+                styleObject.backgroundColor = cellMeta.backgroundColor;
+            }
+            if (cellMeta.color) {
+                styleObject.color = cellMeta.color;
+            }
+            if (cellMeta.fontWeight) {
+                styleObject.fontWeight = cellMeta.fontWeight;
+            }
+            if (cellMeta.fontSize) {
+                styleObject.fontSize = cellMeta.fontSize;
+            }
+            if (cellMeta.textAlign) {
+                styleObject.textAlign = cellMeta.textAlign;
+            }
+            if (cellMeta.borderColor) {
+                styleObject.borderColor = cellMeta.borderColor;
+            }
+            if (cellMeta.className) {
+                styleObject.className = cellMeta.className;
+            }
+            if (cellMeta.rotation !== undefined) {
+                styleObject.rotation = cellMeta.rotation;
+            }
 
-                // Kép forgatás ellenőrzése és mentése
-                let rotation = undefined;
-                if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
-                    rotation = cellMeta.rotation || 0;
-                    console.log(`Kép cella: sor=${row}, oszlop=${col}, forgatás=${rotation}°`);
-                }
-
-                if (computedStyle.backgroundColor !== 'transparent' ||
-                    computedStyle.color !== 'rgb(0, 0, 0)' ||
-                    computedStyle.fontWeight !== '400' ||
-                    computedStyle.fontSize !== '14px' ||
-                    computedStyle.textAlign !== 'left' ||
-                    className ||
-                    color ||
-                    rotation !== undefined // Forgatás figyelése
-                ) {
-                    cellStyles.push({
-                        row: row,
-                        col: col,
-                        backgroundColor: computedStyle.backgroundColor,
-                        color: color,
-                        fontWeight: computedStyle.fontWeight,
-                        fontSize: computedStyle.fontSize,
-                        textAlign: computedStyle.textAlign,
-                        borderColor: computedStyle.borderColor,
-                        className: className,
-                        rotation: typeof rotation === 'number' ? rotation : 0 // Forgatás mentése
-                    });
-                }
+            // Csak akkor adjuk hozzá a cellához a stílust, ha van legalább egy beállított stílus
+            if (Object.keys(styleObject).length > 0) {
+                styleObject.row = row;
+                styleObject.col = col;
+                cellStyles.push(styleObject);
             }
         }
     }
 
     // Debug: Ellenőrizzük a mentett cellastílusokat
-    console.log("Mentett cellStyles:", cellStyles);
+    console.log("Mentett cellStyles (cellMeta-ból):", cellStyles);
 
     try {
         const response = await fetch('/reports/save', {
