@@ -1,7 +1,7 @@
-
+ /*
  const { Pool } = require('pg');
 
- /*
+
 const pool = new Pool({
     user: 'postgres', // PostgreSQL felhasználónév
     host: 'localhost',     // Ha helyi gépen fut, ez marad
