@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# Adjunk futtatási engedélyt a puppeteer binárisnak
+echo "Futtatási engedély adása a puppeteer binárisnak..."
+chmod +x ./node_modules/.bin/puppeteer
+
 # Telepítsd a szükséges függőségeket (ha még nem a Dockerfile-ban tetted)
 echo "Függőségek telepítése..."
 npm install
