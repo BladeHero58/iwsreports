@@ -841,7 +841,7 @@ const htmlContent = `
 //Éles környezet!!! ellenőrző kód
         async function checkChromePath() {
     try {
-        const files = await fs.promises.readdir('/usr/bin'); // Javított sor
+        const files = await fs.promises.readdir('/usr/bin/chromium-browser'); // Javított sor
         console.log('/usr/bin könyvtár tartalma:', files);
         const chromeExists = files.includes('google-chrome') || files.includes('chrome');
         console.log('Chrome létezik?', chromeExists);
