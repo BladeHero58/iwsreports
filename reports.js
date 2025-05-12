@@ -838,50 +838,6 @@ const htmlContent = `
 </html>
 `;
 
-//Éles környezet!!! ellenőrző kód
-async function findChromeBinary(startPath) {
-    try {
-        const entries = await fs.promises.readdir(startPath); // Javított sor
-        for (const entry of entries) {
-            const fullPath = path.join(startPath, entry);
-            const stat = await fs.promises.stat(fullPath); // Javított sor
-            if (stat.isDirectory()) {
-                const found = await findChromeBinary(fullPath);
-                if (found) {
-                    return found;
-                }
-            } else if (stat.isFile() && (entry === 'chrome' || entry === 'chromium-browser' || entry === 'google-chrome')) {
-                const isExecutable = (stat.mode & 0o111) !== 0;
-                if (isExecutable) {
-                    console.log('Futtatható Chrome/Chromium bináris található:', fullPath);
-                    return fullPath;
-                }
-            }
-        }
-        return null;
-    } catch (e) {
-        if (e.code !== 'ENOENT') {
-            console.error('Hiba a könyvtár olvasásakor:', startPath, e);
-        }
-        return null;
-    }
-}
-
-async function checkChromePath() {
-    const chromePath = await findChromeBinary('/');
-    if (chromePath) {
-        console.log('A Chrome elérési útja:', chromePath);
-        // Itt már beállíthatod a puppeteer.launch-ban is, ha megtalálta
-    } else {
-        console.log('Nem található Chrome vagy Chromium bináris a rendszerben.');
-    }
-}
-
-// Hívd meg a függvényt a PDF generálás előtt
-await checkChromePath();
-
-//Éles környezet!!! ellenőrző kód
-
 // PDF generálás Puppeteerrel
 const browser = await puppeteer.launch({
     executablePath: '/opt/google/chrome/chrome', //Éles környezethez!!!!!!!
