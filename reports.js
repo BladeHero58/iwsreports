@@ -840,7 +840,6 @@ const htmlContent = `
 
 // PDF generálás Puppeteerrel
 const browser = await puppeteer.launch({
-    executablePath: '/usr/bin/chromium', //Éles környezet!!!
     headless: "new",
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
 });
