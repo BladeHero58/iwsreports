@@ -839,19 +839,19 @@ const htmlContent = `
 `;
 
 //Éles környezet!!! ellenőrző kód
-  async function findChromeBinary(startPath) {
+async function findChromeBinary(startPath) {
     try {
-        const entries = await fs.readdir(startPath);
+        const entries = await fs.promises.readdir(startPath); // Javított sor
         for (const entry of entries) {
             const fullPath = path.join(startPath, entry);
-            const stat = await fs.stat(fullPath);
+            const stat = await fs.promises.stat(fullPath); // Javított sor
             if (stat.isDirectory()) {
                 const found = await findChromeBinary(fullPath);
                 if (found) {
                     return found;
                 }
             } else if (stat.isFile() && (entry === 'chrome' || entry === 'chromium-browser' || entry === 'google-chrome')) {
-                const isExecutable = (stat.mode & 0o111) !== 0; // Ellenőrzi a futtatható bitet
+                const isExecutable = (stat.mode & 0o111) !== 0;
                 if (isExecutable) {
                     console.log('Futtatható Chrome/Chromium bináris található:', fullPath);
                     return fullPath;
@@ -860,7 +860,6 @@ const htmlContent = `
         }
         return null;
     } catch (e) {
-        // Engedélyezzük a "No such file or directory" hibákat
         if (e.code !== 'ENOENT') {
             console.error('Hiba a könyvtár olvasásakor:', startPath, e);
         }
