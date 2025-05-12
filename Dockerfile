@@ -1,10 +1,8 @@
 FROM node:18-slim
 
-# Szükséges csomagok telepítése
+# Függőségek telepítése + Chromium
 RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg \
-    ca-certificates \
+    chromium \
     fonts-liberation \
     libappindicator3-1 \
     libasound2 \
@@ -20,24 +18,16 @@ RUN apt-get update && apt-get install -y \
     libxdamage1 \
     libxrandr2 \
     xdg-utils \
-    --no-install-recommends \
- && rm -rf /var/lib/apt/lists/*
+    --no-install-recommends && \
+    rm -rf /var/lib/apt/lists/*
 
-# Google Chrome telepítése
-RUN wget -O chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
-    apt-get update && \
-    apt-get install -y ./chrome.deb && \
-    rm chrome.deb
-
-# Puppeteer skip Chromium download (mert már van Chrome)
+# Puppeteer cache beállítás
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
-# Alkalmazás fájlok
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
 COPY . .
 
 EXPOSE 3000
-
 CMD ["npm", "start"]
