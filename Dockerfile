@@ -6,6 +6,8 @@ COPY package*.json ./
 
 RUN npm install
 
+RUN rm -rf node_modules && npm install # Explicit törlés és újratelepítés
+
 COPY . .
 
 RUN apk add --no-cache wget gnupg ca-certificates && \
@@ -17,6 +19,6 @@ RUN apk add --no-cache wget gnupg ca-certificates && \
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD true
 ENV PUPPETEER_EXECUTABLE_PATH /usr/bin/google-chrome
 
-EXPOSE 3000 # Ha az alkalmazásod a 3000-es porton fut
+EXPOSE 3000
 
 CMD ["npm", "start"]
