@@ -839,24 +839,46 @@ const htmlContent = `
 `;
 
 //Éles környezet!!! ellenőrző kód
-        async function checkChromePath() {
+  async function findChromeBinary(startPath) {
     try {
-        const optDirContent = await fs.promises.readdir('/opt');
-        console.log('/opt könyvtár tartalma:', optDirContent);
-
-        if (optDirContent.includes('google')) {
-            const googleChromeDirContent = await fs.promises.readdir('/opt/google/chrome');
-            console.log('/opt/google/chrome könyvtár tartalma:', googleChromeDirContent);
-            const chromeExists = googleChromeDirContent.includes('chrome');
-            console.log('Chrome létezik az /opt/google/chrome alatt?', chromeExists);
-            if (chromeExists) {
-                console.log('A Chrome elérési útja valószínűleg: /opt/google/chrome/chrome');
+        const entries = await fs.readdir(startPath);
+        for (const entry of entries) {
+            const fullPath = path.join(startPath, entry);
+            const stat = await fs.stat(fullPath);
+            if (stat.isDirectory()) {
+                const found = await findChromeBinary(fullPath);
+                if (found) {
+                    return found;
+                }
+            } else if (stat.isFile() && (entry === 'chrome' || entry === 'chromium-browser' || entry === 'google-chrome')) {
+                const isExecutable = (stat.mode & 0o111) !== 0; // Ellenőrzi a futtatható bitet
+                if (isExecutable) {
+                    console.log('Futtatható Chrome/Chromium bináris található:', fullPath);
+                    return fullPath;
+                }
             }
         }
-    } catch (error) {
-        console.error('Hiba a fájlrendszer olvasásakor:', error);
+        return null;
+    } catch (e) {
+        // Engedélyezzük a "No such file or directory" hibákat
+        if (e.code !== 'ENOENT') {
+            console.error('Hiba a könyvtár olvasásakor:', startPath, e);
+        }
+        return null;
     }
 }
+
+async function checkChromePath() {
+    const chromePath = await findChromeBinary('/');
+    if (chromePath) {
+        console.log('A Chrome elérési útja:', chromePath);
+        // Itt már beállíthatod a puppeteer.launch-ban is, ha megtalálta
+    } else {
+        console.log('Nem található Chrome vagy Chromium bináris a rendszerben.');
+    }
+}
+
+// Hívd meg a függvényt a PDF generálás előtt
 await checkChromePath();
 
 //Éles környezet!!! ellenőrző kód
