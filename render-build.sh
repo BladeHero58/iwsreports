@@ -9,9 +9,9 @@ npm install
 echo "Puppeteer cache könyvtár létrehozása..."
 mkdir -p /tmp/puppeteer_cache
 
-# Telepítsd a Puppeteer böngészőket
+# Telepítsd a Puppeteer böngészőket a node_modules mappából futtatva
 echo "Puppeteer böngészők telepítése..."
-npx puppeteer browsers install chrome --cache-dir=/tmp/puppeteer_cache
+./node_modules/.bin/puppeteer browsers install chrome --cache-dir=/tmp/puppeteer_cache
 
 # Tárold a Puppeteer cache-t a build cache-ben
 echo "Puppeteer cache tárolása..."
