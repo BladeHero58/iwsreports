@@ -840,15 +840,15 @@ const htmlContent = `
 
 //Éles környezet!!! ellenőrző kód
         async function checkChromePath() {
-            try {
-                const files = await fs.readdir('/usr/bin');
-                console.log('/usr/bin könyvtár tartalma:', files);
-                const chromeExists = files.includes('google-chrome') || files.includes('chrome');
-                console.log('Chrome létezik?', chromeExists);
-            } catch (error) {
-                console.error('Hiba a fájlrendszer olvasásakor:', error);
-            }
-        }
+    try {
+        const files = await fs.promises.readdir('/usr/bin'); // Javított sor
+        console.log('/usr/bin könyvtár tartalma:', files);
+        const chromeExists = files.includes('google-chrome') || files.includes('chrome');
+        console.log('Chrome létezik?', chromeExists);
+    } catch (error) {
+        console.error('Hiba a fájlrendszer olvasásakor:', error);
+    }
+}
 
         await checkChromePath();
 //Éles környezet!!! ellenőrző kód
