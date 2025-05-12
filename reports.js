@@ -838,6 +838,21 @@ const htmlContent = `
 </html>
 `;
 
+//Éles környezet!!! ellenőrző kód
+        async function checkChromePath() {
+            try {
+                const files = await fs.readdir('/usr/bin');
+                console.log('/usr/bin könyvtár tartalma:', files);
+                const chromeExists = files.includes('google-chrome') || files.includes('chrome');
+                console.log('Chrome létezik?', chromeExists);
+            } catch (error) {
+                console.error('Hiba a fájlrendszer olvasásakor:', error);
+            }
+        }
+
+        await checkChromePath();
+//Éles környezet!!! ellenőrző kód
+
 // PDF generálás Puppeteerrel
 const browser = await puppeteer.launch({
     executablePath: '/usr/bin/google-chrome', //Éles környezethez!!!!!!!
