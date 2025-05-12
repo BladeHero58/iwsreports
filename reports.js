@@ -841,16 +841,24 @@ const htmlContent = `
 //Éles környezet!!! ellenőrző kód
         async function checkChromePath() {
     try {
-        const files = await fs.promises.readdir('/opt/google/chrome/chrome'); // Javított sor
-        console.log('/usr/bin könyvtár tartalma:', files);
-        const chromeExists = files.includes('google-chrome') || files.includes('chrome');
-        console.log('Chrome létezik?', chromeExists);
+        const optDirContent = await fs.promises.readdir('/opt');
+        console.log('/opt könyvtár tartalma:', optDirContent);
+
+        if (optDirContent.includes('google')) {
+            const googleChromeDirContent = await fs.promises.readdir('/opt/google/chrome');
+            console.log('/opt/google/chrome könyvtár tartalma:', googleChromeDirContent);
+            const chromeExists = googleChromeDirContent.includes('chrome');
+            console.log('Chrome létezik az /opt/google/chrome alatt?', chromeExists);
+            if (chromeExists) {
+                console.log('A Chrome elérési útja valószínűleg: /opt/google/chrome/chrome');
+            }
+        }
     } catch (error) {
         console.error('Hiba a fájlrendszer olvasásakor:', error);
     }
 }
+await checkChromePath();
 
-        await checkChromePath();
 //Éles környezet!!! ellenőrző kód
 
 // PDF generálás Puppeteerrel
