@@ -7,6 +7,3 @@ services:
     routes:
       - type: path
         path: /*
-    envVars:
-      - key: NODE_ENV
-        value: production

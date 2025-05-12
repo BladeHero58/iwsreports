@@ -1,8 +1,6 @@
-FROM node:18-slim
-
 FROM node:20-slim
 
-# Puppeteerhez szükséges Debian csomagok
+# Chromium futtatásához szükséges függőségek
 RUN apt-get update && apt-get install -y \
   wget \
   ca-certificates \
@@ -24,14 +22,14 @@ RUN apt-get update && apt-get install -y \
   --no-install-recommends && \
   rm -rf /var/lib/apt/lists/*
 
-# Alkalmazás mappa
+# App mappa
 WORKDIR /app
 
 # Csomagok
 COPY package*.json ./
 RUN npm install
 
-# App forráskód
+# Forráskód
 COPY . .
 
 # Port
