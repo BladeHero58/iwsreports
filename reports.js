@@ -841,7 +841,7 @@ const htmlContent = `
 //Éles környezet!!! ellenőrző kód
         async function checkChromePath() {
     try {
-        const files = await fs.promises.readdir('/usr/bin/chromium-browser'); // Javított sor
+        const files = await fs.promises.readdir('/usr/bin/chromium/chrome'); // Javított sor
         console.log('/usr/bin könyvtár tartalma:', files);
         const chromeExists = files.includes('google-chrome') || files.includes('chrome');
         console.log('Chrome létezik?', chromeExists);
@@ -855,7 +855,7 @@ const htmlContent = `
 
 // PDF generálás Puppeteerrel
 const browser = await puppeteer.launch({
-    executablePath: '/usr/bin/chromium-browser', //Éles környezethez!!!!!!!
+    executablePath: '/usr/bin/chromium/chrome', //Éles környezethez!!!!!!!
     headless: "new",
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security']
 });
