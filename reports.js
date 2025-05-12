@@ -9,6 +9,7 @@ const path = require('path');
 const mime = require('mime-types');
 const { getOrCreateFolder, uploadPdfToDrive, driveService, uploadImagesToDrive, createDailyFolder } = require('./googleDrive');
 const MAIN_DRIVE_FOLDER_ID = '1yc0G2dryo4XZeHmZ3FzV4yG4Gxjj2w7j'; // Állítsd be a saját főmappa ID-t!
+require("dotenv").config();
 
 // PostgreSQL konfiguráció
 
