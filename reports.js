@@ -840,6 +840,7 @@ const htmlContent = `
 `;
 
 // PDF generálás Puppeteerrel
+// PDF generálás Puppeteerrel
 const browser = await puppeteer.launch({
     headless: "new",
     args: [
@@ -847,10 +848,28 @@ const browser = await puppeteer.launch({
         "--disable-setuid-sandbox",
         "--single-process",
         "--no-zygote",
-        "--disable-dev-shm-usage"  // Ez fontos lehet a Docker környezetben
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--disable-extensions"
     ],
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || puppeteer.executablePath(),
+    executablePath: 
+        process.env.PUPPETEER_EXECUTABLE_PATH || 
+        (process.env.NODE_ENV === 'production' ? '/usr/bin/google-chrome-stable' : puppeteer.executablePath()),
+    ignoreDefaultArgs: ['--disable-extensions'],
 });
+
+// Log the executable path to help with debugging
+console.log(`Using Chrome executable path: ${process.env.PUPPETEER_EXECUTABLE_PATH || 
+    (process.env.NODE_ENV === 'production' ? '/usr/bin/google-chrome-stable' : puppeteer.executablePath())}`);
+
+// Add a try-catch around your PDF generation code
+try {
+    // Your existing PDF generation code here
+} catch (error) {
+    console.error(`PDF generation error details: ${error.message}`);
+    if (error.stack) console.error(`Stack trace: ${error.stack}`);
+    throw error; // Re-throw to handle in the outer scope
+}
 
 const page = await browser.newPage();
 await page.setViewport({

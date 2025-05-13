@@ -2,6 +2,7 @@ services:
   - type: web
     name: iwsreports
     runtime: docker
+    plan: starter # Change this according to your needs
     build:
       dockerfile: Dockerfile
     envVars:
@@ -10,4 +11,4 @@ services:
       - key: PUPPETEER_EXECUTABLE_PATH
         value: /usr/bin/google-chrome-stable
       - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
-        value: true
+        value: "true" # Make sure this is a string "true" not boolean
