@@ -850,19 +850,17 @@ try {
   console.error("Fájl ellenőrzési hiba:", err);
 }
 
-// Ezután jön az eredeti puppeteer inicializálási kód
+// PDF generálás Puppeteerrel
 const browser = await puppeteer.launch({
   headless: "new",
   args: [
     "--no-sandbox",
     "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
     "--single-process",
     "--no-zygote"
   ],
-  executablePath:
-    process.env.NODE_ENV === "production"
-      ? process.env.PUPPETEER_EXECUTABLE_PATH
-      : puppeteer.executablePath(),
+  // NE adj meg executablePath-t, hagyd hogy a puppeteer kezelje
 });
 
 const page = await browser.newPage();

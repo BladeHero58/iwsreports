@@ -7,7 +7,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PUPPETEER_EXECUTABLE_PATH
-        value: /usr/bin/google-chrome-stable
-      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
-        value: true
+      # Töröld vagy kommenteld ki a PUPPETEER változókat
+      # - key: PUPPETEER_EXECUTABLE_PATH
+      #   value: /usr/bin/google-chrome-stable
+      # - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+      #   value: true

@@ -1,29 +1,27 @@
-FROM ghcr.io/puppeteer/puppeteer:24.8.2
+FROM node:18-bullseye-slim
 
-# Puppeteer környezeti változók
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
+# Szükséges függőségek puppeteer-hez
+RUN apt-get update && apt-get install -y \
+    fonts-liberation \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libcups2 \
+    libdrm2 \
+    libgbm1 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libx11-6 \
+    libx11-xcb1 \
+    libxcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxrandr2 \
+    xdg-utils \
+    --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
-
-# Csomag fájlok másolása és függőségek telepítése
-COPY package*.json ./
-RUN npm ci
-
-# A többi fájl másolása
-COPY . .
-
-# Chrome elérhetőségének ellenőrzése és szükség esetén telepítése
-RUN if [ ! -f "/usr/bin/google-chrome-stable" ]; then \
-      echo "Installing Chrome..."; \
-      apt-get update && apt-get install -y wget; \
-      wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb; \
-      apt-get install -y ./google-chrome-stable_current_amd64.deb; \
-      rm google-chrome-stable_current_amd64.deb; \
-    fi
-
-RUN google-chrome-stable --version || echo "Chrome still not installed correctly"
-
-EXPOSE 3000
-
-CMD [ "node", "server.js" ]
