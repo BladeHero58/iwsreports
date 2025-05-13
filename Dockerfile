@@ -13,10 +13,17 @@ RUN npm ci
 # A többi fájl másolása
 COPY . .
 
-# Portok nyitása (opcionális, ha szükséges)
-EXPOSE 3000
+# Chrome elérhetőségének ellenőrzése és szükség esetén telepítése
+RUN if [ ! -f "/usr/bin/google-chrome-stable" ]; then \
+      echo "Installing Chrome..."; \
+      apt-get update && apt-get install -y wget; \
+      wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb; \
+      apt-get install -y ./google-chrome-stable_current_amd64.deb; \
+      rm google-chrome-stable_current_amd64.deb; \
+    fi
 
-# A Chrome tényleges útvonalának ellenőrzése
-RUN ls -la /usr/bin/google-chrome-stable || echo "Chrome nem található a megadott helyen!"
+RUN google-chrome-stable --version || echo "Chrome still not installed correctly"
+
+EXPOSE 3000
 
 CMD [ "node", "server.js" ]
