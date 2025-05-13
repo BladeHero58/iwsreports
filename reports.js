@@ -839,7 +839,18 @@ const htmlContent = `
 </html>
 `;
 
-// PDF generálás Puppeteerrel
+// A puppeteer inicializálás előtt helyezd el ezeket a debug logokat
+console.log("NODE_ENV:", process.env.NODE_ENV);
+console.log("PUPPETEER_EXECUTABLE_PATH:", process.env.PUPPETEER_EXECUTABLE_PATH);
+console.log("Default puppeteer path:", puppeteer.executablePath());
+
+try {
+  console.log("Chrome létezik?", fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH));
+} catch (err) {
+  console.error("Fájl ellenőrzési hiba:", err);
+}
+
+// Ezután jön az eredeti puppeteer inicializálási kód
 const browser = await puppeteer.launch({
   headless: "new",
   args: [
