@@ -839,28 +839,17 @@ const htmlContent = `
 </html>
 `;
 
-// A puppeteer inicializálás előtt helyezd el ezeket a debug logokat
-console.log("NODE_ENV:", process.env.NODE_ENV);
-console.log("PUPPETEER_EXECUTABLE_PATH:", process.env.PUPPETEER_EXECUTABLE_PATH);
-console.log("Default puppeteer path:", puppeteer.executablePath());
-
-try {
-  console.log("Chrome létezik?", fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH));
-} catch (err) {
-  console.error("Fájl ellenőrzési hiba:", err);
-}
-
 // PDF generálás Puppeteerrel
 const browser = await puppeteer.launch({
-  headless: "new",
-  args: [
-    "--no-sandbox",
-    "--disable-setuid-sandbox",
-    "--disable-dev-shm-usage",
-    "--single-process",
-    "--no-zygote"
-  ],
-  // NE adj meg executablePath-t, hagyd hogy a puppeteer kezelje
+    headless: "new",
+    args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--single-process",
+        "--no-zygote",
+        "--disable-dev-shm-usage"  // Ez fontos lehet a Docker környezetben
+    ],
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || puppeteer.executablePath(),
 });
 
 const page = await browser.newPage();

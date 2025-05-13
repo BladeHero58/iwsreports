@@ -2,13 +2,12 @@ services:
   - type: web
     name: iwsreports
     runtime: docker
-    build:
-      dockerfile: Dockerfile
+    buildCommand: docker build -t iwsreports .
+    startCommand: docker run iwsreports
     envVars:
       - key: NODE_ENV
         value: production
-      # Töröld vagy kommenteld ki a PUPPETEER változókat
-      # - key: PUPPETEER_EXECUTABLE_PATH
-      #   value: /usr/bin/google-chrome-stable
-      # - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
-      #   value: true
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: /usr/bin/google-chrome-stable
+      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+        value: "true"
