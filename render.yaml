@@ -8,6 +8,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: PUPPETEER_EXECUTABLE_PATH
+        # Használjuk az apt-get által telepített chromium pontos elérési útját
         value: /usr/bin/chromium-browser
       - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
-        value: true
+        value: "true"  # Stringként adjuk meg, nem booleánként
