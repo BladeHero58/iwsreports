@@ -840,17 +840,19 @@ const htmlContent = `
 `;
 
 // PDF generálás Puppeteerrel
-browser = await puppeteer.launch({
-      headless: "new",
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--single-process",
-        "--disable-gpu"
-      ],
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || puppeteer.executablePath(),
-    });
+const browser = await puppeteer.launch({
+  headless: "new",
+  args: [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--single-process",
+    "--no-zygote",
+    "--disable-dev-shm-usage",
+    "--disable-extensions",
+    "--disable-gpu",
+  ],
+  executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || puppeteer.executablePath(),
+});
 
 const page = await browser.newPage();
 await page.setViewport({
