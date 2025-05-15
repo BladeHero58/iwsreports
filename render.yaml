@@ -2,13 +2,9 @@ services:
   - type: web
     name: iwsreports
     runtime: native
-    buildCommand: ./render.sh
+    buildCommand: npm install
     startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PUPPETEER_EXECUTABLE_PATH
-        # Használjuk az apt-get által telepített chromium pontos elérési útját
-        value: /usr/bin/chromium-browser
-      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
-        value: "true"  # Stringként adjuk meg, nem booleánként
+      # Távolítsuk el a PUPPETEER_EXECUTABLE_PATH és PUPPETEER_SKIP_CHROMIUM_DOWNLOAD beállításokat

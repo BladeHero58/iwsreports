@@ -851,7 +851,8 @@ const browser = await puppeteer.launch({
     "--disable-extensions",
     "--disable-gpu",
   ],
-  executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || puppeteer.executablePath(),
+  // Hagyjuk, hogy a puppeteer használja a saját Chrome verzióját
+  // executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || puppeteer.executablePath(),
 });
 
 const page = await browser.newPage();
