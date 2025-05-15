@@ -1,10 +1,8 @@
 services:
   - type: web
     name: iwsreports
-    runtime: native
-    buildCommand: npm install
-    startCommand: npm start
+    runtime: docker
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: NODE_ENV
         value: production
-      # Távolítsuk el a PUPPETEER_EXECUTABLE_PATH és PUPPETEER_SKIP_CHROMIUM_DOWNLOAD beállításokat
