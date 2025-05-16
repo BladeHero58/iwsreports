@@ -841,18 +841,20 @@ const htmlContent = `
 
 // PDF generálás Puppeteerrel
 const browser = await puppeteer.launch({
-  headless: "new",
-  args: [
-    "--no-sandbox",
-    "--disable-setuid-sandbox",
-    "--single-process",
-    "--no-zygote",
-    "--disable-dev-shm-usage",
-    "--disable-extensions",
-    "--disable-gpu",
-  ],
-  executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || puppeteer.executablePath(),
-});
+    headless: "new",
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--single-process",
+      "--no-zygote",
+      "--disable-dev-shm-usage",
+      "--disable-extensions",
+      "--disable-gpu",
+    ],
+    // Használjuk a környezeti változóban megadott Chrome elérési útját
+    // Ha nincs megadva, a fallback nem puppeteer.executablePath(), hanem explicit érték kell legyen
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/google-chrome',
+  });
 
 const page = await browser.newPage();
 await page.setViewport({
