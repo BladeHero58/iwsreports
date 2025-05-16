@@ -1,4 +1,4 @@
-odule.exports = {
+module.exports = {
   development: {
     client: 'pg',
     connection: {

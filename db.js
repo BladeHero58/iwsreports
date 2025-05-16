@@ -1,25 +1,23 @@
+ /*
+ const { Pool } = require('pg');
+
+
+const pool = new Pool({
+    user: 'postgres', // PostgreSQL felhasználónév
+    host: 'localhost',     // Ha helyi gépen fut, ez marad
+    database: 'project_management', // Az általad létrehozott adatbázis neve
+    password: 'dbzzed58', // Az adatbázishoz tartozó jelszó
+    port: 5432,            // PostgreSQL alapértelmezett portja
+});
+
+module.exports = pool;
+*/
+
+//Éles környezet
 const { Pool } = require('pg');
 
-let pool;
-
-// Ellenőrizzük a környezetet
-if (process.env.NODE_ENV === 'production') {
-  // Production környezetben használjuk a DATABASE_URL-t
-  pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: {
-      rejectUnauthorized: false // Railway-en gyakran szükséges SSL beállítás
-    }
-  });
-} else {
-  // Development környezetben használhatjuk a lokális beállításokat
-  pool = new Pool({
-    user: process.env.PGUSER || 'postgres',
-    host: process.env.PGHOST || 'localhost',
-    database: process.env.PGDATABASE || 'project_management',
-    password: process.env.PGPASSWORD || 'dbzzed58',
-    port: process.env.PGPORT || 5432
-  });
-}
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
 module.exports = pool;
