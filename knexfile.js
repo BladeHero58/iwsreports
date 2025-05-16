@@ -1,4 +1,4 @@
-module.exports = {
+odule.exports = {
   development: {
     client: 'pg',
     connection: {
@@ -18,13 +18,7 @@ module.exports = {
 
   production: {
     client: 'pg',
-    connection: {
-      host: process.env.PGHOST,
-      port: process.env.PGPORT,
-      user: process.env.PGUSER,
-      password: process.env.PGPASSWORD,
-      database: process.env.PGDATABASE,
-    },
+    connection: process.env.DATABASE_URL, // Használd a DATABASE_URL-t itt!
     migrations: {
       directory: './migrations',
     },
