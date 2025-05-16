@@ -25,7 +25,7 @@ const pool = new Pool({
 */
 
 //Éles környezet adatbázis
-const { Pool } = require('./db');
+const pool = require('./db');
 
 const router = express.Router(); 
 
