@@ -24,15 +24,8 @@ const pool = new Pool({
 });
 */
 
-
-const { Pool } = require('pg');
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-
-module.exports = pool;
-
+//Éles környezet adatbázis
+const { Pool } = require('./db');
 
 const router = express.Router(); 
 
