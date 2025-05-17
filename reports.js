@@ -11,6 +11,8 @@ const { getOrCreateFolder, uploadPdfToDrive, driveService, uploadImagesToDrive, 
 const MAIN_DRIVE_FOLDER_ID = '1yc0G2dryo4XZeHmZ3FzV4yG4Gxjj2w7j'; // Állítsd be a saját főmappa ID-t!
 require("dotenv").config();
 
+console.log('DATABASE_URL a server.js-ben:', process.env.DATABASE_URL);
+
 // PostgreSQL konfiguráció
 
 
@@ -25,7 +27,7 @@ const pool = new Pool({
 */
 
 //Éles környezet adatbázis
-const pool = require('./db');
+//const pool = require('./db');
 
 const router = express.Router(); 
 
