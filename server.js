@@ -10,6 +10,8 @@ const pool = require('./db');
 const { v4: uuidv4 } = require('uuid');
 const bodyParser = require('body-parser');
 
+console.log('DATABASE_URL a server.js-ben:', process.env.DATABASE_URL);
+
 const app = express();
  // A szerver portja
 const port = 3000;
