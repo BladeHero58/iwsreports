@@ -1,4 +1,5 @@
 // Határozd meg a környezetet a NODE_ENV alapján (amit a Railway beállít)
+console.log("A migrate.js elindult!");
 const environment = process.env.NODE_ENV || 'development';
 const knexConfig = require('./knexfile.js')[environment];
 const knex = require('knex')(knexConfig);
