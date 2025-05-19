@@ -198,22 +198,33 @@ router.get('/:projectId/report', async (req, res) => {
     const { projectId } = req.params;
 
     try {
-        const result = await pool.query(
-            'SELECT data, merge_cells, column_sizes, row_sizes, cell_styles FROM report_data WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1',
+        const projectReportResult = await pool.query(
+            'SELECT latest_report_id FROM project_reports WHERE project_id = $1',
             [projectId]
         );
 
-        if (result.rows.length > 0) {
-            res.json({
-                success: true,
-                data: result.rows[0].data,
-                mergeCells: result.rows[0].merge_cells,
-                colWidths: result.rows[0].column_sizes,
-                rowHeights: result.rows[0].row_sizes,
-                cellStyles: result.rows[0].cell_styles
-            });
+        if (projectReportResult.rows.length > 0 && projectReportResult.rows[0].latest_report_id) {
+            const latestReportId = projectReportResult.rows[0].latest_report_id;
+
+            const reportDataResult = await pool.query(
+                'SELECT data, merge_cells, column_sizes, row_sizes, cell_styles FROM report_data WHERE report_id = $1',
+                [latestReportId]
+            );
+
+            if (reportDataResult.rows.length > 0) {
+                res.json({
+                    success: true,
+                    data: reportDataResult.rows[0].data,
+                    mergeCells: reportDataResult.rows[0].merge_cells,
+                    colWidths: reportDataResult.rows[0].column_sizes,
+                    rowHeights: reportDataResult.rows[0].row_sizes,
+                    cellStyles: reportDataResult.rows[0].cell_styles
+                });
+            } else {
+                res.json({ success: false, message: "Nem található a legutolsó jegyzőkönyv adatai." });
+            }
         } else {
-            res.json({ success: false, message: "Nincs elérhető jegyzőkönyv ehhez a projekthez." });
+            res.json({ success: false, message: "Nincs mentett jegyzőkönyv ehhez a projekthez." });
         }
 
     } catch (error) {
@@ -232,19 +243,21 @@ router.post("/save", async (req, res) => {
     }
 
     try {
-        // Beszúrjuk az adatokat a report_data táblába
+        // Töröljük a korábbi jelentéseket a report_data táblából ehhez a projekthez
+        await pool.query('DELETE FROM report_data WHERE project_id = $1', [projectId]);
+
+        // Beszúrjuk az új jelentést a report_data táblába
         await pool.query(
             'INSERT INTO report_data (project_id, report_id, data, merge_cells, column_sizes, row_sizes, cell_styles) VALUES ($1, $2, $3, $4, $5, $6, $7)',
             [projectId, reportId, JSON.stringify(data), JSON.stringify(mergeCells), JSON.stringify(columnSizes), JSON.stringify(rowSizes), JSON.stringify(cellStyles)]
         );
 
-        // Opcionális: Ha a project_reports táblában továbbra is szeretnéd tárolni a legutolsó report_id-t és egyéb metaadatokat:
+        // Frissítjük a project_reports táblát a legutolsó report_id-val
         await pool.query(
-            'INSERT INTO project_reports (project_id, latest_report_id, column_sizes, row_sizes, cell_styles) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (project_id) DO UPDATE SET latest_report_id = $2, column_sizes = $3, row_sizes = $4, cell_styles = $5',
-            [projectId, reportId, JSON.stringify(columnSizes), JSON.stringify(rowSizes), JSON.stringify(cellStyles)]
+            'INSERT INTO project_reports (project_id, latest_report_id) VALUES ($1, $2) ON CONFLICT (project_id) DO UPDATE SET latest_report_id = $2',
+            [projectId, reportId]
         );
 
-        // Képek tisztítása (a használt képek listáját most üresen hagyjuk, ha a táblázatban már nem tárolunk kép URL-eket közvetlenül)
         await cleanupUnusedImages(projectId, []);
 
         res.json({ success: true, message: "Jelentés sikeresen mentve az adatbázisba.", reportId });
