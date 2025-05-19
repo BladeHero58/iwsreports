@@ -379,43 +379,27 @@ router.get('/:projectId/download-pdf', async (req, res) => {
         const invalidFileChars = /[\/\\?%*:|"<>]/g;
         const safeProjectName = projectName.replace(invalidFileChars, '_');
 
-        const result = await pool.query(
-            'SELECT * FROM project_reports WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1',
+        const reportDataResult = await pool.query(
+            'SELECT rd.data, rd.merge_cells, rd.column_sizes, rd.row_sizes, rd.cell_styles ' +
+            'FROM project_reports pr ' +
+            'JOIN report_data rd ON pr.latest_report_id = rd.report_id ' +
+            'WHERE pr.project_id = $1',
             [projectId]
         );
 
-        if (result.rows.length === 0) {
+        if (reportDataResult.rows.length === 0) {
             return res.status(404).send('Nincs elérhető jelentés ehhez a projekthez.');
         }
 
-        const reportData = result.rows[0];
-        const workbook = XLSX.readFile(reportData.file_path);
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const reportData = reportDataResult.rows[0];
+        const jsonData = reportData.data;
+        const mergedCells = reportData.merge_cells || [];
+        const columnSizes = reportData.column_sizes || [];
+        const rowSizes = reportData.row_sizes || [];
+        const cellStyles = reportData.cell_styles || [];
 
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, {
-            raw: false,
-            defval: '',
-            header: 1
-        }).slice(1);
-
-        const safeParse = (data, defaultValue = []) => {
-            if (!data) return defaultValue;
-            if (typeof data === 'object') return data;
-            try {
-                return JSON.parse(data);
-            } catch (e) {
-                console.warn('Parse error:', e);
-                return defaultValue;
-            }
-        };
-
-        const columnSizes = safeParse(reportData.column_sizes);
-        const rowSizes = safeParse(reportData.row_sizes);
-        const cellStyles = safeParse(reportData.cell_styles);
-        const mergedCells = worksheet['!merges'] || [];
-
-     // Javított HTML generálás
-const htmlContent = `
+        // Javított HTML generálás
+        const htmlContent = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -459,8 +443,8 @@ const htmlContent = `
         background-color: white !important;
         color: black !important;
     }
-    .black-cell, 
-    td[style*="background-color: black"], 
+    .black-cell,
+    td[style*="background-color: black"],
     td[style*="background-color: #000000"],
     td[data-cell-type="black"],
     td[data-forced-black="true"] {
@@ -473,8 +457,8 @@ const htmlContent = `
         z-index: 1 !important;
         font-weight: bold !important;
     }
-    .black-cell .cell-content, 
-    td[style*="background-color: black"] .cell-content, 
+    .black-cell .cell-content,
+    td[style*="background-color: black"] .cell-content,
     td[style*="background-color: #000000"] .cell-content,
     td[data-cell-type="black"] .cell-content,
     td[data-forced-black="true"] .cell-content {
@@ -501,25 +485,25 @@ const htmlContent = `
         object-fit: cover;
         display: block;
     }
-    
+
     /* Beszúrt sorok stílusai */
     tr:nth-child(n+12):not(:nth-last-child(-n+10)):nth-child(even) td {
         background-color: #D7D7D7 !important;
         color: black !important;
     }
-    
+
     tr:nth-child(n+12):not(:nth-last-child(-n+10)):nth-child(odd) td {
         background-color: white !important;
         color: black !important;
     }
-    
+
     /* Utolsó 10 sor 4. oszloptól kezdve rácsvonal nélkül */
     tr:nth-last-child(-n+10) td:nth-child(n+4) {
         border: none !important;
         outline: none !important;
         box-shadow: none !important;
     }
-    
+
     @media print {
         /* Fekete cellák megjelenítési kényszerítése */
         .black-cell,
@@ -537,7 +521,7 @@ const htmlContent = `
             color-adjust: exact !important;
             print-color-adjust: exact !important;
         }
-    
+
         /* Fekete cellák tartalmának explicit beállítása */
         .black-cell .cell-content,
         td[style*="background-color: black"] .cell-content,
@@ -550,7 +534,7 @@ const htmlContent = `
             color-adjust: exact !important;
             print-color-adjust: exact !important;
         }
-        
+
         /* Beszúrt sorok színeinek nyomtatása */
         tr:nth-child(n+12):not(:nth-last-child(-n+10)):nth-child(even) td:not(.black-cell):not([data-cell-type="black"]):not([data-forced-black="true"]):not([style*="background-color: black"]) {
             background-color: #D7D7D7 !important;
@@ -559,7 +543,7 @@ const htmlContent = `
             color-adjust: exact !important;
             print-color-adjust: exact !important;
         }
-        
+
         tr:nth-child(n+12):not(:nth-last-child(-n+10)):nth-child(odd) td:not(.black-cell):not([data-cell-type="black"]):not([data-forced-black="true"]):not([style*="background-color: black"]) {
             background-color: white !important;
             color: black !important;
@@ -567,14 +551,14 @@ const htmlContent = `
             color-adjust: exact !important;
             print-color-adjust: exact !important;
         }
-        
+
         /* Oldaltörés elkerülése soronként */
         tr {
             page-break-inside: avoid !important;
             break-inside: avoid !important;
         }
     }
-    
+
     ${generateCustomStyles(cellStyles)}
     </style>
 </head>
@@ -594,19 +578,8 @@ const htmlContent = `
 // PDF generálás Puppeteerrel
 const browser = await puppeteer.launch({
     headless: "new",
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--single-process",
-      "--no-zygote",
-      "--disable-dev-shm-usage",
-      "--disable-extensions",
-      "--disable-gpu",
-    ],
-    // Használjuk a környezeti változóban megadott Chrome elérési útját
-    // Ha nincs megadva, a fallback nem puppeteer.executablePath(), hanem explicit érték kell legyen
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/google-chrome',
-  });
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security']
+});
 
 const page = await browser.newPage();
 await page.setViewport({
@@ -614,6 +587,8 @@ await page.setViewport({
     height: 3000,
     deviceScaleFactor: 3.0
 });
+
+
 
 // Színes nyomtatás engedélyezése
 await page.emulateMediaType('screen');
@@ -630,19 +605,19 @@ await page.evaluate(() => {
     const rows = document.querySelectorAll('table tr');
     const totalRows = rows.length;
     const criticalRows = [totalRows - 11, totalRows - 12];
-    
+
     criticalRows.forEach(rowIdx => {
         if (rowIdx > 0 && rowIdx < totalRows) {
             const row = rows[rowIdx];
             // Csak az első két cella speciális kezelése
             const cells = Array.from(row.querySelectorAll('td')).slice(0, 2);
-            
+
             cells.forEach(cell => {
-                const isBlackCell = cell.classList.contains('black-cell') || 
+                const isBlackCell = cell.classList.contains('black-cell') ||
                                    cell.getAttribute('style')?.includes('background-color: black') ||
                                    cell.getAttribute('data-forced-black') === 'true' ||
                                    cell.getAttribute('data-cell-type') === 'black';
-                
+
                 if (isBlackCell) {
                     cell.setAttribute('style', cell.getAttribute('style') + `
                         background-color: black !important;
@@ -651,7 +626,7 @@ await page.evaluate(() => {
                         border: 2px solid yellow !important;
                         -webkit-print-color-adjust: exact !important;
                     `);
-                    
+
                     const content = cell.querySelector('.cell-content');
                     if (content) {
                         content.setAttribute('style', `color: yellow !important; font-weight: bold !important;`);
@@ -723,38 +698,57 @@ try {
     console.log('✅ PDF feltöltés sikeres! Drive URL:', uploadResult.webViewLink);
 
     // Képek összegyűjtése a táblázatból
-    const reportData = await pool.query(
-        'SELECT file_path FROM project_reports WHERE project_id = $1',
+    const reportDataForImages = await pool.query(
+        'SELECT data FROM report_data rd JOIN project_reports pr ON rd.report_id = pr.latest_report_id WHERE pr.project_id = $1',
         [projectId]
     );
-    
-    if (reportData.rows.length > 0) {
-        const tablePath = reportData.rows[0].file_path;
-        let usedImageUrls = [];
-        
-        try {
-            // Olvassuk be a projekt jelentést, hogy kinyerjük a képek URL-jeit
-            const projectDir = path.resolve(process.cwd(), 'uploads', `project-${projectId}`);
-            
-            // Csak az aktuális projekt mappájában lévő képek URL-jeit gyűjtjük össze
-            const projectImages = fs.readdirSync(projectDir)
-                .filter(file => file.endsWith('.jpg') || file.endsWith('.png') || file.endsWith('.jpeg'))
-                .map(file => `/uploads/project-${projectId}/${file}`);
-            
-            // Ha vannak képek, feltöltjük őket a Google Drive-ra
-            if (projectImages.length > 0) {
-                console.log(`📸 ${projectImages.length} kép található a projektben, feltöltés indítása...`);
-                
-                // Most már az aznapi mappába töltjük fel a képeket
-                const imageUploadResult = await uploadImagesToDrive(projectImages, dailyFolderId);
-                console.log(`✅ Képek feltöltése sikeres! ${imageUploadResult.uploadedImages.length} kép feltöltve.`);
-                console.log(`📁 Képek feltöltve az aznapi mappába (${dailyFolderId})`);
-            } else {
-                console.log('⚠️ Nincsenek képek a projektben, feltöltés kihagyva.');
+
+    if (reportDataForImages.rows.length > 0 && reportDataForImages.rows[0].data) {
+        const jsonDataForImages = reportDataForImages.rows[0].data;
+        let imageUrls = [];
+
+        // Képek URL-jeinek kinyerése a jsonData-ból (feltételezve, hogy az img tag-ek src attribútumában vannak)
+        function extractImageUrls(data) {
+            if (typeof data === 'object' && data !== null) {
+                for (const key in data) {
+                    if (typeof data[key] === 'string' && (data[key].startsWith('data:image') || data[key].startsWith('/uploads/'))) {
+                        imageUrls.push(data[key]);
+                    } else if (typeof data[key] === 'object') {
+                        extractImageUrls(data[key]);
+                    }
+                }
+            } else if (typeof data === 'string' && (data.startsWith('data:image') || data.startsWith('/uploads/'))) {
+                imageUrls.push(data);
             }
-        } catch (imageError) {
-            console.error('❌ Hiba a képek feldolgozása és feltöltése során:', imageError.message);
-            // Folytatjuk a PDF letöltést akkor is, ha a képek feltöltése sikertelen
+        }
+
+        extractImageUrls(jsonDataForImages);
+        const uniqueImageUrls = [...new Set(imageUrls)]; // Duplikátumok eltávolítása
+
+        // Képek feltöltése a Google Drive-ra
+        if (uniqueImageUrls.length > 0) {
+            console.log(`📸 ${uniqueImageUrls.length} egyedi kép található a táblázatban, feltöltés indítása...`);
+
+            // Szükséges lehet a képek tényleges elérési útjának vagy base64 adatának kezelése
+            // Ez a rész attól függ, hogyan tárolod a képeket és hogyan éred el őket a feltöltéshez.
+            // Mivel a korábbi logika fájlrendszerből töltött fel, itt ezt a logikát kellene implementálni,
+            // ha a '/uploads/' útvonalak fájlrendszeri elérési utakra mutatnak.
+            // Ha base64 adatok vannak, azokat közvetlenül fel lehet tölteni.
+
+            // A jelenlegi kód nem tudja közvetlenül feltölteni a '/uploads/' URL-eket a Drive-ra.
+            // Szükséges lenne a képek fájlrendszerből való beolvasása és a Drive-ra való feltöltése.
+
+            // Mivel a Google Drive feltöltési logika (uploadImagesToDrive) nincs megadva,
+            // és a képek elérési módja sem teljesen világos (URL vs. fájlrendszer),
+            // ezt a részt nem tudom teljes mértékben átírni.
+
+            // A régi logika a file_path-ból indult ki, ami most nincs használatban a képekhez.
+
+            console.log('⚠️ A képek feltöltésének logikáját át kell alakítani az új mentési rendszerhez.');
+            // Itt kellene implementálni a képek adatbázisból vagy a jsonData-ból való kinyerését és feltöltését.
+
+        } else {
+            console.log('⚠️ Nincsenek képek a táblázatban, feltöltés kihagyva.');
         }
     }
 
@@ -879,7 +873,7 @@ function generateCustomStyles(cellStyles) {
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        height: 100% !important;
+        
     }
 
     /* Egyesített cellák stílusa */
@@ -986,151 +980,131 @@ tr:nth-child(11) td .cell-content {
             fontSize: style.fontSize || 'inherit',
             textAlign: style.textAlign || 'left',
             borderColor: style.borderColor || '#000',
-            rotation: style.rotation || 0
+            rotation: style.rotation || 0,
+            className: style.className || '' // Ensure className is always a string
         };
+
+        const cellSelector = `table tr:nth-child(${style.row + 1}) td:nth-child(${style.col + 1})`;
+        let specificStyles = '';
 
         // Első három sor speciális stílusa
         if (style.row <= 2) {
-            return `
-                .cell-style-${index} {
-                    background-color: white !important;
-                    color: ${safeStyle.color} !important;
-                    font-weight: ${safeStyle.fontWeight} !important;
-                    font-size: ${safeStyle.fontSize} !important;
-                    text-align: ${safeStyle.textAlign} !important;
-                    border: none !important;
-                    outline: none !important;
-                    box-shadow: none !important;
-                    vertical-align: middle;
-                    ${style.className ? getClassStyles(style.className) : ''}
-                }
-                .cell-style-${index} .cell-content {
-                    color: ${safeStyle.color} !important;
-                }
+            specificStyles += `
+                background-color: white !important;
+                color: ${safeStyle.color} !important;
+                font-weight: ${safeStyle.fontWeight} !important;
+                font-size: ${safeStyle.fontSize} !important;
+                text-align: ${safeStyle.textAlign} !important;
+                border: none !important;
+                outline: none !important;
+                box-shadow: none !important;
+                vertical-align: middle;
             `;
         }
 
         // 11. sor vagy utolsó-10. sor első oszlopának kezelése - függőleges szöveg
-        if ((style.row === 10 && style.col === 0) || (style.row === totalRows - 9 && style.col === 0)) {
-            const isBlackCell = style.backgroundColor === 'black' || style.backgroundColor === '#000000';
-            const textColor = isBlackCell ? 'yellow' : safeStyle.color;
-
-            return `
-                .cell-style-${index} {
-                    background-color: ${safeStyle.backgroundColor} !important;
-                    color: ${textColor} !important;
-                    font-weight: ${safeStyle.fontWeight} !important;
-                    font-size: ${safeStyle.fontSize} !important;
-                    ${isBlackCell ? `
-                        border: 2px solid yellow !important;
-                        outline: 1px solid yellow !important;
-                        box-shadow: 0 0 0 0.5px yellow, inset 0 0 0 0.5px yellow !important;
-                    ` : ''}
-                    ${style.className ? getClassStyles(style.className) : ''}
-                }
-                .cell-style-${index} .cell-content {
-                    writing-mode: vertical-rl !important;
-                    text-orientation: mixed !important;
-                    transform: rotate(180deg) !important;
-                    display: flex !important;
-                    align-items: center !important;
-                    justify-content: center !important;
-                    height: 100% !important;
-                    color: ${textColor} !important;
-                }
-            `;
-        }
+    if ((style.row === 10 && style.col === 0) || (style.row === totalRows - 9 && style.col === 0)) {
+        const isBlackCell = safeStyle.backgroundColor === 'black' || safeStyle.backgroundColor === '#000000';
+        const textColor = isBlackCell ? 'yellow' : safeStyle.color;
+        specificStyles += `
+            background-color: ${safeStyle.backgroundColor} !important;
+            color: ${textColor} !important;
+            font-weight: ${safeStyle.fontWeight} !important;
+            font-size: ${safeStyle.fontSize} !important;
+            ${isBlackCell ? `
+                border: 2px solid yellow !important;
+                outline: 1px solid yellow !important;
+                box-shadow: 0 0 0 0.5px yellow, inset 0 0 0 0.5px yellow !important;
+            ` : ''}
+        `;
+        const contentSelector = `${cellSelector} .cell-content`;
+        baseStyles += `
+    ${contentSelector} {
+        writing-mode: vertical-rl !important;
+        text-orientation: mixed !important;
+        transform: rotate(180deg) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        /* height: 100% !important; */ 
+        color: ${textColor} !important;
+    }
+`;
+    }
 
         // Fekete cellák kezelése (az első három soron kívül)
-        const isBlackCell = style.backgroundColor === 'black' ||
-                            style.backgroundColor === '#000000' ||
-                            style.backgroundColor === 'rgb(0, 0, 0)' ||
-                            (style.className && style.className.includes('black-cell'));
+        const isBlackCell = safeStyle.backgroundColor === 'black' ||
+                            safeStyle.backgroundColor === '#000000' ||
+                            safeStyle.backgroundColor === 'rgb(0, 0, 0)' ||
+                            safeStyle.className.includes('black-cell');
 
         if (isBlackCell && style.row > 2) {
-            return `
-                .cell-style-${index} {
-                    background-color: black !important;
-                    color: yellow !important;
-                    font-weight: ${safeStyle.fontWeight || 'bold'} !important;
-                    font-size: ${safeStyle.fontSize || '16px'} !important;
-                    text-align: ${safeStyle.textAlign} !important;
-                    border: 2px solid yellow !important;
-                    outline: 1px solid yellow !important;
-                    box-shadow: 0 0 0 0.5px yellow, inset 0 0 0 0.5px yellow !important;
-                    vertical-align: middle !important;
-                    position: relative !important;
-                    z-index: 1 !important;
-                    ${style.className ? getClassStyles(style.className) : ''}
-                }
-                .cell-style-${index} .cell-content {
-                    color: yellow !important;
-                    font-weight: ${safeStyle.fontWeight || 'bold'} !important;
-                }
+            specificStyles += `
+                background-color: black !important;
+                color: yellow !important;
+                font-weight: ${safeStyle.fontWeight || 'bold'} !important;
+                font-size: ${safeStyle.fontSize || '16px'} !important;
+                text-align: ${safeStyle.textAlign} !important;
+                border: 2px solid yellow !important;
+                outline: 1px solid yellow !important;
+                box-shadow: 0 0 0 0.5px yellow, inset 0 0 0 0.5px yellow !important;
+                vertical-align: middle !important;
+                position: relative !important;
+                z-index: 1 !important;
             `;
         }
 
         // Fekete cellák az első három sorban
         if (isBlackCell && style.row <= 2) {
-            return `
-                .cell-style-${index} {
-                    background-color: white !important;
-                    color: black !important;
-                    font-weight: ${safeStyle.fontWeight} !important;
-                    font-size: ${safeStyle.fontSize} !important;
-                    text-align: ${safeStyle.textAlign} !important;
-                    border: none !important;
-                    outline: none !important;
-                    box-shadow: none !important;
-                    vertical-align: middle;
-                    ${style.className ? getClassStyles(style.className) : ''}
-                }
-                .cell-style-${index} .cell-content {
-                    color: black !important;
-                }
+            specificStyles += `
+                background-color: white !important;
+                color: black !important;
+                font-weight: ${safeStyle.fontWeight} !important;
+                font-size: ${safeStyle.fontSize} !important;
+                text-align: ${safeStyle.textAlign} !important;
+                border: none !important;
+                outline: none !important;
+                box-shadow: none !important;
+                vertical-align: middle;
             `;
         }
 
         // Beszúrt sorok (12-től az utolsó-10-ig)
         if (style.row >= 12 && style.row < (totalRows - 10)) {
-            // Betűszín meghatározása
             let textColor = isBlackCell ? 'yellow' : 'black';
-
-            // Háttérszín meghatározása
             let bgColor = safeStyle.backgroundColor;
             if (!bgColor || bgColor === 'inherit' || bgColor === '' || bgColor === 'transparent') {
                 const isEven = (style.row - 12) % 2 === 0;
                 bgColor = isEven ? '#D7D7D7' : 'white';
             }
-
-            return `
-                .cell-style-${index} {
-                    background-color: ${bgColor} !important;
-                    color: ${textColor} !important;
-                    font-weight: ${safeStyle.fontWeight} !important;
-                    font-size: ${safeStyle.fontSize} !important;
-                    text-align: ${safeStyle.textAlign || 'center'} !important;
-                    ${style.className ? getClassStyles(style.className) : ''}
-                }
-
-                table tr:nth-child(${style.row + 1}) td.cell-style-${index},
-                table tr:nth-child(${style.row + 1}) td.cell-style-${index} .cell-content {
-                    background-color: ${bgColor} !important;
-                    color: ${textColor} !important;
-                    text-align: center !important;
-                }
+            specificStyles += `
+                background-color: ${bgColor} !important;
+                color: ${textColor} !important;
+                font-weight: ${safeStyle.fontWeight} !important;
+                font-size: ${safeStyle.fontSize} !important;
+                text-align: ${safeStyle.textAlign || 'center'} !important;
             `;
         }
 
-        // Alapértelmezett stílus
+        // Alapértelmezett stílusok
+        specificStyles += `
+            background-color: ${safeStyle.backgroundColor} !important;
+            color: ${safeStyle.color} !important;
+            font-weight: ${safeStyle.fontWeight} !important;
+            font-size: ${safeStyle.fontSize} !important;
+            text-align: ${safeStyle.textAlign} !important;
+        `;
+
+        const classStyles = safeStyle.className ? safeStyle.className.split(' ').map(cls => `.${cls}`).join('') : '';
         return `
-            .cell-style-${index} {
-                background-color: ${safeStyle.backgroundColor} !important;
-                color: ${safeStyle.color} !important;
-                font-weight: ${safeStyle.fontWeight} !important;
-                font-size: ${safeStyle.fontSize} !important;
-                text-align: ${safeStyle.textAlign} !important;
-                ${style.className ? getClassStyles(style.className) : ''}
+            ${cellSelector}${classStyles} {
+                ${specificStyles}
+            }
+            ${cellSelector}${classStyles} .cell-content {
+                color: inherit !important; /* A cella stílusa felülírhatja */
+                font-weight: inherit !important;
+                font-size: inherit !important;
+                text-align: inherit !important;
             }
         `;
     }).join('');
@@ -1139,20 +1113,22 @@ tr:nth-child(11) td .cell-content {
 // Helper function to get CSS styles from class names
 function getClassStyles(className) {
     if (!className) return '';
-    
+
+    let styles = '';
+
     // Ha van black-cell osztály, akkor speciális kezelés
     if (className.includes('black-cell')) {
-        return `
+        styles += `
             background-color: black !important;
             color: yellow !important;
             font-weight: bold !important;
             font-size: 16px !important;
         `;
     }
-    
+
     // First row style (első sor)
     if (className.includes('first-row-style')) {
-        return `
+        styles += `
             text-align: center !important;
             font-size: 22px !important;
             background-color: #ffffff !important;
@@ -1162,49 +1138,49 @@ function getClassStyles(className) {
             vertical-align: middle !important;
         `;
     }
-    
+
     // 11. sor stílusa
     if (className.includes('eleventh-row-style')) {
-        return `
+        styles += `
             text-align: center !important;
             vertical-align: middle !important;
         `;
     }
-    
+
     // Utolsó sor stílusa
     if (className.includes('last-row-style')) {
-        return `
+        styles += `
             font-weight: bold !important;
             background-color: lightgrey !important;
             font-size: 18px !important;
             text-align: center !important;
         `;
     }
-    
+
     // Beszúrt sorok stílusa
     if (className.includes('beszurt-sor')) {
-        return `
+        styles += `
             height: 70px !important;
             color: black !important;
         `;
     }
-    
+
     // Függőleges szöveg
     if (className.includes('vertical-text')) {
-        return `
+        styles += `
             writing-mode: vertical-lr !important;
         `;
     }
-    
+
     // Középre igazított cella
     if (className.includes('cell-centered')) {
-        return `
+        styles += `
             text-align: center !important;
             vertical-align: middle !important;
         `;
     }
-    
-    return '';
+
+    return styles;
 }
 
 // Helper function to generate colgroup
@@ -1215,126 +1191,90 @@ function generateColgroup(columnSizes) {
 }
 
 // Enhanced table row generation with styling and page-break prevention
-function generateTableRows(jsonData, mergedCells, rowSizes, columnSizes, cellStyles) {
-    if (!Array.isArray(jsonData)) return '';
+function generateTableRows(jsonData, originalMergeCells, rowSizes, columnSizes, cellStyles) {
+    if (!Array.isArray(jsonData)) {
+        console.log("Nincsenek táblázat adatok megadva.");
+        return '';
+    }
 
     let tableHtml = '';
-    const mergeMatrix = createMergeMatrix(mergedCells, jsonData.length, jsonData[0]?.length || 0);
-    const lastRowIndex = jsonData.length - 1;
-    const lastTenRowsStartIndex = Math.max(0, jsonData.length - 10);
+    const rowCount = jsonData.length;
+    const colCount = jsonData[0]?.length || 0;
+
+    // Alakítsd át a mergeCells tömböt a createMergeMatrix által várt formátumra
+    const formattedMergeCells = originalMergeCells ? originalMergeCells.map(merge => ({
+        s: { r: merge.row, c: merge.col },
+        e: { r: merge.row + merge.rowspan - 1, c: merge.col + merge.colspan - 1 }
+    })) : [];
+
+    const mergeMatrix = createMergeMatrix(formattedMergeCells, rowCount, colCount);
+
+    const lastRowIndex = rowCount - 1;
+    const lastTenRowsStartIndex = Math.max(0, rowCount - 10);
 
     jsonData.forEach((row, rowIndex) => {
         if (!Array.isArray(row)) return;
 
         const rowHeight = Array.isArray(rowSizes) ? rowSizes[rowIndex] : 'auto';
         let rowClassNames = '';
-
-        // Speciális sor osztályok hozzáadása
-        if (rowIndex === 0) {
-            rowClassNames = ' first-row';
-        } else if (rowIndex === lastRowIndex) {
-            rowClassNames = ' last-row';
-        }
-
-        // Páros/páratlan beszúrt sorok osztályai (javítva)
-        // KRITIKUS JAVÍTÁS: Az eltolást javítottuk, hogy az első dinamikus sor FEHÉR legyen
+        if (rowIndex === 0) rowClassNames = ' first-row';
+        else if (rowIndex === lastRowIndex) rowClassNames = ' last-row';
         if (rowIndex >= 11 && rowIndex < lastTenRowsStartIndex) {
             const isEvenFromStart = (rowIndex - 11) % 2 === 0;
-            rowClassNames += isEvenFromStart ? ' even-row' : ' odd-row'; // Megcseréltük az even/odd jelölést
+            rowClassNames += isEvenFromStart ? ' even-row' : ' odd-row';
         }
-
-        // Kritikus sorok speciális jelölése
         const isCriticalRow = rowIndex >= lastTenRowsStartIndex - 5 && rowIndex < lastTenRowsStartIndex;
-        if (isCriticalRow) {
-            rowClassNames += ' critical-row';
-            const rowFromBottom = jsonData.length - rowIndex;
-            tableHtml += `<tr class="${rowClassNames}" style="height: ${rowHeight}px; page-break-inside: avoid !important;" data-critical-row="true" data-row-position="${rowFromBottom}">`;
-        } else {
-            tableHtml += `<tr class="${rowClassNames}" style="height: ${rowHeight}px; page-break-inside: avoid !important;">`;
+        let rowStyle = `height: ${rowHeight}px; page-break-inside: avoid !important;`;
+        if (rowIndex === 10 || rowIndex === rowCount - 9) {
+            console.log(`Problémás sor (index ${rowIndex}) magassága a rowSizes-ban: ${rowHeight}`);
+            // Kísérleti fix magasság beállítás - KÉSŐBB TÖRÖLHETŐ
+            // rowStyle += ` height: 40px !important;`;
         }
+        tableHtml += `<tr class="${rowClassNames}" style="${rowStyle}" ${isCriticalRow ? `data-critical-row="true" data-row-position="${rowCount - rowIndex}"` : ''}>`;
 
         row.forEach((cellValue, colIndex) => {
             const mergeInfo = mergeMatrix[rowIndex]?.[colIndex];
-            if (mergeInfo && !mergeInfo.isMain) return;
+            if (mergeInfo && !mergeInfo.isMain) {
+                return;
+            }
 
             const style = Array.isArray(cellStyles) ?
                 cellStyles.find(style => style?.row === rowIndex && style?.col === colIndex) :
                 null;
-
             let styleClass = style ? ` cell-style-${cellStyles.indexOf(style)}` : '';
-
-            // Fekete cella detektálása
-            const isBlackCell = style && (
-                style.backgroundColor === 'black' ||
-                style.backgroundColor === '#000000' ||
-                style.backgroundColor === 'rgb(0, 0, 0)' ||
-                (style.className && style.className.includes('black-cell'))
-            );
-
-            // Cellaosztályok hozzáadása
+            const isBlackCell = style && (style.backgroundColor === 'black' || style.backgroundColor === '#000000' || style.backgroundColor === 'rgb(0, 0, 0)' || (style.className && style.className.includes('black-cell')));
             if (isBlackCell) styleClass += ' black-cell';
             if (cellValue === undefined || cellValue === null || cellValue === '') styleClass += ' empty-cell';
-            if (rowIndex === 0) styleClass += ' first-row-cell';
-            if (rowIndex === lastRowIndex) styleClass += ' last-row-cell';
-
-            // Beszúrt sorok cellaosztályai - JAVÍTOTT RÉSZ
-            if (rowIndex >= 11 && rowIndex < lastTenRowsStartIndex) {
-                const isEvenFromStart = (rowIndex - 11) % 2 === 0;
-                styleClass += isEvenFromStart ? ' even-row-cell' : ' odd-row-cell'; // Megcseréltük az even/odd jelölést
-            }
-
-            // Forgatás kezelése
+            if (rowIndex === 0) styleClass += ' first-row-style';
+            if (rowIndex === 10) styleClass += ' eleventh-row-style';
+            if (rowIndex === lastRowIndex) styleClass += ' last-row-style';
+            if (rowIndex >= 11 && rowIndex < lastTenRowsStartIndex) styleClass += ' beszurt-sor';
+            if (style?.className?.includes('vertical-text')) styleClass += ' vertical-text';
+            if (style?.textAlign === 'center') styleClass += ' cell-centered';
             const rotation = style?.rotation / 2 || 0;
             const rotationClass = (rotation === 90 || rotation === 270) ? ' rotated-image-cell' : '';
-
             const width = Array.isArray(columnSizes) ? columnSizes[colIndex] : 'auto';
             const cellHeight = rowHeight !== 'auto' ? rowHeight : 'auto';
-            const mergeAttrs = mergeInfo?.isMain ? ` rowspan="${mergeInfo.rowspan}" colspan="${mergeInfo.colspan}"` : '';
+            const rowspanAttr = mergeInfo?.isMain && mergeInfo.rowspan > 1 ? ` rowspan="${mergeInfo.rowspan}"` : '';
+            const colspanAttr = mergeInfo?.isMain && mergeInfo.colspan > 1 ? ` colspan="${mergeInfo.colspan}"` : '';
             const cellContent = processCellContent(cellValue, width, cellHeight, rowIndex, colIndex, cellStyles);
-
-            // Cella stílus meghatározása
             let cellStyleAttr = `width: ${width}px; height: ${cellHeight}px; color: black !important;`;
 
-            // Különböző feltételek szerinti stílusok
             if (rowIndex === 0 || (rowIndex >= lastTenRowsStartIndex && colIndex >= 3)) {
-                // Első sor vagy utolsó 10 sor 4. oszloptól - nincs rácsvonal
                 cellStyleAttr += ` border: none !important; outline: none !important; box-shadow: none !important;`;
             } else if (isBlackCell) {
-                // Fekete cellák speciális megjelenítése
-                cellStyleAttr += ` background-color: black !important; color: yellow !important;
-                                    border: 2px solid yellow !important;
-                                    outline: 1px solid yellow !important;
-                                    box-shadow: 0 0 0 0.5px yellow, inset 0 0 0 0.5px yellow !important;
-                                    position: relative; z-index: 1;`;
+                cellStyleAttr += ` background-color: black !important; color: yellow !important; border: 2px solid yellow !important; outline: 1px solid yellow !important; box-shadow: 0 0 0 0.5px yellow, inset 0 0 0 0.5px yellow !important; position: relative; z-index: 1;`;
             } else if (rowIndex >= 11 && rowIndex < lastTenRowsStartIndex) {
-                // Beszúrt sorok színei - JAVÍTOTT RÉSZ
-                // Az első beszúrt (11. sortól) kezdve fehér legyen, majd váltakozzon
                 const isEvenFromStart = (rowIndex - 11) % 2 === 0;
-                const defaultBgColor = isEvenFromStart ? 'white' : '#D7D7D7'; // Megcseréltük a színeket
-                
-                const bgColor = (style?.backgroundColor && style.backgroundColor !== 'inherit' && style.backgroundColor !== '')
-                    ? style.backgroundColor : defaultBgColor;
-
+                const defaultBgColor = isEvenFromStart ? 'white' : '#D7D7D7';
+                const bgColor = (style?.backgroundColor && style.backgroundColor !== 'inherit' && style.backgroundColor !== '') ? style.backgroundColor : defaultBgColor;
                 cellStyleAttr += ` background-color: ${bgColor} !important; text-align: center !important;`;
             } else if (style?.backgroundColor && style.backgroundColor !== 'inherit' && style.backgroundColor !== '') {
-                // Egyedi háttérszín alkalmazása
                 cellStyleAttr += ` background-color: ${style.backgroundColor} !important;`;
             }
 
-            // Cella HTML összeállítása
             const cellClassAttr = `class="merged-cell${styleClass}${rotationClass}"`;
-
-            if (isCriticalRow && colIndex <= 1) {
-                // Kritikus sorok első két oszlopa speciális adatattribútumokkal
-                const rowFromBottom = jsonData.length - rowIndex;
-                const specialAttrs = ` data-special-row="${rowFromBottom}" data-special-cell="true"`;
-                const blackCellAttrs = isBlackCell ? ` data-cell-type="black" data-forced-black="true"` : '';
-
-                tableHtml += `<td ${cellClassAttr}${mergeAttrs}${specialAttrs}${blackCellAttrs} style="${cellStyleAttr}">${cellContent}</td>`;
-            } else {
-                // Normál cellák
-                tableHtml += `<td ${cellClassAttr}${mergeAttrs} style="${cellStyleAttr}">${cellContent}</td>`;
-            }
+            tableHtml += `<td ${cellClassAttr}${rowspanAttr}${colspanAttr} style="${cellStyleAttr}">${cellContent}</td>`;
         });
 
         tableHtml += '</tr>';
@@ -1371,20 +1311,20 @@ function processCellContent(value, width, height, rowIndex, colIndex, cellStyles
             }
         }
 
-        const style = Array.isArray(cellStyles) ? 
-            cellStyles.find(style => style?.row === rowIndex && style?.col === colIndex) : 
+        const style = Array.isArray(cellStyles) ?
+            cellStyles.find(style => style?.row === rowIndex && style?.col === colIndex) :
             null;
         const rotation = style?.rotation || 0; // Teljes forgatási érték használata
-        
+
         // Forgatott képek kezelése
         // 90 vagy 270 fokos forgatasoknál speciális kezelés
         if (rotation === 90 || rotation === 270) {
             return `
                 <div class="cell-content" style="position: relative; width: 100%; height: 100%; overflow: hidden;">
                     <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
-                        <img 
-                            src="${imgSrc}" 
-                            alt="Kép" 
+                        <img
+                            src="${imgSrc}"
+                            alt="Kép"
                             style="
                                 position: absolute;
                                 max-width: none;
@@ -1402,13 +1342,13 @@ function processCellContent(value, width, height, rowIndex, colIndex, cellStyles
                 </div>
             `;
         }
-        
+
         // Egyéb forgatások kezelése
         return `
             <div class="cell-content" style="position: relative; width: 100%; height: 100%; overflow: hidden;">
-                <img 
-                    src="${imgSrc}" 
-                    alt="Kép" 
+                <img
+                    src="${imgSrc}"
+                    alt="Kép"
                     style="
                         width: 100%;
                         height: 100%;
@@ -1426,27 +1366,40 @@ function processCellContent(value, width, height, rowIndex, colIndex, cellStyles
 
 // Helper function to create merge matrix
 function createMergeMatrix(mergedCells, rowCount, colCount) {
-    if (!Array.isArray(mergedCells)) return Array.from({ length: rowCount }, () => Array(colCount).fill(null));
-
     const matrix = Array.from({ length: rowCount }, () => Array(colCount).fill(null));
+    if (!Array.isArray(mergedCells)) {
+        console.log("Nincsenek egyesített cellák megadva.");
+        return matrix;
+    }
+
+    console.log("Egymásba ágyazott cellák:", mergedCells);
 
     mergedCells.forEach(merge => {
-        if (!merge || !merge.s || !merge.e) return;
-
+        if (!merge || !merge.s || !merge.e) {
+            console.warn("Érvénytelen egyesítési bejegyzés:", merge);
+            return;
+        }
         const { s: start, e: end } = merge;
-        for (let row = start.r; row <= end.r; row++) {
-            for (let col = start.c; col <= end.c; col++) {
-                matrix[row] = matrix[row] || [];
-                matrix[row][col] = {
-                    isMain: row === start.r && col === start.c,
+        for (let r = start.r; r <= end.r; r++) {
+            for (let c = start.c; c <= end.c; c++) {
+                if (r >= rowCount || c >= colCount) {
+                    console.warn(`Az egyesítési bejegyzés érvénytelen indexeket tartalmaz (sor: ${r}, oszlop: ${c}). Táblázat méretei: sorok=${rowCount}, oszlopok=${colCount}.`);
+                    continue;
+                }
+                matrix[r][c] = {
+                    isMain: r === start.r && c === start.c,
                     rowspan: end.r - start.r + 1,
                     colspan: end.c - start.c + 1,
                     start: start
                 };
+                if (matrix[r][c].isMain) {
+                    console.log(`Fő egyesített cella: sor=${r}, oszlop=${c}, rowspan=${matrix[r][c].rowspan}, colspan=${matrix[r][c].colspan}`);
+                } else {
+                    console.log(`Egyesített cella (nem fő): sor=${r}, oszlop=${c}, fő cella sor=${start.r}, oszlop=${start.c}`);
+                }
             }
         }
     });
-
     return matrix;
 }
 
