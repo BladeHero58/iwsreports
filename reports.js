@@ -193,339 +193,65 @@ function generateExcelFile(data) {
     return filePath;
 }
 
-// GET: Projekt legfrissebb jelentésének lekérése (módosított verzió)
+//Jelentés betöltése route
 router.get('/:projectId/report', async (req, res) => {
     const { projectId } = req.params;
 
     try {
         const result = await pool.query(
-            'SELECT * FROM project_reports WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1',
+            'SELECT data, merge_cells, column_sizes, row_sizes, cell_styles FROM report_data WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1',
             [projectId]
         );
 
         if (result.rows.length > 0) {
-            const filePath = result.rows[0].file_path;
-
-            if (!fs.existsSync(filePath)) {
-                return res.status(404).json({ success: false, message: "Fájl nem található." });
-            }
-
-            const workbook = XLSX.readFile(filePath);
-            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-            // Egyesített cellák kinyerése
-            const mergeCells = (worksheet['!merges'] || []).map(merge => ({
-                row: merge.s.r,
-                col: merge.s.c,
-                rowspan: merge.e.r - merge.s.r + 1,
-                colspan: merge.e.c - merge.s.c + 1
-            }));
-
-            let colWidths = [];
-            let rowHeights = [];
-
-            try {
-                if (result.rows[0].column_sizes) {
-                    const cleanColumnSizes = result.rows[0].column_sizes.trim();
-                    colWidths = JSON.parse(cleanColumnSizes);
-                }
-            } catch (e) {
-                console.error('Hiba az oszlopszélességek parse-olásakor:', e);
-                console.error('Problémás adat:', result.rows[0].column_sizes);
-                colWidths = Array(jsonData[0].length).fill(100); // Alapértelmezett szélesség
-            }
-
-            try {
-                if (result.rows[0].row_sizes) {
-                    const cleanRowSizes = result.rows[0].row_sizes.trim();
-                    rowHeights = JSON.parse(cleanRowSizes);
-                }
-            } catch (e) {
-                console.error('Hiba a sormagasságok parse-olásakor:', e);
-                console.error('Problémás adat:', result.rows[0].row_sizes);
-                rowHeights = Array(jsonData.length).fill(24); // Alapértelmezett magasság
-            }
-
-            // Cellstílusok kinyerése az adatbázisból - RÉSZLETESEN ELLENŐRZVE ÉS JAVÍTVA
-            let cellStyles = [];
-            let debug = {
-                hasRawCellStyles: false,
-                rawCellStylesLength: 0,
-                cellStylesLength: 0,
-                cellStylesIsArray: false,
-                rawCellStylesType: null,
-                parseError: null
-            };
-
-            if (result.rows.length > 0 && result.rows[0].cell_styles) {
-                debug.hasRawCellStyles = true;
-                debug.rawCellStylesLength = JSON.stringify(result.rows[0].cell_styles).length;
-                debug.rawCellStylesType = typeof result.rows[0].cell_styles;
-
-                try {
-                    let rawCellStyles = result.rows[0].cell_styles;
-
-                    if (typeof rawCellStyles !== 'string') {
-                        rawCellStyles = JSON.stringify(rawCellStyles);
-                    }
-
-                    const cleanCellStyles = rawCellStyles.trim();
-                    cellStyles = JSON.parse(cleanCellStyles);
-
-                    // **LOGOLÁS HOZZÁADVA**
-                    console.log("Szerver oldali cellStyles a parse után:", cellStyles);
-
-                    debug.cellStylesLength = cellStyles.length;
-                    debug.cellStylesIsArray = Array.isArray(cellStyles);
-
-                    cellStyles = cellStyles.map(style => ({
-                        ...style,
-                        rotation: style.rotation !== undefined ? style.rotation : 0
-                    }));
-                } catch (e) {
-                    console.error('Hiba a cellastílusok parse-olásakor:', e);
-                    console.error('Problémás adat:', result.rows[0].cell_styles);
-                    console.error('Hiba részletei:', e.message);
-
-                    debug.parseError = e.message;
-
-                    try {
-                        console.error("Első 100 karakter:", result.rows[0].cell_styles.slice(0, 100));
-                    } catch (e2) {
-                        console.error("Nem sikerült kiírni az első 100 karaktert sem:", e2);
-                    }
-
-                    cellStyles = [];
-                }
-            }
-
-            // Alapértelmezett értékek beállítása, ha szükséges
-            colWidths = Array.isArray(colWidths) ? colWidths : Array(jsonData[0].length).fill(100);
-            rowHeights = Array.isArray(rowHeights) ? rowHeights : Array(jsonData.length).fill(24);
-
-            // Válasz küldése bővített debug információkkal
             res.json({
                 success: true,
-                data: jsonData.slice(1),
-                mergeCells,
-                colWidths,
-                rowHeights,
-                cellStyles,
-                debug: debug
+                data: result.rows[0].data,
+                mergeCells: result.rows[0].merge_cells,
+                colWidths: result.rows[0].column_sizes,
+                rowHeights: result.rows[0].row_sizes,
+                cellStyles: result.rows[0].cell_styles
             });
         } else {
             res.json({ success: false, message: "Nincs elérhető jegyzőkönyv ehhez a projekthez." });
         }
+
     } catch (error) {
-        console.error("Hiba a jelentés lekérésekor:", error);
+        console.error("Hiba a jelentés lekérésekor az adatbázisból:", error);
         res.status(500).json({ success: false, message: "Adatbázis hiba történt." });
     }
 });
 
-//jelentés mentése route
+// Jelentés mentése route
 router.post("/save", async (req, res) => {
     const { projectId, data, mergeCells, columnSizes, rowSizes, cellStyles } = req.body;
+    const reportId = `report-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
     if (!data || !projectId) {
         return res.status(400).json({ success: false, message: "Hiányzó adatok." });
     }
 
     try {
-        // Új rész: korábbi projekt jelentések törlése az adatbázisból
-        const oldReports = await pool.query(
-            'SELECT file_path FROM project_reports WHERE project_id = $1',
-            [projectId]
-        );
-        
-        // Töröljük a régi jelentéseket a fájlrendszerből
-        for (const report of oldReports.rows) {
-            try {
-                if (report.file_path && fs.existsSync(report.file_path)) {
-                    fs.unlinkSync(report.file_path);
-                }
-            } catch (deleteError) {
-                console.error("Hiba a régi jelentés fájl törlésekor:", deleteError);
-                // Folytassuk a törlést akkor is, ha egy fájl törlése sikertelen
-            }
-        }
-        
-        // Töröljük a régi jelentéseket az adatbázisból
+        // Beszúrjuk az adatokat a report_data táblába
         await pool.query(
-            'DELETE FROM project_reports WHERE project_id = $1',
-            [projectId]
+            'INSERT INTO report_data (project_id, report_id, data, merge_cells, column_sizes, row_sizes, cell_styles) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+            [projectId, reportId, JSON.stringify(data), JSON.stringify(mergeCells), JSON.stringify(columnSizes), JSON.stringify(rowSizes), JSON.stringify(cellStyles)]
         );
-        
-        // Az eredeti kód folytatása
-        const projectDir = path.resolve(process.cwd(), 'uploads', `project-${projectId}`);
-        if (!fs.existsSync(projectDir)) {
-            fs.mkdirSync(projectDir, { recursive: true });
-        }
 
-        // 1. Összegyűjtjük a táblázatban használt összes kép URL-jét
-        const usedImageUrls = [];
-        
-        // Végigmegyünk a táblázat celláin
-        if (Array.isArray(data)) {
-            data.forEach(row => {
-                if (Array.isArray(row)) {
-                    row.forEach(cell => {
-                        // Ha a cella tartalmaz képre utaló URL-t
-                        if (typeof cell === 'string' && cell.includes('/uploads/project-')) {
-                            usedImageUrls.push(cell);
-                        }
-                    });
-                }
-            });
-        }
-
-        // Régi fájlok törlése
-        fs.readdirSync(projectDir).forEach((file) => {
-            if (file.endsWith('.xlsx')) {
-                const filePath = path.join(projectDir, file);
-                fs.unlinkSync(filePath);
-            }
-        });
-
-        const fileName = `report-${Date.now()}.xlsx`;
-        const filePath = path.join(projectDir, fileName);
-
-        const workbook = XLSX.utils.book_new();
-
-        // 1. Excel fejlécek és adatok előkészítése
-        const headers = new Set();
-        data.forEach(row => {
-            row.forEach((_, index) => {
-                headers.add(`Column${index + 1}`);
-            });
-        });
-
-        const worksheetData = [Array.from(headers)];
-
-        // 2. Képek kezelése és adatkonverzió
-        data.forEach(row => {
-            const processedRow = [];
-            row.forEach((cell, index) => {
-                if (typeof cell === 'string' && cell.startsWith('data:image')) {
-                    const imageBuffer = Buffer.from(
-                        cell.split(';base64,').pop(),
-                        'base64'
-                    );
-                    const imageFileName = `image-${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
-                    const imagePath = path.join(projectDir, imageFileName);
-
-                    fs.writeFileSync(imagePath, imageBuffer);
-                    const imageUrl = `/uploads/project-${projectId}/${imageFileName}`;
-                    processedRow[index] = imageUrl;
-                    
-                    // Az új képet is felvesszük a használt képek listájába
-                    usedImageUrls.push(imageUrl);
-                } else {
-                    processedRow[index] = cell;
-                }
-            });
-            worksheetData.push(processedRow);
-        });
-
-        // 3. Munkalap létrehozása
-        const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-
-        // 4. Egyesített cellák hozzáadása
-        if (mergeCells && mergeCells.length > 0) {
-            worksheet['!merges'] = mergeCells.map(mc => ({
-                s: {
-                    r: mc.row,
-                    c: mc.col
-                },
-                e: {
-                    r: mc.row + mc.rowspan - 1,
-                    c: mc.col + mc.colspan - 1
-                }
-            }));
-        }
-
-        // 5. Excel stílusok hozzáadása
-        if (cellStyles && cellStyles.length > 0) {
-            // Excel stílus információk inicializálása
-            worksheet['!styles'] = {};
-
-            cellStyles.forEach(style => {
-                const cellRef = XLSX.utils.encode_cell({
-                    r: style.row,
-                    c: style.col
-                });
-                worksheet['!styles'][cellRef] = {
-                    backgroundColor: style.backgroundColor,
-                    color: style.color,
-                    fontWeight: style.fontWeight,
-                    fontSize: style.fontSize,
-                    textAlign: style.textAlign,
-                    borderColor: style.borderColor,
-                    className: style.className
-                };
-            });
-        }
-
-        // 6. Oszlop és sor méretek beállítása
-        worksheet['!cols'] = columnSizes.map(width => ({
-            wpx: width
-        }));
-        worksheet['!rows'] = rowSizes.map(height => ({
-            hpx: height
-        }));
-
-        // 7. Excel fájl mentése
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Report");
-
-        // Cellastílusok hozzáadása a mentett Excelhez, beleértve a forgatást is
-        if (cellStyles && cellStyles.length > 0 && worksheet['!styles']) {
-            cellStyles.forEach(style => {
-                const cellRef = XLSX.utils.encode_cell({ r: style.row, c: style.col });
-                if (worksheet['!styles'][cellRef]) {
-                    worksheet['!styles'][cellRef] = {
-                        ...worksheet['!styles'][cellRef],
-                        rotation: style.rotation
-                    };
-                } else {
-                    worksheet['!styles'][cellRef] = { rotation: style.rotation };
-                }
-            });
-        }
-
-        XLSX.writeFile(workbook, filePath);
-
-        // 8. Adatbázis frissítése
-        const cleanColumnSizes = columnSizes?.filter(size => size && !isNaN(size)) || [];
-        const cleanRowSizes = rowSizes?.filter(size => size && !isNaN(size)) || [];
-
-        // A mentés előtt alakítsuk át megfelelő formátumra
-        const columnSizesJson = JSON.stringify(columnSizes || []);
-        const rowSizesJson = JSON.stringify(rowSizes || []);
-
+        // Opcionális: Ha a project_reports táblában továbbra is szeretnéd tárolni a legutolsó report_id-t és egyéb metaadatokat:
         await pool.query(
-            'INSERT INTO project_reports (project_id, file_path, column_sizes, row_sizes, cell_styles) VALUES ($1, $2, $3, $4, $5)', [
-                projectId,
-                filePath,
-                columnSizesJson,
-                rowSizesJson,
-                cellStyles ? JSON.stringify(cellStyles) : null
-            ]
+            'INSERT INTO project_reports (project_id, latest_report_id, column_sizes, row_sizes, cell_styles) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (project_id) DO UPDATE SET latest_report_id = $2, column_sizes = $3, row_sizes = $4, cell_styles = $5',
+            [projectId, reportId, JSON.stringify(columnSizes), JSON.stringify(rowSizes), JSON.stringify(cellStyles)]
         );
 
-        // 9. A nem használt képek törlése
-        await cleanupUnusedImages(projectId, usedImageUrls);
+        // Képek tisztítása (a használt képek listáját most üresen hagyjuk, ha a táblázatban már nem tárolunk kép URL-eket közvetlenül)
+        await cleanupUnusedImages(projectId, []);
 
-        res.json({
-            success: true,
-            filePath
-        });
+        res.json({ success: true, message: "Jelentés sikeresen mentve az adatbázisba.", reportId });
+
     } catch (error) {
-        console.error("Hiba a jegyzőkönyv mentésekor:", error);
-        res.status(500).json({
-            success: false,
-            message: "Hiba történt a mentés során.",
-            error: error.message
-        });
+        console.error("Hiba a jegyzőkönyv mentésekor az adatbázisba:", error);
+        res.status(500).json({ success: false, message: "Hiba történt a mentés során.", error: error.message });
     }
 });
 

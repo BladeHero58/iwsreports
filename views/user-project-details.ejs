@@ -1119,32 +1119,26 @@ document.getElementById('loadReportBtn').addEventListener('click', () => {
     fetch(`/reports/${projectId}/report`)
         .then(response => response.json())
         .then(data => {
-            console.log("Teljes API válasz:", data);
+            console.log("Frontend: API válasz a betöltéshez:", data);
 
             if (data.success && data.data) {
-                console.log("Betöltött cellStyles:", data.cellStyles);
-                console.log("cellStyles típusa:", typeof data.cellStyles);
-                console.log("cellStyles tömb?:", Array.isArray(data.cellStyles));
-                console.log("cellStyles hossza:", data.cellStyles ? data.cellStyles.length : 0);
-
-                if (data.debug) {
-                    console.log("Debug információk:", data.debug);
-                }
-
                 const mergeCells = data.mergeCells || [];
                 const colWidths = Array.isArray(data.colWidths) && data.colWidths.length ? data.colWidths : undefined;
                 const rowHeights = Array.isArray(data.rowHeights) && data.rowHeights.length ? data.rowHeights : undefined;
+                const cellStyles = data.cellStyles || [];
+
+                console.log("Frontend: Betöltött adatok:", { data: data.data, mergeCells, colWidths, rowHeights, cellStyles });
 
                 displayEditableTable(data.data, mergeCells, colWidths, rowHeights);
 
                 // A cellastílusok beállítása a setupInitialCellStyles függvény segítségével
-                if (data.cellStyles && Array.isArray(data.cellStyles)) {
+                if (cellStyles && Array.isArray(cellStyles)) {
                     setTimeout(() => {
-                        setupInitialCellStyles(hot, { cellStyles: data.cellStyles });
-                        console.log("Kezdeti cellastílusok beállítva a betöltés után.");
+                        setupInitialCellStyles(hot, { cellStyles: cellStyles });
+                        console.log("Frontend: Kezdeti cellastílusok beállítva a betöltés után.");
                     }, 300); // Kis késleltetés a táblázat inicializálódásához
                 } else {
-                    console.log("Nincsenek cellastílusok a betöltött adatokban vagy nem tömb formátumban érkeztek.");
+                    console.log("Frontend: Nincsenek cellastílusok a betöltött adatokban vagy nem tömb formátumban érkeztek.");
                 }
 
             } else {
@@ -1152,7 +1146,7 @@ document.getElementById('loadReportBtn').addEventListener('click', () => {
             }
         })
         .catch(error => {
-            console.error('Hiba történt a jelentés betöltésekor:', error);
+            console.error('Frontend: Hiba történt a jelentés betöltésekor:', error);
         });
 });
 
@@ -1194,7 +1188,7 @@ document.getElementById('saveReportBtn').addEventListener('click', async () => {
     const totalRows = hot.countRows();
     const totalCols = hot.countCols();
 
-    console.log("Cellastílusok összegyűjtése a cellMeta-ból...");
+    console.log("Frontend: Cellastílusok összegyűjtése a cellMeta-ból...");
     for (let row = 0; row < totalRows; row++) {
         for (let col = 0; col < totalCols; col++) {
             const cellMeta = hot.getCellMeta(row, col);
@@ -1235,7 +1229,7 @@ document.getElementById('saveReportBtn').addEventListener('click', async () => {
     }
 
     // Debug: Ellenőrizzük a mentett cellastílusokat
-    console.log("Mentett cellStyles (cellMeta-ból):", cellStyles);
+    console.log("Frontend: Mentett cellStyles (cellMeta-ból):", cellStyles);
 
     try {
         const response = await fetch('/reports/save', {
@@ -1256,6 +1250,9 @@ document.getElementById('saveReportBtn').addEventListener('click', async () => {
         const result = await response.json();
 
         if (result.success) {
+            // Itt már nem kapunk fájl útvonalat, hanem egy sikeres mentési üzenetet és a reportId-t
+            alert(result.message || 'Jelentés sikeresen mentve!');
+            console.log("Frontend: Jelentés mentése sikeres. Report ID:", result.reportId);
         } else {
             alert(result.message || 'Hiba történt a mentés során.');
         }
