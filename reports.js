@@ -258,7 +258,26 @@ router.post("/save", async (req, res) => {
             [projectId, reportId]
         );
 
-        await cleanupUnusedImages(projectId, []);
+        // Használt képek URL-jeinek kinyerése a data-ból
+        const usedImageUrls = [];
+        if (Array.isArray(data)) {
+            data.forEach(row => {
+                if (Array.isArray(row)) {
+                    row.forEach(cell => {
+                        if (typeof cell === 'string' && cell.startsWith('/uploads/')) {
+                            usedImageUrls.push(cell);
+                        }
+                        // Ha a data URI-kat is figyelembe szeretnéd venni (opcionális)
+                        // else if (typeof cell === 'string' && cell.startsWith('data:image')) {
+                        //     // Itt valószínűleg nem tudod azonosítani a szerveren lévő fájlt
+                        //     // hacsak nem tárolsz valamilyen metaadatot a data URI-khoz
+                        // }
+                    });
+                }
+            });
+        }
+
+        await cleanupUnusedImages(projectId, usedImageUrls);
 
         res.json({ success: true, message: "Jelentés sikeresen mentve az adatbázisba.", reportId });
 
