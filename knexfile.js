@@ -18,7 +18,16 @@ module.exports = {
 
   production: {
     client: 'pg',
-    connection: process.env.DATABASE_URL, // Használd a DATABASE_URL-t itt!
+    connection: {
+      host: process.env.PGHOST,
+      port: process.env.PGPORT,
+      user: process.env.PGUSER,
+      password: process.env.PGPASSWORD,
+      database: process.env.PGDATABASE,
+      ssl: {
+        rejectUnauthorized: false, // Szükséges lehet a Render.com-on is
+      },
+    },
     migrations: {
       directory: './migrations',
     },
