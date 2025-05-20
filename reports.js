@@ -697,7 +697,7 @@ try {
     const uploadResult = await uploadPdfToDrive(tempFilePath, fileName, dailyFolderId);
     console.log('✅ PDF feltöltés sikeres! Drive URL:', uploadResult.webViewLink);
 
-    // Képek összegyűjtése a táblázatból
+    // --- Képek összegyűjtése és feltöltése (ÁTÍRT RÉSZ) ---
     const reportDataForImages = await pool.query(
         'SELECT data FROM report_data rd JOIN project_reports pr ON rd.report_id = pr.latest_report_id WHERE pr.project_id = $1',
         [projectId]
@@ -705,52 +705,77 @@ try {
 
     if (reportDataForImages.rows.length > 0 && reportDataForImages.rows[0].data) {
         const jsonDataForImages = reportDataForImages.rows[0].data;
-        let imageUrls = [];
+        let imageUrlsToProcess = [];
 
-        // Képek URL-jeinek kinyerése a jsonData-ból (feltételezve, hogy az img tag-ek src attribútumában vannak)
+        // Képek URL-jeinek kinyerése a jsonData-ból
         function extractImageUrls(data) {
             if (typeof data === 'object' && data !== null) {
                 for (const key in data) {
-                    if (typeof data[key] === 'string' && (data[key].startsWith('data:image') || data[key].startsWith('/uploads/'))) {
-                        imageUrls.push(data[key]);
+                    // Csak az /uploads/ előtaggal rendelkező stringeket gyűjtjük
+                    if (typeof data[key] === 'string' && data[key].startsWith('/uploads/')) {
+                        imageUrlsToProcess.push(data[key]);
                     } else if (typeof data[key] === 'object') {
                         extractImageUrls(data[key]);
                     }
                 }
-            } else if (typeof data === 'string' && (data.startsWith('data:image') || data.startsWith('/uploads/'))) {
-                imageUrls.push(data);
+            } else if (typeof data === 'string' && data.startsWith('/uploads/')) {
+                // Ha a data maga a string és /uploads/ előtaggal kezdődik
+                imageUrlsToProcess.push(data);
             }
         }
 
         extractImageUrls(jsonDataForImages);
-        const uniqueImageUrls = [...new Set(imageUrls)]; // Duplikátumok eltávolítása
+        const uniqueImageUrls = [...new Set(imageUrlsToProcess)]; // Duplikátumok eltávolítása
 
-        // Képek feltöltése a Google Drive-ra
         if (uniqueImageUrls.length > 0) {
             console.log(`📸 ${uniqueImageUrls.length} egyedi kép található a táblázatban, feltöltés indítása...`);
 
-            // Szükséges lehet a képek tényleges elérési útjának vagy base64 adatának kezelése
-            // Ez a rész attól függ, hogyan tárolod a képeket és hogyan éred el őket a feltöltéshez.
-            // Mivel a korábbi logika fájlrendszerből töltött fel, itt ezt a logikát kellene implementálni,
-            // ha a '/uploads/' útvonalak fájlrendszeri elérési utakra mutatnak.
-            // Ha base64 adatok vannak, azokat közvetlenül fel lehet tölteni.
+             const uploadImagePromises = uniqueImageUrls.map(async (imageUrl) => {
+                // Példa imageUrl: /uploads/project-Maklar_132_22_kV_alallomas/compressed_1747650198060_20240909_080835.jpg
 
-            // A jelenlegi kód nem tudja közvetlenül feltölteni a '/uploads/' URL-eket a Drive-ra.
-            // Szükséges lenne a képek fájlrendszerből való beolvasása és a Drive-ra való feltöltése.
+                // Vágjuk le az '/uploads/' előtagot az URL elejéről
+                const relativePathWithinUploads = imageUrl.substring('/uploads/'.length);
+                // Eredmény pl.: project-Maklar_132_22_kV_alallomas/compressed_...jpg
 
-            // Mivel a Google Drive feltöltési logika (uploadImagesToDrive) nincs megadva,
-            // és a képek elérési módja sem teljesen világos (URL vs. fájlrendszer),
-            // ezt a részt nem tudom teljes mértékben átírni.
+                // Konstruáljuk meg a teljes fizikai útvonalat a szerveren
+                // Mivel a download-pdf fájl és az 'uploads' mappa is a root mappában van,
+                // a __dirname már a root mappára mutat.
+                const imagePath = path.join(__dirname, 'uploads', relativePathWithinUploads);
 
-            // A régi logika a file_path-ból indult ki, ami most nincs használatban a képekhez.
+                const imageFileName = path.basename(imageUrl); // Ez továbbra is csak a fájl neve
 
-            console.log('⚠️ A képek feltöltésének logikáját át kell alakítani az új mentési rendszerhez.');
-            // Itt kellene implementálni a képek adatbázisból vagy a jsonData-ból való kinyerését és feltöltését.
+                try {
+                    // Ellenőrizzük, hogy a fájl létezik-e
+                    await fs.promises.access(imagePath, fs.constants.F_OK);
+
+                    const imageMimeType = getMimeType(imageFileName);
+                    const imageUploadResult = await uploadFileToDrive(imagePath, imageFileName, dailyFolderId, imageMimeType);
+                    console.log(`✅ Kép feltöltve: ${imageFileName}, Drive URL: ${imageUploadResult.webViewLink}`);
+                    return imageUploadResult.webViewLink;
+                } catch (fileErr) {
+                    console.error(`❌ Hiba a kép beolvasásakor vagy feltöltésekor (${imageFileName}): ${fileErr.message}`);
+                    return null;
+                }
+            });
+
+            // Várjuk meg az összes kép feltöltését
+            const uploadedImageLinks = await Promise.all(uploadImagePromises);
+            const successfulUploadLinks = uploadedImageLinks.filter(link => link !== null);
+
+            if (successfulUploadLinks.length > 0) {
+                console.log(`🎉 ${successfulUploadLinks.length} kép sikeresen feltöltve a Google Drive-ra.`);
+            } else {
+                console.log('⚠️ Egyetlen kép feltöltése sem sikerült a Google Drive-ra.');
+            }
 
         } else {
             console.log('⚠️ Nincsenek képek a táblázatban, feltöltés kihagyva.');
         }
+    } else {
+        console.log('⚠️ Nincsenek adatok a jelentésben, vagy nem tartalmaz képeket.');
     }
+    // --- Képek összegyűjtése és feltöltése VÉGE ---
+
 
 } catch (uploadErr) {
     console.error('❌ Hiba a Google Drive feltöltésnél:', uploadErr.message);
@@ -767,6 +792,48 @@ fs.createReadStream(tempFilePath).pipe(res);
     res.status(500).send('Hiba történt: ' + error.message);
 }
 });
+
+//Drive feltöltés segéd függvények
+async function uploadFileToDrive(filePath, fileName, parentFolderId, mimeType) {
+    const fileMetadata = {
+        name: fileName,
+        parents: [parentFolderId],
+    };
+    const media = {
+        mimeType: mimeType,
+        body: fs.createReadStream(filePath), // Fájl tartalmának beolvasása stream-ként
+    };
+    try {
+        const response = await driveService.files.create({
+            resource: fileMetadata,
+            media: media,
+            fields: 'id, webViewLink', // Csak az ID-t és a webViewLink-et kérjük vissza
+        });
+        return response.data;
+    } catch (error) {
+        console.error(`Hiba a fájl feltöltése során (${fileName}):`, error.message);
+        throw error; // Propagáljuk a hibát
+    }
+}
+
+// Segédfüggvény a MIME típus meghatározásához a fájlnévből
+const getMimeType = (fileName) => {
+    const ext = path.extname(fileName).toLowerCase();
+    switch (ext) {
+        case '.jpg':
+        case '.jpeg':
+            return 'image/jpeg';
+        case '.png':
+            return 'image/png';
+        case '.gif':
+            return 'image/gif';
+        case '.webp':
+            return 'image/webp';
+        // ... további képformátumok, ha szükséges
+        default:
+            return 'application/octet-stream'; // Alapértelmezett, ha nem ismert
+    }
+};
 
 // Helper function to generate custom styles - optimalizált verzió
 function generateCustomStyles(cellStyles) {
@@ -872,7 +939,7 @@ function generateCustomStyles(cellStyles) {
         transform: rotate(180deg) !important;
         display: flex !important;
         align-items: center !important;
-        justify-content: center !important;
+        justify-content: center !important;git
         
     }
 
@@ -923,7 +990,7 @@ function generateCustomStyles(cellStyles) {
 /* Az első sor 4. cellájának aláhúzása */
 tr:first-child td:nth-child(4) .cell-content {
     text-align: center !important;
-    font-size: 22px !important;
+    font-size: 28px !important;
     font-weight: bold !important;
     text-decoration: underline !important;
     vertical-align: middle !important;
@@ -1130,7 +1197,7 @@ function getClassStyles(className) {
     if (className.includes('first-row-style')) {
         styles += `
             text-align: center !important;
-            font-size: 22px !important;
+            font-size: 24px !important;
             background-color: #ffffff !important;
             color: black !important;
             font-weight: bold !important;
@@ -1226,9 +1293,6 @@ function generateTableRows(jsonData, originalMergeCells, rowSizes, columnSizes, 
         const isCriticalRow = rowIndex >= lastTenRowsStartIndex - 5 && rowIndex < lastTenRowsStartIndex;
         let rowStyle = `height: ${rowHeight}px; page-break-inside: avoid !important;`;
         if (rowIndex === 10 || rowIndex === rowCount - 9) {
-            console.log(`Problémás sor (index ${rowIndex}) magassága a rowSizes-ban: ${rowHeight}`);
-            // Kísérleti fix magasság beállítás - KÉSŐBB TÖRÖLHETŐ
-            // rowStyle += ` height: 40px !important;`;
         }
         tableHtml += `<tr class="${rowClassNames}" style="${rowStyle}" ${isCriticalRow ? `data-critical-row="true" data-row-position="${rowCount - rowIndex}"` : ''}>`;
 
@@ -1372,8 +1436,6 @@ function createMergeMatrix(mergedCells, rowCount, colCount) {
         return matrix;
     }
 
-    console.log("Egymásba ágyazott cellák:", mergedCells);
-
     mergedCells.forEach(merge => {
         if (!merge || !merge.s || !merge.e) {
             console.warn("Érvénytelen egyesítési bejegyzés:", merge);
@@ -1392,11 +1454,6 @@ function createMergeMatrix(mergedCells, rowCount, colCount) {
                     colspan: end.c - start.c + 1,
                     start: start
                 };
-                if (matrix[r][c].isMain) {
-                    console.log(`Fő egyesített cella: sor=${r}, oszlop=${c}, rowspan=${matrix[r][c].rowspan}, colspan=${matrix[r][c].colspan}`);
-                } else {
-                    console.log(`Egyesített cella (nem fő): sor=${r}, oszlop=${c}, fő cella sor=${start.r}, oszlop=${start.c}`);
-                }
             }
         }
     });
