@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
@@ -6,10 +8,14 @@ const XLSX = require('xlsx');
 const puppeteer = require('puppeteer');
 const sharp = require('sharp');
 const path = require('path');
+const stream = require('stream');
 const mime = require('mime-types');
 const { getOrCreateFolder, uploadPdfToDrive, driveService, uploadImagesToDrive, createDailyFolder } = require('./googleDrive');
+const axios = require('axios');
 const MAIN_DRIVE_FOLDER_ID = '1yc0G2dryo4XZeHmZ3FzV4yG4Gxjj2w7j'; // Állítsd be a saját főmappa ID-t!
-require("dotenv").config();
+
+
+const { Storage } = require('@google-cloud/storage');
 
 console.log('DATABASE_URL a server.js-ben:', process.env.DATABASE_URL);
 
@@ -36,24 +42,97 @@ router.use(express.urlencoded({ extended: true }));
 router.use(express.json());
 
 // Multer konfiguráció memória tárolással
-const upload = multer({ 
-    storage: multer.memoryStorage()
+const upload = multer({
+    storage: multer.memoryStorage(), // Vagy más storage konfiguráció
+    // ADD HOZZÁ EZT A SORT, VAGY NÖVELD AZ ÉRTÉKÉT, HA MÁR OTT VAN
+    limits: { fileSize: 10 * 1024 * 1024 } // Például 10 MB (10 * 1024 * 1024 bájt)
 });
 
-// Képtömörítő funkció
+// GCS kliens, bucket és bucket név deklarálása globális hatókörben
+let storage;
+let bucket;
+let gcsBucketName; // <-- EZ A FONTOS MÓDOSÍTÁS!
+
+try {
+    const keyFilePath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    // gcsBucketName már deklarálva van feljebb, itt csak értéket adunk neki
+    gcsBucketName = process.env.GCS_BUCKET_NAME; 
+
+    if (!keyFilePath) {
+        throw new Error("HIBA: A GOOGLE_APPLICATION_CREDENTIALS környezeti változó nincs beállítva a .env fájlban.");
+    }
+
+    const fullKeyPath = path.join(process.cwd(), keyFilePath);
+
+    if (!fs.existsSync(fullKeyPath)) {
+        throw new Error(`HIBA: A Service Account kulcsfájl nem található: ${fullKeyPath}. Kérlek, ellenőrizd a .env fájlban az útvonalat és a fájl meglétét.`);
+    }
+
+    const credentials = JSON.parse(fs.readFileSync(fullKeyPath, 'utf8'));
+    storage = new Storage({ credentials });
+
+    if (!gcsBucketName) {
+        throw new Error("HIBA: A GCS_BUCKET_NAME környezeti változó nincs beállítva.");
+    }
+    bucket = storage.bucket(gcsBucketName);
+
+    console.log(`Google Cloud Storage bucket inicializálva: ${gcsBucketName}`);
+
+} catch (error) {
+    console.error("Kritikus hiba a Google Cloud Storage inicializálásakor:", error.message);
+    process.exit(1);
+}
+
+// Segédfüggvény a kép letöltéséhez URL-ről
+async function downloadImageFromUrl(imageUrl) {
+    try {
+        const response = await axios.get(imageUrl, {
+            responseType: 'arraybuffer'
+        });
+        return Buffer.from(response.data);
+    } catch (error) {
+        console.error(`Hiba a kép letöltésekor az URL-ről (${imageUrl}): ${error.message}`);
+        throw error;
+    }
+}
+
+// uploadBufferToDrive függvény DEFINÍCIÓJA!
+async function uploadBufferToDrive(buffer, fileName, parentFolderId, mimeType) {
+    const fileMetadata = {
+        name: fileName,
+        parents: [parentFolderId],
+    };
+
+    try {
+        const readableStream = stream.Readable.from(buffer); // <-- Itt konvertáljuk stream-mé a buffert
+
+        const response = await driveService.files.create({
+            resource: fileMetadata,
+            media: {
+                mimeType: mimeType,
+                body: readableStream, // <-- Itt a stream-et adjuk át
+            },
+            fields: 'id, webViewLink',
+        });
+        return response.data;
+    } catch (error) {
+        console.error(`Hiba a fájl feltöltése során (${fileName}):`, error.message);
+        throw error;
+    }
+}
+
+// Képtömörítő funkció (ezt a funkciót nem használja közvetlenül az /upload endpoint, de benne hagytam)
 async function compressImage(inputPath, outputPath) {
     try {
         if (!fs.existsSync(inputPath)) {
             throw new Error(`A bemeneti fájl (${inputPath}) nem létezik!`);
         }
 
-        // Ellenőrizzük a kimeneti mappa létrehozását
         const outputDir = path.dirname(outputPath);
         if (!fs.existsSync(outputDir)) {
             fs.mkdirSync(outputDir, { recursive: true });
         }
 
-        // Tömörítés és formátumkezelés
         await sharp(inputPath)
             .resize({ 
                 width: 1024, 
@@ -85,96 +164,99 @@ router.post('/upload', upload.single('image'), async (req, res) => {
             return res.status(400).json({ success: false, message: 'Project ID hiányzik' });
         }
 
-        // Mappa létrehozása, ha nem létezik
-        const uploadDir = path.join(process.cwd(), 'uploads', `project-${projectId}`);
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-        }
-
-        // Kép feldolgozása és mentése a megfelelő helyre
-        const outputFilename = `compressed_${Date.now()}_${req.file.originalname}`;
-        const outputPath = path.join(uploadDir, outputFilename);
-
-        // Képfeldolgozás közvetlenül a buffer-ből
-        await sharp(req.file.buffer)
+        const compressedBuffer = await sharp(req.file.buffer)
             .resize(800)
-            .toFile(outputPath);
+            .toBuffer();
 
-        // Válasz összeállítása
-        const publicUrl = `/uploads/project-${projectId}/${outputFilename}`;
+        const outputFilename = `compressed_${Date.now()}_${req.file.originalname}`;
+        // HELYES filePathInGCS generálás backtick-kel (string template literál)
+        // Kiemelten fontos, hogy a ` (backtick) karaktert használd a string elején és végén!
+        const filePathInGCS = `project-${projectId}/${outputFilename}`; 
+
+        const file = bucket.file(filePathInGCS);
+        await file.save(compressedBuffer, {
+            metadata: { contentType: req.file.mimetype },
+            resumable: false,
+            // public: true // Ez már korábban is törölve lett
+        });
+
+        // makePublic() is törölve lett a korábbi hibakeresés során.
+        // Ezt a sort ne add vissza: await file.makePublic(); 
+
+        // HELYES publicUrl generálás backtick-kel (string template literál)
+        // Kiemelten fontos, hogy a ` (backtick) karaktert használd a string elején és végén!
+        const publicUrl = `https://storage.googleapis.com/${gcsBucketName}/${filePathInGCS}`;
         res.json({
             success: true,
-            url: publicUrl,
-            metadata: await sharp(outputPath).metadata()
+            url: publicUrl, // Ez most már a valós, működő URL lesz
+            metadata: await sharp(compressedBuffer).metadata()
         });
 
     } catch (err) {
-        console.error('VÉGLEGES HIBA:', err);
+        console.error('VÉGLEGES HIBA a kép feltöltésekor a GCS-re:', err);
         res.status(500).json({ success: false, message: 'Szerver hiba', error: err.message });
     }
 });
 
-// Nem használt képek törlése függvény (a router definíció előtt vagy után)
+// Nem használt képek törlése függvény
 async function cleanupUnusedImages(projectId, usedImageUrls) {
     try {
-      // A projekt mappájának elérési útja
-      const projectDir = path.resolve(process.cwd(), 'uploads', `project-${projectId}`);
-      
-      // Ellenőrizzük, hogy létezik-e a mappa
-      if (!fs.existsSync(projectDir)) {
-        console.log(`A project-${projectId} mappa nem létezik, nincs mit takarítani.`);
-        return;
-      }
-      
-      // Az összes fájl listázása a mappában
-      const files = fs.readdirSync(projectDir);
-      
-      // Képfájlok kiszűrése (jpg, jpeg, png kiterjesztések)
-      const imageFiles = files.filter(file => 
-        /\.(jpg|jpeg|png)$/i.test(file)
-      );
-      
-      // Konvertáljuk a használt URL-eket fájlnevekké
-      const usedFileNames = usedImageUrls.map(url => 
-        url.replace(`/uploads/project-${projectId}/`, '')
-      );
-      
-      // Nem használt képek meghatározása
-      const unusedFiles = imageFiles.filter(file => 
-        !usedFileNames.includes(file)
-      );
-      
-      // Nem használt képek törlése
-      for (const file of unusedFiles) {
-        const filePath = path.join(projectDir, file);
-        fs.unlinkSync(filePath);
-        console.log(`Nem használt kép törölve: ${filePath}`);
-      }
-      
-      console.log(`Takarítás kész: ${unusedFiles.length} nem használt kép törölve a project-${projectId} mappából.`);
+        // Itt már elérhető a gcsBucketName
+        const [files] = await bucket.getFiles({ prefix: `project-${projectId}/` });
+
+        const unusedGCSFilePaths = files
+            .filter(file => {
+                const fileName = file.name;
+                const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName);
+                
+                // Itt is elérhető a gcsBucketName
+                const gcsFileUrl = `https://storage.googleapis.com/${gcsBucketName}/${fileName}`;
+                return isImage && !usedImageUrls.includes(gcsFileUrl);
+            })
+            .map(file => file.name);
+        
+        for (const filePathInGCS of unusedGCSFilePaths) {
+            const file = bucket.file(filePathInGCS);
+            await file.delete();
+            console.log(`Nem használt kép törölve a GCS-ből: gs://${gcsBucketName}/${filePathInGCS}`);
+        }
+        
+        console.log(`Takarítás kész: ${unusedGCSFilePaths.length} nem használt kép törölve a project-${projectId} mappából a GCS-en.`);
     } catch (error) {
-      console.error('Hiba a nem használt képek tisztításakor:', error);
+        console.error('Hiba a nem használt képek tisztításakor a GCS-en:', error);
     }
-  }
+}
 
 // Kép törlésének endpointja
 router.post('/delete-image', async (req, res) => {
     try {
-        const imageUrl = req.body.imageUrl;  // A kép URL-jét várjuk
-        const imagePath = path.join(__dirname, 'uploads', imageUrl.replace('/uploads/', ''));
+        const imageUrl = req.body.imageUrl;
 
-        // Ellenőrizzük, hogy létezik-e a fájl
-        if (fs.existsSync(imagePath)) {
-            fs.unlinkSync(imagePath);  // A fájl törlése
-            res.json({ success: true });
+        // Itt is elérhető a gcsBucketName
+        if (!imageUrl || !imageUrl.startsWith(`https://storage.googleapis.com/${gcsBucketName}/`)) {
+            return res.status(400).json({ success: false, message: 'Érvénytelen GCS kép URL.' });
+        }
+
+        // Itt is elérhető a gcsBucketName
+        const filePathInGCS = imageUrl.substring(`https://storage.googleapis.com/${gcsBucketName}/`.length);
+        const file = bucket.file(filePathInGCS);
+
+        const [exists] = await file.exists();
+        if (exists) {
+            await file.delete();
+            console.log(`Kép törölve a GCS-ből: ${imageUrl}`);
+            res.json({ success: true, message: 'Kép sikeresen törölve.' });
         } else {
-            res.status(404).json({ success: false, message: 'A fájl nem található' });
+            res.status(404).json({ success: false, message: 'A kép nem található a GCS-en.' });
         }
     } catch (err) {
-        console.error('Hiba a fájl törlésekor:', err);
-        res.status(500).json({ success: false, message: 'Szerver hiba' });
+        console.error('Hiba a kép törlésekor a GCS-ből:', err);
+        res.status(500).json({ success: false, message: 'Szerver hiba a törlés során.', error: err.message });
     }
 });
+
+// Exportáljuk a routert és a cleanupUnusedImages függvényt, ha máshol is használod
+module.exports = { router, cleanupUnusedImages };
 
 // xlsx fájl beolvasása
 function generateExcelFile(data) {
@@ -233,7 +315,7 @@ router.get('/:projectId/report', async (req, res) => {
     }
 });
 
-// Jelentés mentése route
+// Jelentés mentése route (MÓDOSÍTOTT)
 router.post("/save", async (req, res) => {
     const { projectId, data, mergeCells, columnSizes, rowSizes, cellStyles } = req.body;
     const reportId = `report-${Date.now()}-${Math.random().toString(36).substring(7)}`;
@@ -247,6 +329,7 @@ router.post("/save", async (req, res) => {
         await pool.query('DELETE FROM report_data WHERE project_id = $1', [projectId]);
 
         // Beszúrjuk az új jelentést a report_data táblába
+        // A 'data' (ami a táblázat tartalmát jelenti) most már a GCS URL-eket tartalmazza
         await pool.query(
             'INSERT INTO report_data (project_id, report_id, data, merge_cells, column_sizes, row_sizes, cell_styles) VALUES ($1, $2, $3, $4, $5, $6, $7)',
             [projectId, reportId, JSON.stringify(data), JSON.stringify(mergeCells), JSON.stringify(columnSizes), JSON.stringify(rowSizes), JSON.stringify(cellStyles)]
@@ -258,16 +341,17 @@ router.post("/save", async (req, res) => {
             [projectId, reportId]
         );
 
-        // Használt képek URL-jeinek kinyerése a data-ból
+        // Használt képek URL-jeinek kinyerése a data-ból (MÓDOSÍTOTT)
         const usedImageUrls = [];
         if (Array.isArray(data)) {
             data.forEach(row => {
                 if (Array.isArray(row)) {
                     row.forEach(cell => {
-                        if (typeof cell === 'string' && cell.startsWith('/uploads/')) {
+                        // Most már a GCS URL-ekre keresünk, amik "https://storage.googleapis.com/"-mal kezdődnek
+                        if (typeof cell === 'string' && cell.startsWith('https://storage.googleapis.com/')) {
                             usedImageUrls.push(cell);
                         }
-                        // Ha a data URI-kat is figyelembe szeretnéd venni (opcionális)
+                        // Ha a data URI-kat is figyelembe szeretnéd venni, az eredeti logikád maradhat itt
                         // else if (typeof cell === 'string' && cell.startsWith('data:image')) {
                         //     // Itt valószínűleg nem tudod azonosítani a szerveren lévő fájlt
                         //     // hacsak nem tárolsz valamilyen metaadatot a data URI-khoz
@@ -277,6 +361,8 @@ router.post("/save", async (req, res) => {
             });
         }
 
+        // FONTOS: A `cleanupUnusedImages` függvény már a GCS-ből töröl,
+        // így ez a hívás mostantól a felhő tárhelyet fogja takarítani.
         await cleanupUnusedImages(projectId, usedImageUrls);
 
         res.json({ success: true, message: "Jelentés sikeresen mentve az adatbázisba.", reportId });
@@ -578,14 +664,9 @@ router.get('/:projectId/download-pdf', async (req, res) => {
 // PDF generálás Puppeteerrel
 const browser = await puppeteer.launch({
     headless: "new",
-   executablePath: puppeteer.executablePath(), // Ez a kulcsfontosságú!
-    args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-web-security',
-        '--single-process' // Ez segíthet bizonyos környezetekben
-    ],
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security']
 });
+
 
 const page = await browser.newPage();
 await page.setViewport({
@@ -713,73 +794,65 @@ try {
         const jsonDataForImages = reportDataForImages.rows[0].data;
         let imageUrlsToProcess = [];
 
-        // Képek URL-jeinek kinyerése a jsonData-ból
-        function extractImageUrls(data) {
-            if (typeof data === 'object' && data !== null) {
-                for (const key in data) {
-                    // Csak az /uploads/ előtaggal rendelkező stringeket gyűjtjük
-                    if (typeof data[key] === 'string' && data[key].startsWith('/uploads/')) {
-                        imageUrlsToProcess.push(data[key]);
-                    } else if (typeof data[key] === 'object') {
-                        extractImageUrls(data[key]);
-                    }
+        // Képek URL-jeinek kinyerése a jsonData-ból (MÓDOSÍTOTT LOGIKA)
+    function extractImageUrls(data) {
+        if (typeof data === 'object' && data !== null) {
+            for (const key in data) {
+                // Most már a GCS URL-ekre keresünk, amik "https://storage.googleapis.com/"-mal kezdődnek
+                if (typeof data[key] === 'string' && data[key].startsWith('https://storage.googleapis.com/')) {
+                    imageUrlsToProcess.push(data[key]);
+                } else if (typeof data[key] === 'object') {
+                    extractImageUrls(data[key]);
                 }
-            } else if (typeof data === 'string' && data.startsWith('/uploads/')) {
-                // Ha a data maga a string és /uploads/ előtaggal kezdődik
-                imageUrlsToProcess.push(data);
             }
+        } else if (typeof data === 'string' && data.startsWith('https://storage.googleapis.com/')) {
+            // Ha a cella maga a GCS URL
+            imageUrlsToProcess.push(data);
         }
-
-        extractImageUrls(jsonDataForImages);
-        const uniqueImageUrls = [...new Set(imageUrlsToProcess)]; // Duplikátumok eltávolítása
-
-        if (uniqueImageUrls.length > 0) {
-            console.log(`📸 ${uniqueImageUrls.length} egyedi kép található a táblázatban, feltöltés indítása...`);
-
-             const uploadImagePromises = uniqueImageUrls.map(async (imageUrl) => {
-                // Példa imageUrl: /uploads/project-Maklar_132_22_kV_alallomas/compressed_1747650198060_20240909_080835.jpg
-
-                // Vágjuk le az '/uploads/' előtagot az URL elejéről
-                const relativePathWithinUploads = imageUrl.substring('/uploads/'.length);
-                // Eredmény pl.: project-Maklar_132_22_kV_alallomas/compressed_...jpg
-
-                // Konstruáljuk meg a teljes fizikai útvonalat a szerveren
-                // Mivel a download-pdf fájl és az 'uploads' mappa is a root mappában van,
-                // a __dirname már a root mappára mutat.
-                const imagePath = path.join(__dirname, 'uploads', relativePathWithinUploads);
-
-                const imageFileName = path.basename(imageUrl); // Ez továbbra is csak a fájl neve
-
-                try {
-                    // Ellenőrizzük, hogy a fájl létezik-e
-                    await fs.promises.access(imagePath, fs.constants.F_OK);
-
-                    const imageMimeType = getMimeType(imageFileName);
-                    const imageUploadResult = await uploadFileToDrive(imagePath, imageFileName, dailyFolderId, imageMimeType);
-                    console.log(`✅ Kép feltöltve: ${imageFileName}, Drive URL: ${imageUploadResult.webViewLink}`);
-                    return imageUploadResult.webViewLink;
-                } catch (fileErr) {
-                    console.error(`❌ Hiba a kép beolvasásakor vagy feltöltésekor (${imageFileName}): ${fileErr.message}`);
-                    return null;
-                }
-            });
-
-            // Várjuk meg az összes kép feltöltését
-            const uploadedImageLinks = await Promise.all(uploadImagePromises);
-            const successfulUploadLinks = uploadedImageLinks.filter(link => link !== null);
-
-            if (successfulUploadLinks.length > 0) {
-                console.log(`🎉 ${successfulUploadLinks.length} kép sikeresen feltöltve a Google Drive-ra.`);
-            } else {
-                console.log('⚠️ Egyetlen kép feltöltése sem sikerült a Google Drive-ra.');
-            }
-
-        } else {
-            console.log('⚠️ Nincsenek képek a táblázatban, feltöltés kihagyva.');
-        }
-    } else {
-        console.log('⚠️ Nincsenek adatok a jelentésben, vagy nem tartalmaz képeket.');
     }
+
+    extractImageUrls(jsonDataForImages);
+    const uniqueImageUrls = [...new Set(imageUrlsToProcess)]; // Duplikátumok eltávolítása
+
+    if (uniqueImageUrls.length > 0) {
+        console.log(`📸 ${uniqueImageUrls.length} egyedi kép található a táblázatban (GCS-ről), feltöltés indítása a Drive-ra...`);
+
+        const uploadImagePromises = uniqueImageUrls.map(async (imageUrl) => {
+            // Fájlnév kinyerése az URL path-ból
+            const imageFileName = path.basename(new URL(imageUrl).pathname);
+
+            try {
+                // 1. Kép letöltése a GCS-ről bufferbe
+                const imageBuffer = await downloadImageFromUrl(imageUrl); // <-- AZ ÚJ SEGÉDFÜGGVÉNY HASZNÁLATA
+
+                // 2. MIME típus meghatározása a fájlnévből
+                const imageMimeType = getMimeType(imageFileName);
+
+                // 3. Kép feltöltése a Google Drive-ra a bufferből
+                const imageUploadResult = await uploadBufferToDrive(imageBuffer, imageFileName, dailyFolderId, imageMimeType); // <-- AZ ÚJ SEGÉDFÜGGVÉNY HASZNÁLATA
+                console.log(`✅ Kép feltöltve a Drive-ra: ${imageFileName}, Drive URL: ${imageUploadResult.webViewLink}`);
+                return imageUploadResult.webViewLink;
+            } catch (imageProcessErr) {
+                console.error(`❌ Hiba a kép letöltésekor/feltöltésekor a Drive-ra (${imageFileName} from ${imageUrl}): ${imageProcessErr.message}`);
+                return null; // Hiba esetén null-t adunk vissza
+            }
+        });
+
+        const uploadedImageLinks = await Promise.all(uploadImagePromises);
+        const successfulUploadLinks = uploadedImageLinks.filter(link => link !== null);
+
+        if (successfulUploadLinks.length > 0) {
+            console.log(`🎉 ${successfulUploadLinks.length} kép sikeresen feltöltve a Google Drive-ra.`);
+        } else {
+            console.log('⚠️ Egyetlen kép feltöltése sem sikerült a Google Drive-ra.');
+        }
+
+    } else {
+        console.log('⚠️ Nincsenek GCS képek a táblázatban, feltöltés kihagyva.');
+    }
+} else {
+    console.log('⚠️ Nincsenek adatok a jelentésben, vagy nem tartalmaz GCS képeket.');
+}
     // --- Képek összegyűjtése és feltöltése VÉGE ---
 
 
@@ -1353,7 +1426,7 @@ function generateTableRows(jsonData, originalMergeCells, rowSizes, columnSizes, 
     return tableHtml;
 }
 
-// Helper function to process cell content
+// Helper function to process cell content (MÓDOSÍTOTT)
 function processCellContent(value, width, height, rowIndex, colIndex, cellStyles) {
     if (value === undefined || value === null || value === '') {
         return `<div class="cell-content empty-content" style="min-height: ${height}px; padding: 5px !important;">&nbsp;</div>`;
@@ -1361,8 +1434,14 @@ function processCellContent(value, width, height, rowIndex, colIndex, cellStyles
 
     const stringValue = String(value);
 
-    if (stringValue.startsWith('data:image') || stringValue.startsWith('/uploads/')) {
+    // Két típusú képre figyelünk: Data URI-k VAGY GCS URL-ek
+    if (stringValue.startsWith('data:image') || stringValue.startsWith('https://storage.googleapis.com/')) {
         let imgSrc = stringValue;
+
+        // FONTOS VÁLTOZÁS: Ezt a teljes `if (stringValue.startsWith('/uploads/'))` blokkot
+        // el lehet TÁVOLÍTANI, mivel már nem a helyi fájlrendszerről olvasunk be képeket.
+        // A képek URL-jei közvetlenül a GCS-ből érkeznek, és a Puppeteer be tudja tölteni őket.
+        /*
         if (stringValue.startsWith('/uploads/')) {
             try {
                 const absoluteImagePath = path.join(process.cwd(), stringValue);
@@ -1380,6 +1459,7 @@ function processCellContent(value, width, height, rowIndex, colIndex, cellStyles
                 return `<div class="cell-content">Hiba: ${escapeHtml(error.message)}</div>`;
             }
         }
+        */
 
         const style = Array.isArray(cellStyles) ?
             cellStyles.find(style => style?.row === rowIndex && style?.col === colIndex) :
@@ -1434,7 +1514,7 @@ function processCellContent(value, width, height, rowIndex, colIndex, cellStyles
     return `<div class="cell-content">${escapeHtml(stringValue)}</div>`;
 }
 
-// Helper function to create merge matrix
+// Helper function to create merge matrix (EZT NEM KELL MÓDOSÍTANI)
 function createMergeMatrix(mergedCells, rowCount, colCount) {
     const matrix = Array.from({ length: rowCount }, () => Array(colCount).fill(null));
     if (!Array.isArray(mergedCells)) {
