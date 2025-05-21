@@ -146,18 +146,20 @@
     <script src="https://cdn.jsdelivr.net/npm/handsontable@12.3.1/dist/handsontable.min.js"></script>
     <script>
         
+                
         //project id mező
         const projectId = document.getElementById('projectId').value; 
         console.log('Aktuális projekt ID:', projectId);
 
-   // Kép megjelenítő renderer
-   const imageRenderer = (instance, td, row, col, prop, value, cellProperties) => {
+   // Kép megjelenítő renderer (MÓDOSÍTOTT)
+const imageRenderer = (instance, td, row, col, prop, value, cellProperties) => {
     // Töröljük a meglévő tartalmat
     while (td.firstChild) {
         td.removeChild(td.firstChild);
     }
 
-    if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
+    // MÓDOSÍTÁS: Most már a GCS URL-eket is kezeljük
+    if (value && (value.startsWith('data:image') || value.startsWith('https://storage.googleapis.com/'))) {
         // Konténer div létrehozása
         const container = document.createElement('div');
         container.style.width = '100%';
@@ -173,7 +175,7 @@
 
         // Kép elem létrehozása
         const img = document.createElement('img');
-        img.src = value;
+        img.src = value; // A 'value' már a GCS URL vagy Data URI lesz
 
         // Forgatás alkalmazása
         img.style.position = 'absolute';
@@ -196,7 +198,7 @@
     return td;
 };
 
-// Kezdeti cella stílusok beállítása a táblázat létrehozásakor
+// Kezdeti cella stílusok beállítása a táblázat létrehozásakor (MÓDOSÍTOTT)
 const setupInitialCellStyles = (hot, data) => {
     console.log("Frontend oldali data.cellStyles a setupInitialCellStyles függvényben:", data.cellStyles);
     if (data.cellStyles && Array.isArray(data.cellStyles)) {
@@ -208,7 +210,8 @@ const setupInitialCellStyles = (hot, data) => {
             console.log(`setupInitialCellStyles: Sor=${row}, Oszlop=${col}, Stílus=${JSON.stringify(style)}`);
 
             // Kép renderer és forgatás beállítása
-            if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
+            // MÓDOSÍTÁS: Most már a GCS URL-eket is kezeljük
+            if (value && (value.startsWith('data:image') || value.startsWith('https://storage.googleapis.com/'))) {
                 hot.setCellMeta(row, col, 'renderer', imageRenderer);
                 if (style.rotation !== undefined) {
                     hot.setCellMeta(row, col, 'rotation', style.rotation);
@@ -625,56 +628,58 @@ console.log("A data objektum a Handsontable inicializálása előtt:", data);
     }
 },
                 "upload_image": {
-                    name: "Kép feltöltése",
-                    callback: function () {
-                        const coords = hot.getSelected()[0];
-                        const projectId = document.getElementById('projectId').value; // Projekt ID lekérése
+    name: "Kép feltöltése",
+    callback: function () {
+        const coords = hot.getSelected()[0];
+        const projectId = document.getElementById('projectId').value; // Projekt ID lekérése
 
-                        if (!projectId) {
-                            alert('Kérlek válassz egy projektet!');
-                            return; // Kilépés, ha nincs projectId
-                        }
+        if (!projectId) {
+            alert('Kérlek válassz egy projektet!');
+            return; // Kilépés, ha nincs projectId
+        }
 
-                        if (coords) {
-                            const fileInput = document.createElement('input');
-                            fileInput.type = 'file';
-                            fileInput.accept = 'image/*';
+        if (coords) {
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = 'image/*';
 
-                            fileInput.addEventListener('change', function (event) {
-                                const file = event.target.files[0];
-                                if (file) {
-                                    const formData = new FormData();
-                                    formData.append('image', file);
-                                    formData.append('projectId', projectId); // Projekt ID hozzáadása
+            fileInput.addEventListener('change', function (event) {
+                const file = event.target.files[0];
+                if (file) {
+                    const formData = new FormData();
+                    formData.append('image', file);
+                    formData.append('projectId', projectId); // Projekt ID hozzáadása
 
-                                    fetch('/reports/upload', {
-                                        method: 'POST',
-                                        body: formData,
-                                    })
-                                    .then(response => response.json())
-                                    .then(data => {
-                                        if (data.success && data.url) {
-                                            hot.setDataAtCell(coords[0], coords[1], data.url); // Frissítjük a cellát az új URL-lel
-                                            hot.setCellMeta(coords[0], coords[1], 'renderer', imageRenderer); // Renderer hozzáadása
-                                            hot.render(); // Frissítjük a táblázatot
-                                        } else {
-                                            alert('Hiba történt a feltöltés során.');
-                                        }
-                                    })
-                                    .catch(error => {
-                                        console.error('Kép feltöltési hiba:', error);
-                                        alert('Hiba történt a fájl feltöltésekor.');
-                                    });
-                                }
-                            });
-
-                            fileInput.click();
+                    // A backend feltöltési útvonala nem változik
+                    fetch('/reports/upload', {
+                        method: 'POST',
+                        body: formData,
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success && data.url) {
+                            // A backend most már GCS URL-t ad vissza
+                            hot.setDataAtCell(coords[0], coords[1], data.url); // Frissítjük a cellát az új URL-lel
+                            hot.setCellMeta(coords[0], coords[1], 'renderer', imageRenderer); // Renderer hozzáadása
+                            hot.render(); // Frissítjük a táblázatot
                         } else {
-                            alert('Kérlek válassz egy cellát a kép feltöltéséhez!');
+                            alert('Hiba történt a feltöltés során.');
                         }
-                    }
-                },
-               "rotate_image": {
+                    })
+                    .catch(error => {
+                        console.error('Kép feltöltési hiba:', error);
+                        alert('Hiba történt a fájl feltöltésekor.');
+                    });
+                }
+            });
+
+            fileInput.click();
+        } else {
+            alert('Kérlek válassz egy cellát a kép feltöltéséhez!');
+        }
+    }
+},
+              "rotate_image": {
     name: "Kép forgatása 90° jobbra",
     callback: function() {
         const coords = hot.getSelected()[0];
@@ -682,58 +687,66 @@ console.log("A data objektum a Handsontable inicializálása előtt:", data);
             const row = coords[0];
             const col = coords[1];
             const value = hot.getDataAtCell(row, col);
-            
-            if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
+
+            // MÓDOSÍTÁS: A feltétel most már a GCS URL-t is kezeli
+            if (value && (value.startsWith('data:image') || value.startsWith('https://storage.googleapis.com/'))) {
                 // Get current rotation or default to 0
                 let currentRotation = hot.getCellMeta(row, col).rotation || 0;
-                
+
                 // Add 90 degrees (modulo 360 to keep it between 0-359)
                 let newRotation = (currentRotation + 90) % 360;
-                
+
                 // Always ensure the renderer is set before setting rotation
                 hot.setCellMeta(row, col, 'renderer', imageRenderer);
                 hot.setCellMeta(row, col, 'rotation', newRotation);
-                
+
                 // Explicitly log the new rotation to verify (can be removed in production)
                 console.log(`Image rotated: row=${row}, col=${col}, rotation=${newRotation}`);
-                
+
                 hot.render();
             }
         }
     }
 },
                 "remove_image": {
-                    name: "Kép eltávolítása",
-                    callback: function () {
-                        const coords = hot.getSelected()[0];
-                        if (coords) {
-                            const value = hot.getDataAtCell(coords[0], coords[1]);
-                            if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
-                                const imageUrl = value.startsWith('data:image') ? null : value;  // Ha base64, ne küldjünk törléshez URL-t
+    name: "Kép eltávolítása",
+    callback: function () {
+        const coords = hot.getSelected()[0];
+        if (coords) {
+            const value = hot.getDataAtCell(coords[0], coords[1]);
 
-                                hot.setDataAtCell(coords[0], coords[1], null); // Töröljük a cella tartalmát
-                                hot.removeCellMeta(coords[0], coords[1], 'renderer'); // Eltávolítjuk a renderer meta adatot
-                                hot.render(); // Frissítjük a táblázatot
+            // MÓDOSÍTÁS: A feltétel most már a GCS URL-t is kezeli
+            if (value && (value.startsWith('data:image') || value.startsWith('https://storage.googleapis.com/'))) {
+                // Ha Base64 adat URI, akkor nem küldünk törlési kérést,
+                // mert az nincs külön fájlként tárolva a GCS-en.
+                // Ha GCS URL, akkor küldünk törlési kérést.
+                const imageUrlToDelete = value.startsWith('https://storage.googleapis.com/') ? value : null;
 
-                                if (imageUrl) {
-                                    fetch('/reports/delete-image', {
-                                        method: 'POST',
-                                        headers: {
-                                            'Content-Type': 'application/json',
-                                        },
-                                        body: JSON.stringify({ imageUrl: imageUrl }),
-                                    })
-                                    .then(response => response.json())
-                                    .then(data => {
-                                        if (data.success) {
-                                            console.log('Kép sikeresen törölve a szerverről');
-                                        } else {
-                                            console.error('Hiba a kép törlésében:', data.message);
-                                        }
-                                    })
-                                    .catch(error => {
-                                        console.error('Hiba a szerverrel való kommunikációban:', error);
-                                    });
+                hot.setDataAtCell(coords[0], coords[1], null); // Töröljük a cella tartalmát
+                hot.removeCellMeta(coords[0], coords[1], 'renderer'); // Eltávolítjuk a renderer meta adatot
+                hot.render(); // Frissítjük a táblázatot
+
+                if (imageUrlToDelete) {
+                    // Itt a backend /reports/delete-image endpointjának is tudnia kell
+                    // GCS-ről törölni a fájlt az imageUrlToDelete alapján!
+                    fetch('/reports/delete-image', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ imageUrl: imageUrlToDelete }),
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            console.log('Kép sikeresen törölve a Google Cloud Storage-ről');
+                        } else {
+                            console.error('Hiba a kép törlésében a Google Cloud Storage-ről:', data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Hiba a szerverrel való kommunikációban kép törlésekor:', error);
+                    });
                                 }
                             }
                         }
@@ -835,43 +848,45 @@ afterCreateRow: function(index, amount) {
 },
 // Adjunk hozzá egy beforeRender hook-ot
 beforeRender: function(isForced) {
-  // Végigmegyünk az összes cellán
-  const rows = this.countRows();
-  const cols = this.countCols();
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      const value = this.getDataAtCell(row, col);
-      if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
-        this.setCellMeta(row, col, 'renderer', imageRenderer);
-      }
+    // Végigmegyünk az összes cellán
+    const rows = this.countRows();
+    const cols = this.countCols();
+    for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+            const value = this.getDataAtCell(row, col);
+            // MÓDOSÍTÁS: GCS URL-ek kezelése
+            if (value && (value.startsWith('data:image') || value.startsWith('https://storage.googleapis.com/'))) {
+                this.setCellMeta(row, col, 'renderer', imageRenderer);
+            }
+        }
     }
-  }
 },
 
         // Adjunk hozzá egy afterLoadData hook-ot
-        afterLoadData: function(initialLoad) {
-  if (initialLoad) {
-    // Cellastílusok visszaállítása
-    if (data.cellStyles && Array.isArray(data.cellStyles)) {
-      data.cellStyles.forEach(style => {
-        const row = style.row;
-        const col = style.col;
-        // Beállítjuk a renderereket és metaadatokat
-        const value = this.getDataAtCell(row, col);
-        if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
-          this.setCellMeta(row, col, 'renderer', imageRenderer);
-          if (style.rotation !== undefined) {
-            this.setCellMeta(row, col, 'rotation', style.rotation);
-            console.log(`Kép forgatás visszaállítva: sor=${row}, oszlop=${col}, forgatás=${style.rotation}`);
-          }
+       afterLoadData: function(initialLoad) {
+    if (initialLoad) {
+        // Cellastílusok visszaállítása
+        if (data.cellStyles && Array.isArray(data.cellStyles)) {
+            data.cellStyles.forEach(style => {
+                const row = style.row;
+                const col = style.col;
+                // Beállítjuk a renderereket és metaadatokat
+                const value = this.getDataAtCell(row, col);
+                // MÓDOSÍTÁS: GCS URL-ek kezelése
+                if (value && (value.startsWith('data:image') || value.startsWith('https://storage.googleapis.com/'))) {
+                    this.setCellMeta(row, col, 'renderer', imageRenderer);
+                    if (style.rotation !== undefined) {
+                        this.setCellMeta(row, col, 'rotation', style.rotation);
+                        console.log(`Kép forgatás visszaállítva: sor=${row}, oszlop=${col}, forgatás=${style.rotation}`);
+                    }
+                }
+                if (style.color) {
+                    // Itt nem állítjuk be a színt, mert a colorRenderer kezeli
+                }
+            });
+            this.render(); // Újrarajzolás
         }
-        if (style.color) {
-          // Itt nem állítjuk be a színt, mert a colorRenderer kezeli
-        }
-      });
-      this.render(); // Újrarajzolás
     }
-  }
 },
         // Adjunk hozzá egy afterRemoveRow eseménykezelőt a Handsontable inicializálásához
         afterRemoveRow: function(index, amount) {
@@ -936,7 +951,8 @@ cells: function (row, col) {
         cellMeta.style = style;
     }
 
-    if (typeof value === 'string' && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
+    // MÓDOSÍTÁS: GCS URL-ek kezelése
+    if (typeof value === 'string' && (value.startsWith('data:image') || value.startsWith('https://storage.googleapis.com/'))) {
         cellMeta.renderer = imageRenderer;
         cellMeta.className = 'image-cell';
     }
@@ -985,8 +1001,9 @@ cells: function (row, col) {
                     const row = style.row;
                     const col = style.col;
                     const value = hot.getDataAtCell(row, col);
-                    
-                    if (value && (value.startsWith('data:image') || value.startsWith('/uploads/'))) {
+
+                    // MÓDOSÍTÁS: GCS URL-ek kezelése
+                    if (value && (value.startsWith('data:image') || value.startsWith('https://storage.googleapis.com/'))) {
                         hot.setCellMeta(row, col, 'renderer', imageRenderer);
                         hot.setCellMeta(row, col, 'rotation', style.rotation);
                         console.log(`Késleltetett kép forgatás beállítva: sor=${row}, oszlop=${col}, forgatás=${style.rotation}`);
@@ -997,9 +1014,9 @@ cells: function (row, col) {
         }, 200); // Kis késleltetés a DOM frissítésének biztosítása érdekében
     }
     // Frissítsük a sorok színeit a táblázat inicializálásakor is
-if (hot && hot.render) {
-  hot.render();
-}
+    if (hot && hot.render) {
+        hot.render();
+    }
 }
 
 // Új jegyzőkönyv generálása
@@ -1135,6 +1152,8 @@ document.getElementById('loadReportBtn').addEventListener('click', () => {
                 // A cellastílusok beállítása a setupInitialCellStyles függvény segítségével
                 if (cellStyles && Array.isArray(cellStyles)) {
                     setTimeout(() => {
+                        // **FONTOS**: A `setupInitialCellStyles` függvényt már módosítottuk az előző lépésben,
+                        // hogy felismerje a GCS URL-eket. Így ez a hívás itt már helyes.
                         setupInitialCellStyles(hot, { cellStyles: cellStyles });
                         console.log("Frontend: Kezdeti cellastílusok beállítva a betöltés után.");
                     }, 300); // Kis késleltetés a táblázat inicializálódásához
@@ -1167,7 +1186,7 @@ document.getElementById('saveReportBtn').addEventListener('click', async () => {
     }
 
     // Alapadatok összegyűjtése
-    const data = hot.getData();
+    const data = hot.getData(); // **Ez a `data` már GCS URL-eket fog tartalmazni, ha képek vannak**
     const mergePlugin = hot.getPlugin('mergeCells');
     const currentMergeCells = mergePlugin
         ? mergePlugin.mergedCellsCollection.mergedCells
@@ -1239,7 +1258,7 @@ document.getElementById('saveReportBtn').addEventListener('click', async () => {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                data: data,
+                data: data, // **Ez a `data` már GCS URL-eket fog tartalmazni, ha képek vannak**
                 projectId: projectId,
                 mergeCells: currentMergeCells,
                 columnSizes: columnSizes,
