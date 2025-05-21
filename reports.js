@@ -21,17 +21,6 @@ console.log('DATABASE_URL a server.js-ben:', process.env.DATABASE_URL);
 
 // PostgreSQL konfiguráció
 
-
-/*
-const pool = new Pool({
-    user: 'postgres', // PostgreSQL felhasználónév
-    host: 'localhost',     // Ha helyi gépen fut, ez marad
-    database: 'project_management', // adatbázis neve
-    password: 'dbzzed58', // Az adatbázishoz tartozó jelszó
-    port: 5432,            // PostgreSQL alapértelmezett portja
-});
-*/
-
 //Éles környezet adatbázis
 const pool = require('./db');
 
@@ -52,25 +41,42 @@ const upload = multer({
 let storage;
 let bucket;
 let gcsBucketName; // <-- EZ A FONTOS MÓDOSÍTÁS!
+let driveService; // Ezt is itt érdemes deklarálni globálisan, ha a Google Drive-ot is itt inicializálod.
 
+// A GCS inicializálási blokk
 try {
-    const keyFilePath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-    // gcsBucketName már deklarálva van feljebb, itt csak értéket adunk neki
-    gcsBucketName = process.env.GCS_BUCKET_NAME; 
+    let credentials;
+    // 1. Megpróbáljuk beolvasni a JSON-t a környezeti változóból (Render.com)
+    if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+        try {
+            credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+            console.log('✅ Google Cloud hitelesítő adatok betöltve a környezeti változóból.');
+        } catch (parseError) {
+            throw new Error(`HIBA: A GOOGLE_APPLICATION_CREDENTIALS_JSON környezeti változó tartalma érvénytelen JSON: ${parseError.message}`);
+        }
+    } 
+    // 2. Ha az nem létezik, megpróbáljuk a fájl elérési útjáról (lokális .env)
+    else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+        const keyFilePath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+        const fullKeyPath = path.join(process.cwd(), keyFilePath);
 
-    if (!keyFilePath) {
-        throw new Error("HIBA: A GOOGLE_APPLICATION_CREDENTIALS környezeti változó nincs beállítva a .env fájlban.");
+        if (fs.existsSync(fullKeyPath)) {
+            credentials = JSON.parse(fs.readFileSync(fullKeyPath, 'utf8'));
+            console.log(`✅ Google Cloud hitelesítő adatok betöltve a fájlból: ${fullKeyPath}`);
+        } else {
+            throw new Error(`HIBA: A Service Account kulcsfájl nem található: ${fullKeyPath}. Kérlek, ellenőrizd a .env fájlban az útvonalat és a fájl meglétét.`);
+        }
+    } else {
+        // Ha egyik sem érhető el
+        throw new Error("Kritikus HIBA: Sem a GOOGLE_APPLICATION_CREDENTIALS_JSON, sem a GOOGLE_APPLICATION_CREDENTIALS környezeti változó nincs beállítva. A Google Cloud és Drive szolgáltatások nem inicializálhatók.");
     }
 
-    const fullKeyPath = path.join(process.cwd(), keyFilePath);
-
-    if (!fs.existsSync(fullKeyPath)) {
-        throw new Error(`HIBA: A Service Account kulcsfájl nem található: ${fullKeyPath}. Kérlek, ellenőrizd a .env fájlban az útvonalat és a fájl meglétét.`);
-    }
-
-    const credentials = JSON.parse(fs.readFileSync(fullKeyPath, 'utf8'));
+    // Most, hogy a credentials objektum elkészült, használjuk a Storage és Drive inicializálásához
+    
+    // GCS inicializálás
     storage = new Storage({ credentials });
 
+    gcsBucketName = process.env.GCS_BUCKET_NAME; 
     if (!gcsBucketName) {
         throw new Error("HIBA: A GCS_BUCKET_NAME környezeti változó nincs beállítva.");
     }
@@ -78,9 +84,20 @@ try {
 
     console.log(`Google Cloud Storage bucket inicializálva: ${gcsBucketName}`);
 
+    // Google Drive inicializálás
+    const authClient = new google.auth.GoogleAuth({
+        credentials: credentials, // Ugyanazt a credentials objektumot használjuk
+        scopes: ['https://www.googleapis.com/auth/drive'],
+    });
+
+    const auth = await authClient.getClient();
+    driveService = google.drive({ version: 'v3', auth });
+    console.log('Google Drive Service sikeresen inicializálva.');
+
+
 } catch (error) {
-    console.error("Kritikus hiba a Google Cloud Storage inicializálásakor:", error.message);
-    process.exit(1);
+    console.error("Kritikus hiba a Google Cloud Storage/Drive inicializálásakor:", error.message);
+    process.exit(1); // Kilépés, ha kritikus inicializálási hiba van
 }
 
 // Segédfüggvény a kép letöltéséhez URL-ről
@@ -745,131 +762,128 @@ await browser.close();
 const fileName = `IWS_Solutions_Munkavedelmi_ellenorzesi_jegyzokonyv_${safeProjectName}.pdf`;
 
 // Google Drive feltöltés
-try {
-    console.log('📂 PDF feltöltés indítása: fájl =', fileName);
-    console.log('📁 Cél projekt mappa:', safeProjectName);
-    console.log('📁 Szülő mappa ID:', MAIN_DRIVE_FOLDER_ID);
+   try {
+            console.log('📂 PDF feltöltés indítása: fájl =', fileName);
+            console.log('📁 Cél projekt mappa:', safeProjectName);
+            console.log('📁 Szülő mappa ID:', MAIN_DRIVE_FOLDER_ID);
 
-    // Próbáljuk meg listázni a parent mappát
-    const testAccess = await driveService.files.get({
-        fileId: MAIN_DRIVE_FOLDER_ID,
-        fields: 'id, name'
-    }).catch(err => {
-        console.error("❌ NEM elérhető a MAIN_DRIVE_FOLDER_ID mappa a service account számára!");
-        throw new Error("A service account nem fér hozzá a gyökérmappához. Ellenőrizd a megosztást!");
-    });
-    console.log("✅ Elérhető a fő mappa:", testAccess.data.name);
+            // Próbáljuk meg listázni a parent mappát
+            const testAccess = await driveService.files.get({
+                fileId: MAIN_DRIVE_FOLDER_ID,
+                fields: 'id, name'
+            }).catch(err => {
+                console.error("❌ NEM elérhető a MAIN_DRIVE_FOLDER_ID mappa a service account számára!");
+                throw new Error("A service account nem fér hozzá a gyökérmappához. Ellenőrizd a megosztást!");
+            });
+            console.log("✅ Elérhető a fő mappa:", testAccess.data.name);
 
-    // Először ellenőrizzük, hogy a MAIN_DRIVE_FOLDER_ID elérhető-e
-    try {
-        const rootFolderCheck = await driveService.files.get({
-            fileId: MAIN_DRIVE_FOLDER_ID,
-            fields: 'id, name',
-        });
-        console.log('✅ MAIN_DRIVE_FOLDER_ID elérhető:', rootFolderCheck.data.name);
-    } catch (permErr) {
-        console.error('❌ NEM elérhető a MAIN_DRIVE_FOLDER_ID mappa a service account számára!');
-        throw new Error('A service account nem fér hozzá a gyökérmappához. Ellenőrizd a megosztást!');
-    }
-
-    // Ellenőrizzük, hogy létezik-e a projekt mappa a Google Drive-on
-    const projectFolderId = await getOrCreateFolder(safeProjectName, MAIN_DRIVE_FOLDER_ID);
-    console.log('📁 Projekt mappa ID:', projectFolderId);
-
-    // Létrehozzuk az aznapi dátumozott mappát (előtte törli ha már létezik)
-    const dailyFolderId = await createDailyFolder(projectFolderId);
-    console.log('📁 Aznapi mappa ID:', dailyFolderId);
-
-    // PDF feltöltése az aznapi mappába
-    const uploadResult = await uploadPdfToDrive(tempFilePath, fileName, dailyFolderId);
-    console.log('✅ PDF feltöltés sikeres! Drive URL:', uploadResult.webViewLink);
-
-    // --- Képek összegyűjtése és feltöltése (ÁTÍRT RÉSZ) ---
-    const reportDataForImages = await pool.query(
-        'SELECT data FROM report_data rd JOIN project_reports pr ON rd.report_id = pr.latest_report_id WHERE pr.project_id = $1',
-        [projectId]
-    );
-
-    if (reportDataForImages.rows.length > 0 && reportDataForImages.rows[0].data) {
-        const jsonDataForImages = reportDataForImages.rows[0].data;
-        let imageUrlsToProcess = [];
-
-        // Képek URL-jeinek kinyerése a jsonData-ból (MÓDOSÍTOTT LOGIKA)
-    function extractImageUrls(data) {
-        if (typeof data === 'object' && data !== null) {
-            for (const key in data) {
-                // Most már a GCS URL-ekre keresünk, amik "https://storage.googleapis.com/"-mal kezdődnek
-                if (typeof data[key] === 'string' && data[key].startsWith('https://storage.googleapis.com/')) {
-                    imageUrlsToProcess.push(data[key]);
-                } else if (typeof data[key] === 'object') {
-                    extractImageUrls(data[key]);
-                }
-            }
-        } else if (typeof data === 'string' && data.startsWith('https://storage.googleapis.com/')) {
-            // Ha a cella maga a GCS URL
-            imageUrlsToProcess.push(data);
-        }
-    }
-
-    extractImageUrls(jsonDataForImages);
-    const uniqueImageUrls = [...new Set(imageUrlsToProcess)]; // Duplikátumok eltávolítása
-
-    if (uniqueImageUrls.length > 0) {
-        console.log(`📸 ${uniqueImageUrls.length} egyedi kép található a táblázatban (GCS-ről), feltöltés indítása a Drive-ra...`);
-
-        const uploadImagePromises = uniqueImageUrls.map(async (imageUrl) => {
-            // Fájlnév kinyerése az URL path-ból
-            const imageFileName = path.basename(new URL(imageUrl).pathname);
-
+            // Először ellenőrizzük, hogy a MAIN_DRIVE_FOLDER_ID elérhető-e
             try {
-                // 1. Kép letöltése a GCS-ről bufferbe
-                const imageBuffer = await downloadImageFromUrl(imageUrl); // <-- AZ ÚJ SEGÉDFÜGGVÉNY HASZNÁLATA
-
-                // 2. MIME típus meghatározása a fájlnévből
-                const imageMimeType = getMimeType(imageFileName);
-
-                // 3. Kép feltöltése a Google Drive-ra a bufferből
-                const imageUploadResult = await uploadBufferToDrive(imageBuffer, imageFileName, dailyFolderId, imageMimeType); // <-- AZ ÚJ SEGÉDFÜGGVÉNY HASZNÁLATA
-                console.log(`✅ Kép feltöltve a Drive-ra: ${imageFileName}, Drive URL: ${imageUploadResult.webViewLink}`);
-                return imageUploadResult.webViewLink;
-            } catch (imageProcessErr) {
-                console.error(`❌ Hiba a kép letöltésekor/feltöltésekor a Drive-ra (${imageFileName} from ${imageUrl}): ${imageProcessErr.message}`);
-                return null; // Hiba esetén null-t adunk vissza
+                const rootFolderCheck = await driveService.files.get({
+                    fileId: MAIN_DRIVE_FOLDER_ID,
+                    fields: 'id, name',
+                });
+                console.log('✅ MAIN_DRIVE_FOLDER_ID elérhető:', rootFolderCheck.data.name);
+            } catch (permErr) {
+                console.error('❌ NEM elérhető a MAIN_DRIVE_FOLDER_ID mappa a service account számára!');
+                throw new Error('A service account nem fér hozzá a gyökérmappához. Ellenőrizd a megosztást!');
             }
-        });
 
-        const uploadedImageLinks = await Promise.all(uploadImagePromises);
-        const successfulUploadLinks = uploadedImageLinks.filter(link => link !== null);
+            // Ellenőrizzük, hogy létezik-e a projekt mappa a Google Drive-on
+            const projectFolderId = await getOrCreateFolder(safeProjectName, MAIN_DRIVE_FOLDER_ID);
+            console.log('📁 Projekt mappa ID:', projectFolderId);
 
-        if (successfulUploadLinks.length > 0) {
-            console.log(`🎉 ${successfulUploadLinks.length} kép sikeresen feltöltve a Google Drive-ra.`);
-        } else {
-            console.log('⚠️ Egyetlen kép feltöltése sem sikerült a Google Drive-ra.');
+            // Létrehozzuk az aznapi dátumozott mappát (előtte törli ha már létezik)
+            const dailyFolderId = await createDailyFolder(projectFolderId);
+            console.log('📁 Aznapi mappa ID:', dailyFolderId);
+
+            // PDF feltöltése az aznapi mappába
+            const uploadResult = await uploadFileToDrive(tempFilePath, fileName, dailyFolderId, 'application/pdf'); // Itt használjuk a korábbi uploadFileToDrive-ot
+            console.log('✅ PDF feltöltés sikeres! Drive URL:', uploadResult.webViewLink);
+
+            // --- Képek összegyűjtése és feltöltése (ÁTÍRT RÉSZ) ---
+            const reportDataForImages = await pool.query(
+                'SELECT data FROM report_data rd JOIN project_reports pr ON rd.report_id = pr.latest_report_id WHERE pr.project_id = $1',
+                [projectId]
+            );
+
+            if (reportDataForImages.rows.length > 0 && reportDataForImages.rows[0].data) {
+                const jsonDataForImages = reportDataForImages.rows[0].data;
+                let imageUrlsToProcess = [];
+
+                function extractImageUrls(data) {
+                    if (typeof data === 'object' && data !== null) {
+                        for (const key in data) {
+                            if (typeof data[key] === 'string' && data[key].startsWith('https://storage.googleapis.com/')) {
+                                imageUrlsToProcess.push(data[key]);
+                            } else if (typeof data[key] === 'object') {
+                                extractImageUrls(data[key]);
+                            }
+                        }
+                    } else if (typeof data === 'string' && data.startsWith('https://storage.googleapis.com/')) {
+                        imageUrlsToProcess.push(data);
+                    }
+                }
+
+                extractImageUrls(jsonDataForImages);
+                const uniqueImageUrls = [...new Set(imageUrlsToProcess)]; // Duplikátumok eltávolítása
+
+                if (uniqueImageUrls.length > 0) {
+                    console.log(`📸 ${uniqueImageUrls.length} egyedi kép található a táblázatban (GCS-ről), feltöltés indítása a Drive-ra...`);
+
+                    const uploadImagePromises = uniqueImageUrls.map(async (imageUrl) => {
+                        const imageFileName = path.basename(new URL(imageUrl).pathname);
+
+                        try {
+                            // 1. Kép letöltése a GCS-ről bufferbe
+                            const imageBuffer = await downloadImageFromUrl(imageUrl); 
+
+                            // 2. MIME típus meghatározása a fájlnévből
+                            const imageMimeType = getMimeType(imageFileName);
+
+                            // 3. Kép feltöltése a Google Drive-ra a bufferből
+                            const imageUploadResult = await uploadBufferToDrive(imageBuffer, imageFileName, dailyFolderId, imageMimeType); 
+                            console.log(`✅ Kép feltöltve a Drive-ra: ${imageFileName}, Drive URL: ${imageUploadResult.webViewLink}`);
+                            return imageUploadResult.webViewLink;
+                        } catch (imageProcessErr) {
+                            console.error(`❌ Hiba a kép letöltésekor/feltöltésekor a Drive-ra (${imageFileName} from ${imageUrl}): ${imageProcessErr.message}`);
+                            return null; 
+                        }
+                    });
+
+                    const uploadedImageLinks = await Promise.all(uploadImagePromises);
+                    const successfulUploadLinks = uploadedImageLinks.filter(link => link !== null);
+
+                    if (successfulUploadLinks.length > 0) {
+                        console.log(`🎉 ${successfulUploadLinks.length} kép sikeresen feltöltve a Google Drive-ra.`);
+                    } else {
+                        console.log('⚠️ Egyetlen kép feltöltése sem sikerült a Google Drive-ra.');
+                    }
+
+                } else {
+                    console.log('⚠️ Nincsenek GCS képek a táblázatban, feltöltés kihagyva.');
+                }
+            } else {
+                console.log('⚠️ Nincsenek adatok a jelentésben, vagy nem tartalmaz GCS képeket.');
+            }
+            // --- Képek összegyűjtése és feltöltése VÉGE ---
+
+        } catch (uploadErr) {
+            console.error('❌ Hiba a Google Drive feltöltésnél (a PDF generálás során):', uploadErr.message);
+            console.error('📄 Részletek:', uploadErr);
+            // Itt döntheted el, hogy ha a Drive feltöltés sikertelen, az befolyásolja-e a PDF letöltését.
+            // Jelenleg tovább engedi a kódot a PDF letöltésére.
         }
 
-    } else {
-        console.log('⚠️ Nincsenek GCS képek a táblázatban, feltöltés kihagyva.');
+        // PDF válaszként küldése letöltéshez
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        fs.createReadStream(tempFilePath).pipe(res);
+
+    } catch (error) {
+        console.error('❌ Hiba a PDF generálás során:', error.message);
+        res.status(500).send('Hiba történt: ' + error.message);
     }
-} else {
-    console.log('⚠️ Nincsenek adatok a jelentésben, vagy nem tartalmaz GCS képeket.');
-}
-    // --- Képek összegyűjtése és feltöltése VÉGE ---
-
-
-} catch (uploadErr) {
-    console.error('❌ Hiba a Google Drive feltöltésnél:', uploadErr.message);
-    console.error('📄 Részletek:', uploadErr);
-}
-
-// PDF válaszként küldése letöltéshez
-res.setHeader('Content-Type', 'application/pdf');
-res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-fs.createReadStream(tempFilePath).pipe(res);
-
-} catch (error) {
-    console.error('❌ Hiba a PDF generálás során:', error.message);
-    res.status(500).send('Hiba történt: ' + error.message);
-}
 });
 
 //Drive feltöltés segéd függvények
