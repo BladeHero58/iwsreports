@@ -1,6 +1,5 @@
 require("dotenv").config();
 const express = require('express');
-const router = express.Router();
 const path = require('path');
 const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
@@ -15,9 +14,10 @@ console.log('DATABASE_URL a server.js-ben:', process.env.DATABASE_URL);
 
 const app = express();
  // A szerver portja
-const port = 3000;
+const PORT = process.env.PORT || 3000;
 
-const reportRoutes = require('./reports'); // Betöltjük a reports.js fájlt
+// !!! FONTOS: Most a reports.js már az inicializálási Promise-t is exportálja
+const { router: reportsRouter, initializationPromise } = require('./reports'); // Betöltjük a reports.js fájlt
 
 // Middleware beállítások
 app.use(bodyParser.json({limit: '50mb'}));
@@ -27,12 +27,59 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 //statikus fájlkiszolgálás
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/reports', reportRoutes); // Összekapcsolva a reports.js-sel. A middlewear után helyezkedik el a kódban.
+app.use('/reports', reportsRouter); // Összekapcsolva a reports.js-sel. A middlewear után helyezkedik el a kódban.
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-app.use((req, res, next) => {
-  next();
-});
+// ************************************************************
+// FŐ ALKALMAZÁS INDÍTÓ FÜGGVÉNY - EZ HIÁNYZOTT!
+// ************************************************************
+async function startApplication() {
+  try {
+    // Várjuk meg a Google Cloud szolgáltatások inicializálását
+    console.log("Waiting for Google Cloud Services to initialize from reports.js...");
+    await initializationPromise; // <--- EZ AZ A FONTOS SOR, AMI VÁRJA AZ INICIALIZÁLÁST!
+    console.log("Google Cloud Services initialization complete.");
+
+    // Itt kellene futtatni a migrációt is, ha az inicializálás előtt nem futott le
+    // Pl: await runDatabaseMigrations();
+
+    // Most, hogy minden inicializálva van, csatoljuk a reports routert
+    // Ezt a sort ITT KELL ELHELYEZNI, az `await initializationPromise` után!
+    app.use('/reports', reportsRouter); // Összekapcsolva a reports.js-sel.
+
+    // Itt lekérjük az adminokat és projekteket.
+    // Fontos, hogy ezek is async/await-tel fussanak, és a szerver indulása előtt történjenek.
+    let admins = []; // Deklaráció a scope-ban, hogy elérhető legyen a függvényen kívülről
+    let projects = []; // Deklaráció a scope-ban
+
+    try {
+        const adminResult = await pool.query('SELECT * FROM users WHERE is_admin = TRUE');
+        admins = adminResult.rows;
+        console.log('Admins fetched:', admins.length);
+    } catch (err) {
+        console.error('Error fetching admins during startup:', err);
+        // Ezt is lehet process.exit(1)-gyel kezelni, ha kritikus a hiba
+    }
+
+    try {
+        const projectsResult = await pool.query('SELECT * FROM projects');
+        projects = projectsResult.rows;
+        console.log('Projects fetched:', projects.length);
+    } catch (err) {
+        console.error('Error fetching projects during startup:', err);
+        // Ezt is lehet process.exit(1)-gyel kezelni, ha kritikus a hiba
+    }
+
+    } catch (error) {
+    console.error("Kritikus hiba az alkalmazás indításakor (Google Cloud Services inicializálás vagy más):", error.message);
+    process.exit(1); // Kilépés, ha kritikus inicializálási hiba van
+  }
+}
+
+// ************************************************************
+// HÍVD MEG A FŐ INDÍTÓ FÜGGVÉNYT!
+// ************************************************************
+startApplication();
 
 // Express-session kezelés
 app.use(
@@ -65,7 +112,7 @@ pool.query('SELECT * FROM projects', (err, result) => {
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Felhasználók betöltése (JSON fájlból)
+// Felhasználók betöltése 
 let users = [];
 pool.query('SELECT * FROM users', (err, result) => {
   if (err) {
@@ -969,6 +1016,6 @@ app.get('/admin/users', isAdmin, async (req, res) => {
 });
 
 // Szerver indítása
-app.listen(port, () => {
-    console.log(`Szerver fut a http://localhost:${port} címen`);
-  });
+app.listen(PORT, () => { // Itt használjuk a nagybetűs PORT változót
+    console.log(`Szerver fut a http://localhost:${PORT} címen`);
+});

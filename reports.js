@@ -12,8 +12,8 @@ const stream = require('stream');
 const mime = require('mime-types');
 //const { getOrCreateFolder, uploadPdfToDrive, driveService, uploadImagesToDrive, createDailyFolder } = require('./googleDrive');
 const axios = require('axios');
+const { google } = require('googleapis')
 const MAIN_DRIVE_FOLDER_ID = '1yc0G2dryo4XZeHmZ3FzV4yG4Gxjj2w7j'; // Állítsd be a saját főmappa ID-t!
-
 
 const { Storage } = require('@google-cloud/storage');
 
@@ -45,6 +45,7 @@ let driveService; // Ezt is itt érdemes deklarálni globálisan, ha a Google Dr
 
 // ************************************************************
 // GOOGLE CLOUD SZOLGÁLTATÁSOK INICIALIZÁLÁSA ASYNC FÜGGVÉNYBEN
+// Ez a függvény visszatér egy Promise-szel, amit a server.js várni fog.
 // ************************************************************
 async function initializeGoogleServices() {
     try {
@@ -97,15 +98,21 @@ async function initializeGoogleServices() {
             scopes: ['https://www.googleapis.com/auth/drive'],
         });
 
-        const auth = await authClient.getClient(); // <--- EZ MÁR ASYNC FÜGGVÉNYBEN VAN, ÍGY MŰKÖDNI FOG!
+        const auth = await authClient.getClient();
         driveService = google.drive({ version: 'v3', auth });
         console.log('Google Drive Service sikeresen inicializálva.');
 
     } catch (error) {
         console.error("Kritikus hiba a Google Cloud Storage/Drive inicializálásakor:", error.message);
-        process.exit(1); // Kilépés, ha kritikus inicializálási hiba van
+        // Itt nem hívjuk meg a process.exit(1)-et, mert a server.js fogja kezelni,
+        // ha az initializationPromise-t elkapja.
+        throw error; // Fontos, hogy a Promise elutasítását kiváltsuk
     }
 }
+
+// ************************************************************
+// INNENTŐL KEZDŐDNEK A SEGÉDFÜGGVÉNYEK ÉS ENDPOINT-OK
+// *ű***********************************************************
 
 // Segédfüggvény a kép letöltéséhez URL-ről
 async function downloadImageFromUrl(imageUrl) {
@@ -122,11 +129,9 @@ async function downloadImageFromUrl(imageUrl) {
 
 // uploadBufferToDrive függvény DEFINÍCIÓJA!
 async function uploadBufferToDrive(buffer, fileName, parentFolderId, mimeType) {
-    // Ezt a függvényt kellene átírni, hogy a driveService globális legyen
-    // De a korábbi beszélgetések alapján feltételezem, hogy a driveService már globálisan inicializálva van
-    // és elérhető itt.
     if (!driveService) {
-        throw new Error("driveService nincs inicializálva. Hívja meg az initializeGoogleServices()-t az alkalmazás indításakor.");
+        // Ez a hiba már a server.js-ben elkapható lenne, de itt is lehet ellenőrizni
+        throw new Error("driveService nincs inicializálva.");
     }
 
     const fileMetadata = {
@@ -135,13 +140,13 @@ async function uploadBufferToDrive(buffer, fileName, parentFolderId, mimeType) {
     };
 
     try {
-        const readableStream = stream.Readable.from(buffer); // <-- Itt konvertáljuk stream-mé a buffert
+        const readableStream = stream.Readable.from(buffer);
 
         const response = await driveService.files.create({
             resource: fileMetadata,
             media: {
                 mimeType: mimeType,
-                body: readableStream, // <-- Itt a stream-et adjuk át
+                body: readableStream,
             },
             fields: 'id, webViewLink',
         });
@@ -186,6 +191,12 @@ async function compressImage(inputPath, outputPath) {
 // Kép feltöltés és tömörítés endpoint
 router.post('/upload', upload.single('image'), async (req, res) => {
     try {
+        // Ellenőrizzük, hogy a GCS szolgáltatások inicializálva vannak-e
+        if (!bucket || !gcsBucketName) {
+            console.error('HIBA: A GCS szolgáltatások nincsenek inicializálva, mielőtt a feltöltési endpointot hívták.');
+            return res.status(503).json({ success: false, message: 'A szerver még nem állt készen a képfeltöltésre. Kérjük, próbálja újra később.' });
+        }
+
         if (!req.file) {
             return res.status(400).json({ success: false, message: 'Nincs fájl feltöltve' });
         }
@@ -221,35 +232,14 @@ router.post('/upload', upload.single('image'), async (req, res) => {
     }
 });
 
-// Nem használt képek törlése függvény
+// Nem használt képek törlése függvény (duplikálva volt, az egyiket kivettem)
 async function cleanupUnusedImages(projectId, usedImageUrls) {
     try {
-        const [files] = await bucket.getFiles({ prefix: `project-${projectId}/` });
-
-        const unusedGCSFilePaths = files
-            .filter(file => {
-                const fileName = file.name;
-                const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName);
-                const gcsFileUrl = `https://storage.googleapis.com/${gcsBucketName}/${fileName}`;
-                return isImage && !usedImageUrls.includes(gcsFileUrl);
-            })
-            .map(file => file.name);
-
-        for (const filePathInGCS of unusedGCSFilePaths) {
-            const file = bucket.file(filePathInGCS);
-            await file.delete();
-            console.log(`Nem használt kép törölve a GCS-ből: gs://${gcsBucketName}/${filePathInGCS}`);
+        if (!bucket || !gcsBucketName) {
+            console.error('HIBA: A GCS szolgáltatások nincsenek inicializálva a takarítási funkció hívásakor.');
+            return; // Nem tudunk takarítani, ha nincs GCS kapcsolat
         }
 
-        console.log(`Takarítás kész: ${unusedGCSFilePaths.length} nem használt kép törölve a project-${projectId} mappából a GCS-en.`);
-    } catch (error) {
-        console.error('Hiba a nem használt képek tisztításakor a GCS-en:', error);
-    }
-}
-
-// Kép törlésének endpointja
-async function cleanupUnusedImages(projectId, usedImageUrls) {
-    try {
         const [files] = await bucket.getFiles({ prefix: `project-${projectId}/` });
 
         const unusedGCSFilePaths = files
@@ -276,6 +266,11 @@ async function cleanupUnusedImages(projectId, usedImageUrls) {
 // Kép törlésének endpointja
 router.post('/delete-image', async (req, res) => {
     try {
+        if (!bucket || !gcsBucketName) {
+            console.error('HIBA: A GCS szolgáltatások nincsenek inicializálva a törlési endpoint hívásakor.');
+            return res.status(503).json({ success: false, message: 'A szerver még nem állt készen a kép törlésére.' });
+        }
+
         const imageUrl = req.body.imageUrl;
 
         if (!imageUrl || !imageUrl.startsWith(`https://storage.googleapis.com/${gcsBucketName}/`)) {
@@ -298,9 +293,6 @@ router.post('/delete-image', async (req, res) => {
         res.status(500).json({ success: false, message: 'Szerver hiba a törlés során.', error: err.message });
     }
 });
-
-// Exportáljuk a routert és a cleanupUnusedImages függvényt, ha máshol is használod
-module.exports = { router, cleanupUnusedImages };
 
 // xlsx fájl beolvasása
 function generateExcelFile(data) {
@@ -1587,6 +1579,11 @@ function createMergeMatrix(mergedCells, rowCount, colCount) {
     return matrix;
 }
 
-module.exports = router;
+// A router ÉS az inicializálási promise exportálása
+// Ez a legfontosabb változtatás, hogy a server.js tudja várni az inicializálást
+module.exports = {
+    router: router,
+    initializationPromise: initializeGoogleServices() // Ez elindítja az inicializálást és visszaadja a Promise-t
+};
 
 
