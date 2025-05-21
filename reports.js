@@ -43,61 +43,68 @@ let bucket;
 let gcsBucketName; // <-- EZ A FONTOS MÓDOSÍTÁS!
 let driveService; // Ezt is itt érdemes deklarálni globálisan, ha a Google Drive-ot is itt inicializálod.
 
-// A GCS inicializálási blokk
-try {
-    let credentials;
-    // 1. Megpróbáljuk beolvasni a JSON-t a környezeti változóból (Render.com)
-    if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
-        try {
-            credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
-            console.log('✅ Google Cloud hitelesítő adatok betöltve a környezeti változóból.');
-        } catch (parseError) {
-            throw new Error(`HIBA: A GOOGLE_APPLICATION_CREDENTIALS_JSON környezeti változó tartalma érvénytelen JSON: ${parseError.message}`);
-        }
-    } 
-    // 2. Ha az nem létezik, megpróbáljuk a fájl elérési útjáról (lokális .env)
-    else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-        const keyFilePath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-        const fullKeyPath = path.join(process.cwd(), keyFilePath);
+// ************************************************************
+// GOOGLE CLOUD SZOLGÁLTATÁSOK INICIALIZÁLÁSA ASYNC FÜGGVÉNYBEN
+// ************************************************************
+async function initializeGoogleServices() {
+    try {
+        let credentials;
 
-        if (fs.existsSync(fullKeyPath)) {
-            credentials = JSON.parse(fs.readFileSync(fullKeyPath, 'utf8'));
-            console.log(`✅ Google Cloud hitelesítő adatok betöltve a fájlból: ${fullKeyPath}`);
+        // 1. Megpróbáljuk beolvasni a JSON-t a környezeti változóból (Render.com)
+        if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+            try {
+                credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+                console.log('✅ Google Cloud hitelesítő adatok betöltve a környezeti változóból.');
+            } catch (parseError) {
+                throw new Error(`HIBA: A GOOGLE_APPLICATION_CREDENTIALS_JSON környezeti változó tartalma érvénytelen JSON: ${parseError.message}`);
+            }
+        }
+        // 2. Ha az nem létezik, megpróbáljuk a fájl elérési útjáról (lokális .env)
+        else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+            const keyFilePath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+            const fullKeyPath = path.join(process.cwd(), keyFilePath);
+
+            if (fs.existsSync(fullKeyPath)) {
+                credentials = JSON.parse(fs.readFileSync(fullKeyPath, 'utf8'));
+                console.log(`✅ Google Cloud hitelesítő adatok betöltve a fájlból: ${fullKeyPath}`);
+            } else {
+                throw new Error(`HIBA: A Service Account kulcsfájl nem található: ${fullKeyPath}. Kérlek, ellenőrizd a .env fájlban az útvonalat és a fájl meglétét.`);
+            }
         } else {
-            throw new Error(`HIBA: A Service Account kulcsfájl nem található: ${fullKeyPath}. Kérlek, ellenőrizd a .env fájlban az útvonalat és a fájl meglétét.`);
+            // Ha egyik sem érhető el
+            throw new Error("Kritikus HIBA: Sem a GOOGLE_APPLICATION_CREDENTIALS_JSON, sem a GOOGLE_APPLICATION_CREDENTIALS környezeti változó nincs beállítva. A Google Cloud és Drive szolgáltatások nem inicializálhatók.");
         }
-    } else {
-        // Ha egyik sem érhető el
-        throw new Error("Kritikus HIBA: Sem a GOOGLE_APPLICATION_CREDENTIALS_JSON, sem a GOOGLE_APPLICATION_CREDENTIALS környezeti változó nincs beállítva. A Google Cloud és Drive szolgáltatások nem inicializálhatók.");
+
+        // Most, hogy a credentials objektum elkészült, használjuk a Storage és Drive inicializálásához
+
+        // GCS inicializálás
+        if (!credentials) { // Redundáns ellenőrzés, de nem árt
+             throw new Error("HIBA: Nincsenek hitelesítő adatok a Google Cloud Storage inicializálásához.");
+        }
+        storage = new Storage({ credentials });
+
+        gcsBucketName = process.env.GCS_BUCKET_NAME;
+        if (!gcsBucketName) {
+            throw new Error("HIBA: A GCS_BUCKET_NAME környezeti változó nincs beállítva.");
+        }
+        bucket = storage.bucket(gcsBucketName);
+
+        console.log(`Google Cloud Storage bucket inicializálva: ${gcsBucketName}`);
+
+        // Google Drive inicializálás
+        const authClient = new google.auth.GoogleAuth({
+            credentials: credentials, // Ugyanazt a credentials objektumot használjuk
+            scopes: ['https://www.googleapis.com/auth/drive'],
+        });
+
+        const auth = await authClient.getClient(); // <--- EZ MÁR ASYNC FÜGGVÉNYBEN VAN, ÍGY MŰKÖDNI FOG!
+        driveService = google.drive({ version: 'v3', auth });
+        console.log('Google Drive Service sikeresen inicializálva.');
+
+    } catch (error) {
+        console.error("Kritikus hiba a Google Cloud Storage/Drive inicializálásakor:", error.message);
+        process.exit(1); // Kilépés, ha kritikus inicializálási hiba van
     }
-
-    // Most, hogy a credentials objektum elkészült, használjuk a Storage és Drive inicializálásához
-    
-    // GCS inicializálás
-    storage = new Storage({ credentials });
-
-    gcsBucketName = process.env.GCS_BUCKET_NAME; 
-    if (!gcsBucketName) {
-        throw new Error("HIBA: A GCS_BUCKET_NAME környezeti változó nincs beállítva.");
-    }
-    bucket = storage.bucket(gcsBucketName);
-
-    console.log(`Google Cloud Storage bucket inicializálva: ${gcsBucketName}`);
-
-    // Google Drive inicializálás
-    const authClient = new google.auth.GoogleAuth({
-        credentials: credentials, // Ugyanazt a credentials objektumot használjuk
-        scopes: ['https://www.googleapis.com/auth/drive'],
-    });
-
-    const auth = await authClient.getClient();
-    driveService = google.drive({ version: 'v3', auth });
-    console.log('Google Drive Service sikeresen inicializálva.');
-
-
-} catch (error) {
-    console.error("Kritikus hiba a Google Cloud Storage/Drive inicializálásakor:", error.message);
-    process.exit(1); // Kilépés, ha kritikus inicializálási hiba van
 }
 
 // Segédfüggvény a kép letöltéséhez URL-ről
@@ -115,6 +122,13 @@ async function downloadImageFromUrl(imageUrl) {
 
 // uploadBufferToDrive függvény DEFINÍCIÓJA!
 async function uploadBufferToDrive(buffer, fileName, parentFolderId, mimeType) {
+    // Ezt a függvényt kellene átírni, hogy a driveService globális legyen
+    // De a korábbi beszélgetések alapján feltételezem, hogy a driveService már globálisan inicializálva van
+    // és elérhető itt.
+    if (!driveService) {
+        throw new Error("driveService nincs inicializálva. Hívja meg az initializeGoogleServices()-t az alkalmazás indításakor.");
+    }
+
     const fileMetadata = {
         name: fileName,
         parents: [parentFolderId],
@@ -151,15 +165,15 @@ async function compressImage(inputPath, outputPath) {
         }
 
         await sharp(inputPath)
-            .resize({ 
-                width: 1024, 
-                height: 1024, 
-                fit: 'inside', 
-                withoutEnlargement: true 
+            .resize({
+                width: 1024,
+                height: 1024,
+                fit: 'inside',
+                withoutEnlargement: true
             })
-            .toFormat('jpeg', { 
+            .toFormat('jpeg', {
                 quality: 80,
-                mozjpeg: true 
+                mozjpeg: true
             })
             .toFile(outputPath);
 
@@ -186,26 +200,18 @@ router.post('/upload', upload.single('image'), async (req, res) => {
             .toBuffer();
 
         const outputFilename = `compressed_${Date.now()}_${req.file.originalname}`;
-        // HELYES filePathInGCS generálás backtick-kel (string template literál)
-        // Kiemelten fontos, hogy a ` (backtick) karaktert használd a string elején és végén!
-        const filePathInGCS = `project-${projectId}/${outputFilename}`; 
+        const filePathInGCS = `project-${projectId}/${outputFilename}`;
 
         const file = bucket.file(filePathInGCS);
         await file.save(compressedBuffer, {
             metadata: { contentType: req.file.mimetype },
             resumable: false,
-            // public: true // Ez már korábban is törölve lett
         });
 
-        // makePublic() is törölve lett a korábbi hibakeresés során.
-        // Ezt a sort ne add vissza: await file.makePublic(); 
-
-        // HELYES publicUrl generálás backtick-kel (string template literál)
-        // Kiemelten fontos, hogy a ` (backtick) karaktert használd a string elején és végén!
         const publicUrl = `https://storage.googleapis.com/${gcsBucketName}/${filePathInGCS}`;
         res.json({
             success: true,
-            url: publicUrl, // Ez most már a valós, működő URL lesz
+            url: publicUrl,
             metadata: await sharp(compressedBuffer).metadata()
         });
 
@@ -218,26 +224,49 @@ router.post('/upload', upload.single('image'), async (req, res) => {
 // Nem használt képek törlése függvény
 async function cleanupUnusedImages(projectId, usedImageUrls) {
     try {
-        // Itt már elérhető a gcsBucketName
         const [files] = await bucket.getFiles({ prefix: `project-${projectId}/` });
 
         const unusedGCSFilePaths = files
             .filter(file => {
                 const fileName = file.name;
                 const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName);
-                
-                // Itt is elérhető a gcsBucketName
                 const gcsFileUrl = `https://storage.googleapis.com/${gcsBucketName}/${fileName}`;
                 return isImage && !usedImageUrls.includes(gcsFileUrl);
             })
             .map(file => file.name);
-        
+
         for (const filePathInGCS of unusedGCSFilePaths) {
             const file = bucket.file(filePathInGCS);
             await file.delete();
             console.log(`Nem használt kép törölve a GCS-ből: gs://${gcsBucketName}/${filePathInGCS}`);
         }
-        
+
+        console.log(`Takarítás kész: ${unusedGCSFilePaths.length} nem használt kép törölve a project-${projectId} mappából a GCS-en.`);
+    } catch (error) {
+        console.error('Hiba a nem használt képek tisztításakor a GCS-en:', error);
+    }
+}
+
+// Kép törlésének endpointja
+async function cleanupUnusedImages(projectId, usedImageUrls) {
+    try {
+        const [files] = await bucket.getFiles({ prefix: `project-${projectId}/` });
+
+        const unusedGCSFilePaths = files
+            .filter(file => {
+                const fileName = file.name;
+                const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName);
+                const gcsFileUrl = `https://storage.googleapis.com/${gcsBucketName}/${fileName}`;
+                return isImage && !usedImageUrls.includes(gcsFileUrl);
+            })
+            .map(file => file.name);
+
+        for (const filePathInGCS of unusedGCSFilePaths) {
+            const file = bucket.file(filePathInGCS);
+            await file.delete();
+            console.log(`Nem használt kép törölve a GCS-ből: gs://${gcsBucketName}/${filePathInGCS}`);
+        }
+
         console.log(`Takarítás kész: ${unusedGCSFilePaths.length} nem használt kép törölve a project-${projectId} mappából a GCS-en.`);
     } catch (error) {
         console.error('Hiba a nem használt képek tisztításakor a GCS-en:', error);
@@ -249,12 +278,10 @@ router.post('/delete-image', async (req, res) => {
     try {
         const imageUrl = req.body.imageUrl;
 
-        // Itt is elérhető a gcsBucketName
         if (!imageUrl || !imageUrl.startsWith(`https://storage.googleapis.com/${gcsBucketName}/`)) {
             return res.status(400).json({ success: false, message: 'Érvénytelen GCS kép URL.' });
         }
 
-        // Itt is elérhető a gcsBucketName
         const filePathInGCS = imageUrl.substring(`https://storage.googleapis.com/${gcsBucketName}/`.length);
         const file = bucket.file(filePathInGCS);
 
