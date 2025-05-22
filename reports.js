@@ -700,9 +700,13 @@ router.get('/:projectId/download-pdf', async (req, res) => {
 // PDF generálás Puppeteerrel
 const browser = await puppeteer.launch({
     headless: "new",
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security']
+    args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-web-security',
+        '--disable-dev-shm-usage'
+    ]
 });
-
 
 const page = await browser.newPage();
 await page.setViewport({
