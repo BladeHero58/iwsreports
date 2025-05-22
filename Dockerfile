@@ -3,9 +3,9 @@ FROM node:18-slim
 # Telepítjük a szükséges függőségeket a Chromiumhoz és a Puppeteerhez
 RUN apt-get update \
     && apt-get install -y wget gnupg \
-    && apt-get install -y chromium-browser chromium-browser-dbg chromium-codecs-extra libu2f-udev fonts-freefont-ttf --no-install-recommends \
+    && apt-get install -y chromium-browser chromium-browser-dbg chromium-codecs-extra libu2f-udev fonts-freefont-ttf libgbm-dev --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
-    # Hozzáadtam a 'chromium-browser' nevét és a kiegészítő függőségeket
+    # Hozzáadtam a 'chromium-browser' nevét és a kiegészítő függőségeket, beleértve a libgbm-dev-et is.
     # A --no-install-recommends-et itt is megtarthatod, de ha gond van, ez az első, amit eltávolítanék.
 
 # Alkalmazás könyvtár létrehozása
