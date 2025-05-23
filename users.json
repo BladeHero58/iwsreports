@@ -1,1 +1,1 @@
-[{"id":"1734952787803","username":"teszt1234","password":"$2a$10$HkZFqoMUsNXb5Hcu/9Osb.a2ncIflbLqDaPgYXoeszVo8mbUGxFJW","isAdmin":false},{"id":"184567322","username":"admin","password":"$2a$10$Y1EeDieI2B6iM3ejFl4VcO7AGmTD3egMmPhFcPUUbg0iCvNTpZ2k.","role":"admin"},{"id":"1735649162935","username":"testuser","password":"$2a$10$wHtAciKXzPUWdXcFAlhJ/OEagutDj/Ubv8vtl8cgoUcDpzfzcj.WK"}]
+[{"id":"184567322","username":"admin","password":"$2a$10$Y1EeDieI2B6iM3ejFl4VcO7AGmTD3egMmPhFcPUUbg0iCvNTpZ2k.","role":"admin"}]
