@@ -2,10 +2,10 @@ services:
   - type: web
     name: iwsreports
     env: node
-    buildCommand: npm install
-    startCommand: npm start
+    # buildCommand: npm install # Ezt a sort elhagyhatod, ha a Dockerfile-od tartalmazza az `npm ci` lépést
+    # startCommand: npm start   # Ezt a sort elhagyhatod, ha a Dockerfile-od tartalmazza a `CMD` lépést
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PUPPETEER_EXECUTABLE_PATH
-        value: /usr/bin/chromium
+      # - key: PUPPETEER_EXECUTABLE_PATH # Ez a sor már valószínűleg nem szükséges, ha a puppeteer/puppeteer image-et használod
+      #   value: /usr/bin/chromium
