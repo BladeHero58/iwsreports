@@ -699,13 +699,20 @@ router.get('/:projectId/download-pdf', async (req, res) => {
 
 // PDF generálás Puppeteerrel
 const browser = await puppeteer.launch({
-    headless: "new",
-    args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-web-security',
-        '--disable-dev-shm-usage'
-    ]
+  executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
+  args: [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-gpu',
+    '--no-first-run',
+    '--no-zygote',
+    '--single-process', // Ez fontos lehet Render.com-on
+    '--disable-background-timer-throttling',
+    '--disable-backgrounding-occluded-windows',
+    '--disable-renderer-backgrounding'
+  ],
+  headless: true
 });
 
 const page = await browser.newPage();
