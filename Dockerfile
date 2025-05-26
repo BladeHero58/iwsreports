@@ -1,8 +1,16 @@
 FROM node:20-slim
+FROM ghcr.io/puppeteer/puppeteer:^22.8.2
 
 # Frissítjük a package listát és telepítjük a Chromium-ot + függőségeket
+google-chrome-stable  fonts-wqy-zenhei  libxss1 \
+      --no-install-recommends 
 RUN apt-get update \
     && apt-get install -y \
+       google-chrome-stable \ 
+       fonts-ipafont-gothic \ 
+       fonts-thai-tlwg \
+       fonts-kacst \
+       fonts-freefont-ttf
        chromium \
        fonts-liberation \
        libappindicator3-1 \
@@ -36,22 +44,23 @@ RUN apt-get update \
        wget \
     && rm -rf /var/lib/apt/lists/*
 
+
+# Telepítsd a függőségeket - fontos: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable \
+    NODE_ENV=production
+
+
+
 WORKDIR /app
 
 # Másold át a package fájlokat
 COPY package*.json ./
 
-# Telepítsd a függőségeket - fontos: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
 RUN npm ci --only=production
 
 # Másold át a kódot
 COPY . .
-
-# Állítsd be a Puppeteer konfigurációt
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
-
-ENV NODE_ENV=production
 
 EXPOSE 3000
 CMD ["npm", "start"]

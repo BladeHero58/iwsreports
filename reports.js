@@ -702,6 +702,8 @@ const browser = await puppeteer.launch({
   args: [
     '--no-sandbox',
     '--disable-setuid-sandbox',
+    '--single-process',
+    '--no-zygote',
     '--disable-dev-shm-usage' // Ez is gyakran szükséges Dockerben
   ],
   executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
