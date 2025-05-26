@@ -2,8 +2,6 @@ FROM node:20-slim
 FROM ghcr.io/puppeteer/puppeteer:^22.8.2
 
 # Frissítjük a package listát és telepítjük a Chromium-ot + függőségeket
-google-chrome-stable  fonts-wqy-zenhei  libxss1 \
-      --no-install-recommends 
 RUN apt-get update \
     && apt-get install -y \
        google-chrome-stable \ 
