@@ -1,7 +1,7 @@
 # Base image
 FROM node:20-slim
 
-# Install Chromium and dependencies
+# Install dependencies
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
@@ -21,22 +21,23 @@ RUN apt-get update && apt-get install -y \
     libxdamage1 \
     libxrandr2 \
     xdg-utils \
-    chromium \
-    --no-install-recommends && \
+    --no-install-recommends
+
+# Add Google Chrome repository and install
+RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - && \
+    echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list && \
+    apt-get update && \
+    apt-get install -y google-chrome-stable && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Use correct path
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+# Set Puppeteer to use Google Chrome
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 
-# Set workdir
+# App setup
 WORKDIR /app
-
-# Install dependencies
 COPY package*.json ./
 RUN npm install
-
-# Copy app code
 COPY . .
 
 EXPOSE 3000
