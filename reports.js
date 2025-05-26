@@ -700,10 +700,10 @@ router.get('/:projectId/download-pdf', async (req, res) => {
 // PDF generálás Puppeteerrel
 const browser = await puppeteer.launch({
   args: [
-   '--no-sandbox',
-    '--disable-setuid-sandbox',
+    '--no-sandbox',
     '--disable-dev-shm-usage', // Crucial for Docker
-    '--disable-gpu'
+    '--disable-gpu',
+    `--headless`
   ],
 //   executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
 });
