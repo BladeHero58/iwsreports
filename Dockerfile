@@ -1,7 +1,6 @@
-# Base image
-FROM node:20-slim
+FROM node:20-bullseye
 
-# Install dependencies
+# Install OS dependencies
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
@@ -23,7 +22,7 @@ RUN apt-get update && apt-get install -y \
     xdg-utils \
     --no-install-recommends
 
-# Add Google Chrome repository and install
+# Install Chrome
 RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - && \
     echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list && \
     apt-get update && \
@@ -31,7 +30,10 @@ RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Set Puppeteer to use Google Chrome
+# ✅ Sanity check
+RUN ls -l /usr/bin/google-chrome-stable && google-chrome-stable --version
+
+# Puppeteer env var
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 
 # App setup
@@ -41,10 +43,4 @@ RUN npm install
 COPY . .
 
 EXPOSE 3000
-
 CMD ["npm", "start"]
-
-
-
-
-
