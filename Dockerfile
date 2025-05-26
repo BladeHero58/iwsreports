@@ -1,5 +1,5 @@
 # Use the official Puppeteer image which includes Node.js and a compatible Chromium
-FROM ghcr.io/puppeteer/puppeteer:^22.8.2
+FROM ghcr.io/puppeteer/puppeteer:latest
 
 # The base image already has Chromium and its dependencies.
 # You only need to install additional fonts if your application specifically requires them

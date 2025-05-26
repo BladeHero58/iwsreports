@@ -699,6 +699,7 @@ router.get('/:projectId/download-pdf', async (req, res) => {
 
 // PDF generálás Puppeteerrel
 const browser = await puppeteer.launch({
+    headless: true,
   args: [
     '--no-sandbox',
     '--disable-dev-shm-usage', // Crucial for Docker
