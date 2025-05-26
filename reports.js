@@ -706,7 +706,7 @@ const browser = await puppeteer.launch({
     '--disable-gpu',
     `--headless`
   ],
-//   executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+  executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
 });
 
 const page = await browser.newPage();
