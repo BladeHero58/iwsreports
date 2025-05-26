@@ -1,5 +1,5 @@
 # Use the official Puppeteer image which includes Node.js and a compatible Chromium
-FROM ghcr.io/puppeteer/puppeteer:^22.8.2
+FROM ghcr.io/puppeteer/puppeteer:22.15.0
 
 
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
