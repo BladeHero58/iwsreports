@@ -1,7 +1,7 @@
 # Base image
 FROM node:20-slim
 
-# Install dependencies
+# Install Chromium and dependencies
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
@@ -26,20 +26,19 @@ RUN apt-get update && apt-get install -y \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Set environment variable for Puppeteer
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+# Use correct path
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # Set workdir
 WORKDIR /app
 
-# Copy and install dependencies
+# Install dependencies
 COPY package*.json ./
 RUN npm install
 
-# Copy app
+# Copy app code
 COPY . .
 
-# Start app
 EXPOSE 3000
 
 CMD ["npm", "start"]
