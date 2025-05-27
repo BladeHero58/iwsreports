@@ -704,7 +704,7 @@ const browser = await puppeteer.launch({
     '--disable-setuid-sandbox',
     '--disable-dev-shm-usage' // Ez is gyakran szükséges Dockerben
   ],
-  executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+  //executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
 });
 
 const page = await browser.newPage();

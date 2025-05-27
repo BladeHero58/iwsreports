@@ -49,7 +49,7 @@ RUN npm ci --only=production
 COPY . .
 
 # Állítsd be a Puppeteer konfigurációt
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+#ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 ENV NODE_ENV=production
 
