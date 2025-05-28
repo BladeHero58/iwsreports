@@ -1,8 +1,8 @@
 FROM node:20-slim
 
-# Install Chromium + dependencies
+# Install Chromium and required dependencies
 RUN apt-get update && apt-get install -y \
-    chromium \
+    chromium-browser \
     fonts-liberation \
     libappindicator3-1 \
     libasound2 \
@@ -27,22 +27,27 @@ RUN apt-get update && apt-get install -y \
     libxss1 \
     libxtst6 \
     ca-certificates \
-    wget \
+    lsb-release \
     xdg-utils \
-    && rm -rf /var/lib/apt/lists/*
+    wget \
+    --no-install-recommends \
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy deps and install
 COPY package*.json ./
+
+# Skip Puppeteer's Chromium download — we’re using system Chromium
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+
 RUN npm ci --only=production
 
-# Copy rest of the app
 COPY . .
 
-# Set Puppeteer to use installed Chromium
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+# Set Puppeteer to use system-installed Chromium
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 ENV NODE_ENV=production
 
 EXPOSE 3000
+
 CMD ["npm", "start"]
