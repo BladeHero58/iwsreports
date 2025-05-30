@@ -924,8 +924,8 @@ router.get('/:projectId/download-pdf', async (req, res) => {
             downloadedImages // Átadjuk a letöltött Base64 képeket a Pdfmake-nek
         );
 
-console.log('DEBUG: printer object:', printer);
-console.log('DEBUG: printer.createPdfKitDocument type:', typeof printer.createPdfKitDocument);
+        console.log('DEBUG: printer object:', printer);
+        console.log('DEBUG: printer.createPdfKitDocument type:', typeof printer.createPdfKitDocument);
 
         const pdfDoc = printer.createPdfKitDocument(docDefinition);
 
@@ -933,7 +933,7 @@ console.log('DEBUG: printer.createPdfKitDocument type:', typeof printer.createPd
         const writeStream = fs.createWriteStream(tempFilePath);
         pdfDoc.pipe(writeStream);
 
-        // Várjuk meg, amíg a PDF teljesen kiíródik, mielőtt feltöltjük vagy elküldjük
+        // Várjuk meg, amíg a PDF teljesen kiíródik, mielőtt elküldjük
         await new Promise((resolve, reject) => {
             writeStream.on('finish', () => {
                 console.log('✅ PDF sikeresen generálva ideiglenes fájlba:', tempFilePath);
@@ -945,74 +945,6 @@ console.log('DEBUG: printer.createPdfKitDocument type:', typeof printer.createPd
             });
             pdfDoc.end(); // Fontos: le kell zárni a pdfDoc stream-et!
         });
-
-        // --- Google Drive feltöltés ---
-        // Csak akkor próbáljuk meg feltölteni a Google Drive-ra, ha a driveService inicializálva van.
-        // Ez megakadályozza, hogy a kód leálljon, ha a Drive integráció nincs beállítva.
-        if (typeof driveService !== 'undefined' && typeof MAIN_DRIVE_FOLDER_ID !== 'undefined') {
-            try {
-                console.log('📂 PDF feltöltés indítása a Google Drive-ra: fájl =', fileName);
-                console.log('📁 Cél projekt mappa:', safeProjectName);
-                console.log('📁 Szülő mappa ID:', MAIN_DRIVE_FOLDER_ID);
-
-                // Próbáljuk meg listázni a parent mappát, hogy ellenőrizzük az elérhetőséget
-                const testAccess = await driveService.files.get({
-                    fileId: MAIN_DRIVE_FOLDER_ID,
-                    fields: 'id, name'
-                }).catch(err => {
-                    console.error("❌ NEM elérhető a MAIN_DRIVE_FOLDER_ID mappa a service account számára!");
-                    throw new Error("A service account nem fér hozzá a gyökérmappához. Ellenőrizd a megosztást!");
-                });
-                console.log("✅ Elérhető a fő mappa:", testAccess.data.name);
-
-                // Ellenőrizzük, hogy létezik-e a projekt mappa a Google Drive-on (VAGY LÉTREHOZZUK)
-                const projectFolderId = await getOrCreateFolder(safeProjectName, MAIN_DRIVE_FOLDER_ID);
-                console.log('📁 Projekt mappa ID:', projectFolderId);
-
-                // Létrehozzuk az aznapi dátumozott mappát (adott esetben törli, ha már létezik)
-                const dailyFolderId = await createDailyFolder(projectFolderId);
-                console.log('📁 Aznapi mappa ID:', dailyFolderId);
-
-                // PDF feltöltése az aznapi mappába
-                const uploadResult = await uploadFileToDrive(tempFilePath, fileName, dailyFolderId, 'application/pdf');
-                console.log('✅ PDF feltöltés sikeres a Drive-ra! Drive URL:', uploadResult.webViewLink);
-
-                // --- Képek összegyűjtése és feltöltése a Drive-ra (ha szükséges) ---
-                // Ez a rész akkor hasznos, ha a GCS-ről letöltött képeket is fel akarod tölteni a Drive-ra,
-                // pl. archiválás céljából, nem csak a PDF-be ágyazva.
-                // A `uniqueImageUrls` már tartalmazza a GCS URL-eket.
-                if (uniqueImageUrls.length > 0) {
-                    console.log(`📸 ${uniqueImageUrls.length} egyedi kép feltöltése a Drive-ra...`);
-                    const uploadImagePromises = uniqueImageUrls.map(async (imageUrl) => {
-                        const imageFileName = path.basename(new URL(imageUrl).pathname);
-                        try {
-                            const imageBuffer = await downloadImageFromUrl(imageUrl); // Kép letöltése ismét bufferbe
-                            const imageMimeType = getMimeType(imageFileName);
-                            const imageUploadResult = await uploadBufferToDrive(imageBuffer, imageFileName, dailyFolderId, imageMimeType);
-                            console.log(`✅ Kép feltöltve a Drive-ra: ${imageFileName}, Drive URL: ${imageUploadResult.webViewLink}`);
-                            return imageUploadResult.webViewLink;
-                        } catch (imageProcessErr) {
-                            console.error(`❌ Hiba a kép letöltésekor/feltöltésekor a Drive-ra (${imageFileName} from ${imageUrl}): ${imageProcessErr.message}`);
-                            return null;
-                        }
-                    });
-                    const uploadedImageLinks = await Promise.all(uploadImagePromises);
-                    const successfulUploadLinks = uploadedImageLinks.filter(link => link !== null);
-                    if (successfulUploadLinks.length > 0) {
-                        console.log(`🎉 ${successfulUploadLinks.length} kép sikeresen feltöltve a Google Drive-ra.`);
-                    } else {
-                        console.log('⚠️ Egyetlen kép feltöltése sem sikerült a Google Drive-ra.');
-                    }
-                }
-            } catch (uploadErr) {
-                console.error('❌ Hiba a Google Drive feltöltésnél:', uploadErr.message);
-                console.error('📄 Részletek:', uploadErr);
-                // Döntheted el, hogy egy Drive feltöltési hiba meghiúsítja-e a PDF letöltését.
-                // Jelenleg nem állítja meg, csak logolja.
-            }
-        } else {
-            console.warn('⚠️ Google Drive API vagy MAIN_DRIVE_FOLDER_ID nincs inicializálva. PDF/Kép feltöltés a Drive-ra kihagyva.');
-        }
 
         // PDF válaszként küldése letöltéshez (most már az ideiglenesen mentett fájlból streameljük)
         res.setHeader('Content-Type', 'application/pdf');
@@ -1035,8 +967,9 @@ console.log('DEBUG: printer.createPdfKitDocument type:', typeof printer.createPd
 });
 
 // A router ÉS az inicializálási promise exportálása
-// Ez a legfontosabb változtatás, hogy a server.js tudja várni az inicializálást
+// Megjegyzés: Az 'initializeGoogleServices' most már nem szükséges ehhez a végponthoz,
+// de ha más moduloknak továbbra is szükségük van rá, tartsd meg az exportnál.
 module.exports = {
     router: router,
-    initializationPromise: initializeGoogleServices() // Ez elindítja az inicializálást és visszaadja a Promise-t
+    initializationPromise: initializeGoogleServices() // Ha van ilyen függvényed, tartsd meg.
 };
