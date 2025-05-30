@@ -827,8 +827,7 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
 router.get('/:projectId/download-pdf', async (req, res) => {
     const { projectId } = req.params;
 
-    let tempFilePath;
-    let fileName; // Deklarációk a try blokkon kívülre, hogy a finally blokkban elérhetőek legyenek
+    let fileName; // Deklaráció a try blokkon kívülre
 
     try {
         const projectResult = await pool.query(
@@ -845,14 +844,10 @@ router.get('/:projectId/download-pdf', async (req, res) => {
         const safeProjectName = projectName.replace(invalidFileChars, '_');
 
         fileName = `IWS_Solutions_Munkavedelmi_ellenorzesi_jegyzokonyv_${safeProjectName}.pdf`;
-        const tempDir = path.join(__dirname, 'temp'); // A temp mappa elérési útja
-        tempFilePath = path.join(tempDir, fileName); // A teljes fájl elérési útja
 
-        // *** A HIÁNYZÓ MAPPA LÉTREHOZÁSÁNAK KEZELÉSE ***
-        if (!fs.existsSync(tempDir)) {
-            fs.mkdirSync(tempDir, { recursive: true }); // Létrehozza a temp mappát és az összes hiányzó szülőt
-            console.log(`📂 Létrehozva a temp mappa: ${tempDir}`);
-        }
+        // A tempDir és tempFilePath deklarációk itt már feleslegesek,
+        // mivel nem használunk ideiglenes fájlt.
+        // A mappa létrehozása sem szükséges.
 
         const reportDataResult = await pool.query(
             'SELECT rd.data, rd.merge_cells, rd.column_sizes, rd.row_sizes, rd.cell_styles ' +
@@ -898,7 +893,6 @@ router.get('/:projectId/download-pdf', async (req, res) => {
             console.log(`📸 ${uniqueImageUrls.length} egyedi kép található a táblázatban (GCS-ről), letöltés indítása a PDF-hez...`);
             const downloadPromises = uniqueImageUrls.map(async (imageUrl) => {
                 try {
-                    // Itt hívjuk a downloadImageFromUrl függvényt
                     const imageBuffer = await downloadImageFromUrl(imageUrl);
                     const base64Image = `data:${getMimeType(path.basename(imageUrl))};base64,${imageBuffer.toString('base64')}`;
                     downloadedImages[imageUrl] = base64Image;
@@ -928,62 +922,42 @@ router.get('/:projectId/download-pdf', async (req, res) => {
         console.log('DEBUG: printer.createPdfKitDocument type:', typeof printer.createPdfKitDocument);
 
         const pdfDoc = printer.createPdfKitDocument(docDefinition);
+        let pdfBuffer;
 
-        // PDF fájl írása az ideiglenes helyre
-        const writeStream = fs.createWriteStream(tempFilePath);
-        pdfDoc.pipe(writeStream);
-
-        // Várjuk meg, amíg a PDF teljesen kiíródik, mielőtt elküldjük
+        // Várjuk meg, amíg a PDF teljesen létrejön memóriában (bufferként)
         await new Promise((resolve, reject) => {
-            writeStream.on('finish', () => {
-                console.log('✅ PDF sikeresen generálva ideiglenes fájlba:', tempFilePath);
-                // Késleltetés, hátha a fájlrendszernek kell egy kis idő
-                setTimeout(() => resolve(), 200);
+            const chunks = [];
+            pdfDoc.on('data', chunk => chunks.push(chunk));
+            pdfDoc.on('end', () => {
+                pdfBuffer = Buffer.concat(chunks);
+                console.log('✅ PDF sikeresen generálva memóriába (buffer).');
+                resolve();
             });
-            writeStream.on('error', (err) => {
-                console.error('❌ Hiba az ideiglenes PDF fájl írásakor:', err);
+            pdfDoc.on('error', (err) => {
+                console.error('❌ Hiba a PDF generálás során a memóriába:', err);
                 reject(err);
             });
             pdfDoc.end(); // Fontos: le kell zárni a pdfDoc stream-et!
         });
 
-        // Fájl létezésének ellenőrzése közvetlenül az olvasás előtt
-        if (!fs.existsSync(tempFilePath)) {
-            console.error('🔴 HIBA: A PDF fájl nem található, holott a generálás sikeresnek tűnt!');
-            // Ez egy kritikus hiba, ezért 500-as státuszt küldünk
-            return res.status(500).send('Hiba történt: a generált PDF fájl nem található, letöltés sikertelen.');
-        }
-
-        // PDF válaszként küldése letöltéshez (most már az ideiglenesen mentett fájlból streameljük)
+        // PDF válaszként küldése letöltéshez (most már a memóriában lévő bufferből)
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-        fs.createReadStream(tempFilePath).pipe(res);
+        res.send(pdfBuffer); // Közvetlenül a buffert küldjük el
 
     } catch (error) {
         console.error('❌ Hiba a PDF generálás során:', error.message);
         res.status(500).send('Hiba történt a PDF generálása során: ' + error.message);
     } finally {
-        // Fontos: Töröld az ideiglenes fájlt, miután elküldted a választ!
-        // Aszinkron törlés, hogy ne blokkolja a fő szálat.
-        if (tempFilePath && fs.existsSync(tempFilePath)) {
-            fs.unlink(tempFilePath, (err) => {
-                if (err) console.error('❌ Hiba az ideiglenes fájl törlésekor:', err);
-                else console.log('🗑️ Ideiglenes fájl törölve:', tempFilePath);
-            });
-        }
+        // Nincs szükség fájl törlésére, mivel nem hoztunk létre ideiglenes fájlt.
+        console.log('🗑️ Nincs ideiglenes fájl törölni.');
     }
 });
 
 // A router exportálása
 module.exports = {
     router: router,
-    // Az 'initializationPromise' már nem releváns, ha a Google Drive logikát teljesen kivettük.
-    // Ha a 'initializeGoogleServices()' máshol még mindig inicializál valami mást (pl. GCS bucketet képekhez),
-    // akkor érdemes megtartani, de a Drive-specifikus részeket kivenni belőle.
-    // Ha semmi Google-hoz kapcsolódó inicializálás nem marad, akkor ezt a sort is elhagyhatod.
-    // Itt feltételezem, hogy a downloadImageFromUrl és getMimeType még mindig GCS-hez kapcsolódnak,
-    // így az initializationPromise esetleg még szükséges, ha azokat is inicializálja.
-    // De a feladat szerint csak a router-t kellett módosítani.
-    // A logok alapján úgy tűnik, a GCS inicializációja továbbra is fut, szóval hagyjuk benne.
+    // Az 'initializationPromise' továbbra is releváns, ha az initializeGoogleServices()
+    // függvény más Google-szolgáltatásokat (pl. GCS bucket a képekhez) inicializál.
     initializationPromise: typeof initializeGoogleServices !== 'undefined' ? initializeGoogleServices() : Promise.resolve()
 };
