@@ -28,6 +28,8 @@
     "multer": "^1.4.5-lts.1",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
+    "pdfmake": "^0.2.20",
+    "pdfmake-unicode": "^0.0.1",
     "pg": "^8.14.1",
     "pg-promise": "^11.10.2",
     "puppeteer": "^22.8.2",
