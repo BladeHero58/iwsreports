@@ -19,7 +19,6 @@ const MAIN_DRIVE_FOLDER_ID = '1yc0G2dryo4XZeHmZ3FzV4yG4Gxjj2w7j'; // Állítsd b
 
 const { Storage } = require('@google-cloud/storage');
 
-console.log('DATABASE_URL a server.js-ben:', process.env.DATABASE_URL);
 
 // PostgreSQL konfiguráció
 
@@ -473,6 +472,89 @@ router.get('/:projectId/download', async (req, res) => {
     }
 });
 
+// ÚJ ENDPOINT: PDF generálása a mentett adatokból
+router.get("/generate-pdf/:reportId", async (req, res) => {
+    const { reportId } = req.params;
+
+    try {
+        // 1. Lekérjük az adatokat az adatbázisból
+        const result = await pool.query('SELECT data, merge_cells, column_sizes, row_sizes, cell_styles FROM report_data WHERE report_id = $1', [reportId]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: "Jelentés nem található." });
+        }
+
+        const reportData = result.rows[0];
+        const jsonData = reportData.data; // Ez a `data` mező, ami már eleve JSON string, tehát parse-olni kell
+        const mergeCells = reportData.merge_cells;
+        const columnSizes = reportData.column_sizes;
+        const rowSizes = reportData.row_sizes;
+        const cellStyles = reportData.cell_styles;
+
+        // 2. Képek keresése és letöltése Base64 formában
+        const downloadedImages = {};
+        const imagePromises = [];
+
+        if (Array.isArray(jsonData)) { // Fontos: jsonData már parse-olt kell legyen
+            for (const row of jsonData) {
+                if (Array.isArray(row)) {
+                    for (const cell of row) {
+                        let imageUrl = null;
+                        if (typeof cell === 'object' && cell !== null && cell.image && typeof cell.image === 'string' && cell.image.startsWith('https://storage.googleapis.com/')) {
+                            imageUrl = cell.image;
+                        } else if (typeof cell === 'string' && cell.startsWith('https://storage.googleapis.com/')) {
+                            imageUrl = cell;
+                        }
+
+                        if (imageUrl && !downloadedImages[imageUrl]) {
+                            imagePromises.push(
+                                axios.get(imageUrl, { responseType: 'arraybuffer' })
+                                    .then(response => {
+                                        const contentType = response.headers['content-type'];
+                                        const base64Image = `data:${contentType};base64,` + Buffer.from(response.data).toString('base64');
+                                        downloadedImages[imageUrl] = base64Image;
+                                        console.log(`Successfully downloaded and converted image: ${imageUrl}`);
+                                    })
+                                    .catch(error => {
+                                        console.error(`Error downloading image ${imageUrl}:`, error.message);
+                                        downloadedImages[imageUrl] = null; // Jelöljük, hogy sikertelen volt a letöltés
+                                    })
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        await Promise.all(imagePromises); // Várjuk meg az összes kép letöltését
+
+        // 3. Pdfmake riport generálása
+        // Fontos: a jsonData, mergeCells, columnSizes, rowSizes, cellStyles paramétereknek
+        // parse-olt JSON objektumoknak kell lenniük, ha az adatbázis stringként tárolja őket.
+        const docDefinition = await generatePdfmakeReport(
+            jsonData, 
+            mergeCells, // Ezeknek már objektumnak kell lenniük, ha az adatbázis JSON stringből parse-olta őket
+            columnSizes, 
+            rowSizes, 
+            cellStyles, 
+            downloadedImages
+        );
+
+        // 4. PDF létrehozása és küldése
+        const pdfDoc = printer.createPdfKitDocument(docDefinition);
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="report_${reportId}.pdf"`);
+
+        // PDF stream-elése közvetlenül a válaszba
+        pdfDoc.pipe(res);
+        pdfDoc.end();
+
+    } catch (error) {
+        console.error("Hiba a PDF generálása során:", error);
+        res.status(500).json({ success: false, message: "Hiba történt a PDF generálása során.", error: error.message });
+    }
+});
 
 
 
@@ -493,18 +575,8 @@ const fonts = {
 
 const printer = new PdfPrinter(fonts);
 
-function escapeHtml(unsafe) {
-    return unsafe
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
-
-// createMergeMatrix segédfüggvény
+// A createMergeMatrix segédfüggvényre szükség van
 function createMergeMatrix(mergedCells, rowCount, colCount) {
-    // A mátrixot a teljes colCount-ra (12) inicializáljuk
     const matrix = Array.from({ length: rowCount }, () => Array(colCount).fill(null));
     if (!Array.isArray(mergedCells)) {
         console.log("Nincsenek egyesített cellák megadva.");
@@ -519,28 +591,14 @@ function createMergeMatrix(mergedCells, rowCount, colCount) {
         const { s: start, e: end } = merge;
         for (let r = start.r; r <= end.r; r++) {
             for (let c = start.c; c <= end.c; c++) {
-                // Csak a sorindexet kell ellenőrizni a rowCount-hoz képest.
-                // Az oszlopindexet nem kell ellenőrizni a colCount-hoz képest ITT,
-                // mert a colCount már a táblázat max szélességét jelenti,
-                // és a merge definíciónak bele kell férnie ebbe a szélességbe.
-                // Ha mégis túlnyúlik, az adat forrása a hibás, nem a mátrix építése.
-                if (r >= rowCount) { // Ha az egyesítés túlnyúlik a rowCount-on, az hiba
+                if (r >= rowCount) {
                     console.warn(`Az egyesítési bejegyzés túlnyúlik a sorokon (sor: ${r}). Táblázat méretei: sorok=${rowCount}, oszlopok=${colCount}.`);
-                    continue; // Kihagyjuk ezt a cellát az egyesítésben, ha soron kívül esik
+                    continue;
                 }
-
-                // Biztosítjuk, hogy a c index ne lépje túl a colCount-ot, mielőtt hozzáférünk a matrix[r][c]-hez
-                // Ez egy biztonsági ellenőrzés, ha a mergeCells hibásan definiált c-t.
-                // DE: A mátrix már colCount széles, tehát nem szabadna "kihagyni",
-                // csak ha maga a merge bejegyzés hibás.
                 if (c >= colCount) {
                     console.warn(`Az egyesítési bejegyzés túlnyúlik az oszlopokon (oszlop: ${c}). Táblázat méretei: sorok=${rowCount}, oszlopok=${colCount}. Ez a cella nem lesz feldolgozva a merge matrixban.`);
-                    // Itt nem continue-t írunk, mert ha maga a merge bejegyzés rossz,
-                    // akkor azt jelezzük, de nem rontjuk el a merge matrixot.
-                    // A Pdfmake majd hibát dob, ha rosszul van definiálva a colSpan/rowSpan.
-                    break; // Kilépünk a belső oszlopciklusból, ha túlnyúlik, mert a többi "c" érték is az lenne
+                    break;
                 }
-
                 matrix[r][c] = {
                     isMain: r === start.r && c === start.c,
                     rowspan: end.r - start.r + 1,
@@ -553,249 +611,426 @@ function createMergeMatrix(mergedCells, rowCount, colCount) {
     return matrix;
 }
 
+// A escapeHtml függvényre is szükség van
+function escapeHtml(unsafe) {
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, rowSizes, cellStyles, downloadedImages = {}) {
+    // PDF lapméretek A4-hez (pontban)
+    const A4_WIDTH_PT = 595.28;
+    const PAGE_MARGIN_HORIZONTAL = 40; // 40pt bal + 40pt jobb margó
+    const AVAILABLE_CONTENT_WIDTH = A4_WIDTH_PT - (2 * PAGE_MARGIN_HORIZONTAL); // 595.28 - 80 = 515.28 pt
+
     // columnSizes konvertálása Pdfmake szélességekké (px -> pt)
     const widths = columnSizes.map(size => {
         if (typeof size === 'string' && size.endsWith('px')) {
-            return parseFloat(size) * 0.75; // 1px = 0.75pt
+            return parseFloat(size) * 0.75; // Alap konverzió
         } else if (size === 'auto' || size === '*') {
             return '*';
         }
-        return size; // Feltételezzük, hogy már pt-ben van, ha nem string
+        return size;
     });
 
-    const tableBody = [];
-    const heights = []; // Itt gyűjtjük a sorok magasságát
-    const rowCount = jsonData.length;
-    const colCount = widths.length; // Ez már helyesen a widths.length
+    // Ellenőrizzük a táblázat teljes szélességét a fix oszlopok alapján
+    let fixedWidthSum = 0;
+    let autoOrStarCount = 0;
+    widths.forEach(width => {
+        if (typeof width === 'number') {
+            fixedWidthSum += width;
+        } else {
+            autoOrStarCount++;
+        }
+    });
 
-    // Merge matrix létrehozása
+    // Skálázási tényező kiszámítása
+    let scaleFactor = 1;
+    if (fixedWidthSum > AVAILABLE_CONTENT_WIDTH && autoOrStarCount === 0) {
+        scaleFactor = AVAILABLE_CONTENT_WIDTH / fixedWidthSum;
+        for (let i = 0; i < widths.length; i++) {
+            if (typeof widths[i] === 'number') {
+                widths[i] *= scaleFactor;
+            }
+        }
+        console.log(`Figyelem: A fix oszlopok eredeti szélessége (${fixedWidthSum.toFixed(2)}pt) meghaladta a rendelkezésre álló helyet (${AVAILABLE_CONTENT_WIDTH.toFixed(2)}pt). Arányos skálázás történt (${(scaleFactor * 100).toFixed(2)}%).`);
+    } else if (fixedWidthSum > AVAILABLE_CONTENT_WIDTH && autoOrStarCount > 0) {
+        console.warn(`Figyelem: A fix oszlopok szélessége (${fixedWidthSum.toFixed(2)}pt) meghaladja a rendelkezésre álló helyet, miközben vannak 'auto'/'*' oszlopok. Az 'auto'/'*' oszlopok mérete negatívvá válhat! Fontolja meg a fix oszlopok szélességének csökkentését.`);
+    }
+
+    const tableBody = [];
+    const heights = [];
+    const rowCount = jsonData.length;
+    const colCount = widths.length;
+
     const formattedMergeCells = originalMergeCells ? originalMergeCells.map(merge => ({
         s: { r: merge.row, c: merge.col },
         e: { r: merge.row + merge.rowspan - 1, c: merge.col + merge.colspan - 1 }
     })) : [];
-    // A createMergeMatrix függvénynek továbbra is a legutóbbi javasolt verzióját használjuk.
     const mergeMatrix = createMergeMatrix(formattedMergeCells, rowCount, colCount);
 
     const lastRowIndex = rowCount - 1;
-    const lastTenRowsStartIndex = Math.max(0, rowCount - 10); // Utolsó 10 sor kezdete
+    const firstOfLastTenRowsIndex = Math.max(0, rowCount - 10);
+
+    // Meghatározzuk a DEFAULT_BORDER_WIDTH-et, ami a layout belső vonalainak vastagsága.
+    // Ez 0.25, ahogy a layout.hLineWidth és vLineWidth függvények is visszatérítik.
+    const DEFAULT_BORDER_WIDTH = 0.25; // Fontos: ezt globálisan, vagy a függvény elején definiáljuk.
 
     for (let r = 0; r < rowCount; r++) {
         const rowContent = [];
-        const rowHeight = Array.isArray(rowSizes) && rowSizes[r] !== undefined ? parseFloat(rowSizes[r]) * 0.75 : 'auto'; // Konvertálás pt-re
-        heights.push(rowHeight); // Hozzáadjuk a magasságot a heights tömbhöz
 
-        console.log(`--- Processing Row ${r} ---`);
+        let rowHeight;
+        if (Array.isArray(rowSizes) && rowSizes[r] !== undefined && !isNaN(parseFloat(rowSizes[r]))) {
+            rowHeight = parseFloat(rowSizes[r]) * 0.75 * scaleFactor;
+        } else {
+            // Ha nincs explicit magasság megadva a rowSizes-ban, adjunk egy alapértelmezettet.
+            // A 6-os betűmérethez (fekete celláknál) és a 0.5-ös margókhoz ez általában elegendő.
+            // Ezt az értéket finomhangolhatod, ha szükséges.
+            rowHeight = 12; // Például 12 pont alapértelmezett magasság
+        }
+        heights.push(rowHeight);
+
+        console.log(`--- Processing Row ${r}. Original rowHeight: ${rowSizes[r]}, Scaled rowHeight: ${rowHeight} (scale factor: ${scaleFactor.toFixed(3)}) ---`);
+
         for (let c = 0; c < colCount; c++) {
             const mergeInfo = mergeMatrix[r]?.[c];
 
-            // >>>>>> LÉNYEGES VÁLTOZTATÁS ITT: <<<<<<
-            // Ha ez a cella egy egyesített cella része, és NEM a "fő" cella,
-            // akkor egy _span: true objektumot adunk hozzá.
             if (mergeInfo && !mergeInfo.isMain) {
-                console.log(`Adding _span: true for cell [${r},${c}] because it's part of a merge but not main.`);
-                rowContent.push({ _span: true }); // Hozzáadjuk a _span objektumot
-                continue; // Folytatjuk a ciklust a következő oszlopra
+                rowContent.push({ _span: true });
+                continue;
             }
 
             let cellValue = (jsonData[r] && jsonData[r][c] !== undefined) ? jsonData[r][c] : '';
             let cellContent = {
                 text: '',
-                alignment: 'center',
-                verticalAlignment: 'middle',
-                margin: [5, 5, 5, 5], // Alapértelmezett padding a .cell-content-hez (5px -> 3.75pt)
+                alignment: 'center', // Alapértelmezett középre igazítás
+                verticalAlignment: 'middle', // Alapértelmezett középre igazítás
+                margin: [0.5, 0.5, 0.5, 0.5], // ALAPÉRTELMEZETT MARGÓ (paddingként funkcionál)
                 fillColor: 'white',
                 color: 'black',
                 bold: false,
-                fontSize: 10.2 // 0.85em = ~10.2pt
+                fontSize: 6
             };
 
-            // Hozzáadjuk a rowSpan és colSpan tulajdonságokat, ha az aktuális cella egy egyesített cella "fő" cellája
             if (mergeInfo && mergeInfo.isMain) {
                 if (mergeInfo.rowspan > 1) cellContent.rowSpan = mergeInfo.rowspan;
                 if (mergeInfo.colspan > 1) cellContent.colSpan = mergeInfo.colspan;
-                console.log(`Cell [${r},${c}] is main merge cell. rowSpan: ${cellContent.rowSpan}, colSpan: ${cellContent.colSpan}`);
-            } else {
-                console.log(`Cell [${r},${c}] is a regular cell.`);
             }
 
-            // Cella specifikus stílusok keresése (cellStyles tömbből)
             const specificCellStyle = cellStyles.find(style => style?.row === r && style?.col === c);
-            const className = specificCellStyle?.className || ''; // getClassStyles logikához
+            const className = specificCellStyle?.className || '';
 
-            // Kezdeti cella tartalom beállítása (szöveg vagy kép)
-            if (typeof cellValue === 'object' && cellValue.image) {
-                const imgSource = downloadedImages[cellValue.image]; // Feltételezzük, hogy már Base64
+            // Képkezelés blokk
+            let imageUrlFromCell = null;
+            if (typeof cellValue === 'string' && cellValue.startsWith('https://storage.googleapis.com/')) {
+                imageUrlFromCell = cellValue;
+            } else if (typeof cellValue === 'object' && cellValue !== null && typeof cellValue.image === 'string' && cellValue.image.startsWith('https://storage.googleapis.com/')) {
+                imageUrlFromCell = cellValue.image;
+            }
+
+            if (imageUrlFromCell) {
+                const imgSource = downloadedImages[imageUrlFromCell];
                 if (imgSource) {
                     cellContent.image = imgSource;
-                    const rotation = cellValue.rotation || 0; // Képrotáció
-                    cellContent.rotation = rotation;
-                    cellContent.alignment = 'center';
-                    cellContent.margin = [0, 0, 0, 0]; // Kép esetén nincs padding
-
-                    if (rotation === 90 || rotation === 270) {
-                        cellContent.fit = [parseFloat(rowSizes[r]) * 0.75, parseFloat(columnSizes[c]) * 0.75];
+                    const rotation = cellValue.rotation || 0;
+                    const styleRotation = specificCellStyle?.rotation || 0;
+                    if (styleRotation !== 0) {
+                        cellContent.rotation = styleRotation;
                     } else {
-                        cellContent.fit = [parseFloat(columnSizes[c]) * 0.75, parseFloat(rowSizes[r]) * 0.75];
+                        cellContent.rotation = rotation;
                     }
-                    delete cellContent.text; // Kép esetén nincs szöveg
+
+                    cellContent.alignment = 'center';
+                    cellContent.margin = [0, 0, 0, 0]; // Képcellák esetén a margin nulla!
+
+                    let cellWidth = (typeof widths[c] === 'number' ? widths[c] : 100);
+                    let cellHeight = (typeof rowHeight === 'number' ? rowHeight : 100);
+
+                    const actualCellBorderWidth = (specificCellStyle && (specificCellStyle.border === false || (Array.isArray(specificCellStyle.border) && specificCellStyle.border.every(b => b === false)))) ? 0 : DEFAULT_BORDER_WIDTH;
+
+                    let availableWidthForImage = cellWidth - (actualCellBorderWidth * 2);
+                    let availableHeightForImage = cellHeight - (actualCellBorderWidth * 2);
+
+                    if (cellContent.rotation === 90 || cellContent.rotation === 270) {
+                        cellContent.width = availableHeightForImage;
+                        cellContent.height = availableWidthForImage;
+                    } else {
+                        cellContent.width = availableWidthForImage;
+                        cellContent.height = availableHeightForImage;
+                    }
+
+                    delete cellContent.fit;
+                    delete cellContent.text;
                 } else {
-                    cellContent.text = { text: 'Kép nem található', color: 'red' };
+                    cellContent.text = { text: 'Kép nem található vagy letöltési hiba', color: 'red' };
+                    cellContent.image = undefined;
+                    cellContent.margin = [0.5, 0.5, 0.5, 0.5];
                 }
             } else {
                 cellContent.text = escapeHtml(cellValue !== null && cellValue !== undefined ? String(cellValue) : '');
+                cellContent.margin = [0.5, 0.5, 0.5, 0.5];
             }
 
-            // Különleges stílusok alkalmazása az egyes osztályok/feltételek alapján
             let currentFillColor = cellContent.fillColor;
-            let currentTextColor = cellContent.color;
+            let currentTextColor = cellContent.color; // Alapértelmezett 'black' a cellContent-ben
+            let currentBold = cellContent.bold;
+            let currentBorder = cellContent.border;
+            let currentBorderColor = cellContent.borderColor;
+            let currentFontSize = cellContent.fontSize;
+            let currentAlignment = cellContent.alignment;
+            let currentVerticalAlignment = cellContent.verticalAlignment;
 
             const isBlackCell = (specificCellStyle && (specificCellStyle.backgroundColor === 'black' || specificCellStyle.backgroundColor === '#000000' || specificCellStyle.backgroundColor === 'rgb(0, 0, 0)')) || className.includes('black-cell');
 
+            // Fekete cellák speciális kezelése - ez prioritást élvez
             if (isBlackCell) {
                 currentFillColor = 'black';
-                currentTextColor = 'yellow';
-                cellContent.bold = true;
-                cellContent.border = [true, true, true, true];
-                cellContent.borderColor = ['yellow', 'yellow', 'yellow', 'yellow'];
+                currentTextColor = 'yellow'; // Fekete cellánál sárga szöveg
+                currentBold = true;
+                currentBorder = [true, true, true, true];
+                currentBorderColor = ['yellow', 'yellow', 'yellow', 'yellow'];
+                currentFontSize = 6;
+
+                if (r >= 0 && r <= 6) {
+                    currentAlignment = 'left';
+                    cellContent.margin = [2, 0.5, 0.5, 0.5];
+                } else {
+                    currentAlignment = 'center';
+                    cellContent.margin = [0.5, 0, 0.5, 0];
+                }
             }
 
+            // Felső 3 sor (r = 0, 1, 2)
             if (r <= 2) {
-                cellContent.border = [false, false, false, false];
-                currentFillColor = 'white';
-                currentTextColor = 'black';
-                cellContent.margin = [0, 0, 0, 0];
+                // Ha fekete cella az első 3 sorban, akkor felülírjuk a fekete cella stílust
+                // (mert az első 3 sorban nem lehet fekete a háttér)
+                if (isBlackCell) {
+                    currentFillColor = 'white';
+                    currentTextColor = 'black'; // Itt is fekete legyen a szöveg
+                    currentBorder = [false, false, false, false];
+                    currentBold = false;
+                } else { // Nem fekete cella az első 3 sorban
+                    currentBorder = [false, false, false, false];
+                    currentFillColor = 'white';
+                    currentTextColor = 'black'; // Itt is fekete legyen
+                    cellContent.margin = [0, 0, 0, 0];
+                    currentBold = false;
+                    currentAlignment = 'center';
+                    currentVerticalAlignment = 'middle';
+                }
             }
 
-            if (isBlackCell && r <= 2) {
-                currentFillColor = 'white';
-                currentTextColor = 'black';
-                cellContent.border = [false, false, false, false];
-                cellContent.bold = false;
-            }
-
-            if (r >= 11 && r < lastTenRowsStartIndex) {
-                if (!isBlackCell || (isBlackCell && r <= 2)) {
-                    const isEven = (r - 11) % 2 === 0;
-                    currentFillColor = isEven ? '#D7D7D7' : 'white';
+            // --- Dinamikusan generált sorok (12. sortól az utolsó 10 sorig) ---
+            if (r >= 11 && r < firstOfLastTenRowsIndex) {
+                // Háttérszín beállítása, ha nincs explicit háttérszín és nem fekete cella
+                const hasExplicitBgColor = specificCellStyle?.backgroundColor && specificCellStyle.backgroundColor !== 'inherit' && specificCellStyle.backgroundColor !== '';
+                if (!isBlackCell && !hasExplicitBgColor) {
+                    const isEvenDynamic = (r - 11) % 2 === 0;
+                    currentFillColor = isEvenDynamic ? '#D7D7D7' : 'white';
+                }
+                // JAVÍTÁS: A szövegszín MINDIG fekete legyen a dinamikus sorokban, kivéve ha fekete cella
+                if (!isBlackCell) {
                     currentTextColor = 'black';
                 }
-                currentTextColor = 'black';
             }
+            // --- Dinamikusan generált sorok vége ---
 
-            if (r >= lastTenRowsStartIndex && c >= 3) {
-                cellContent.border = [false, false, false, false];
-                cellContent.fillColor = 'white';
-                cellContent.color = 'black';
+            // Alulról a 10 sor (általános stílusok)
+            if (r >= firstOfLastTenRowsIndex) {
+                if (!isBlackCell) {
+                    currentFillColor = 'white';
+                    currentTextColor = 'black'; // Itt is fekete a szöveg
+                }
+                if (c >= 3) {
+                    currentBorder = [false, false, false, false];
+                    if (!isBlackCell) {
+                        currentFillColor = 'white';
+                    }
+                }
+                // Ha nem fekete cella, akkor fekete szöveg.
+                if (!isBlackCell) {
+                    currentTextColor = 'black';
+                }
             }
 
             if (r === 0) {
-                cellContent.alignment = 'center';
+                // Az első sorban lévő fekete cella már felülíródott a fenti blokkban (r <= 2)
+                // Így itt már csak a normál (nem fekete) cellákról van szó
+                if (!isBlackCell) { // r > 6 feltétel már nem releváns r=0-nál
+                    currentAlignment = 'center';
+                }
                 currentFillColor = 'white';
-                currentTextColor = 'black';
-                cellContent.bold = true;
+                currentTextColor = 'black'; // Itt is fekete
+                currentBold = true;
                 if (c === 3) {
-                    if (typeof cellContent.text === 'object' && cellContent.text.text) {
+                    if (cellContent.text) {
+                        if (typeof cellContent.text === 'string') {
+                            cellContent.text = { text: cellContent.text };
+                        }
                         cellContent.text.decoration = 'underline';
-                        cellContent.text.fontSize = 28;
-                    } else {
-                        cellContent.text = {
-                            text: cellContent.text,
-                            decoration: 'underline',
-                            fontSize: 28,
-                            alignment: 'center',
-                        };
+                        cellContent.text.fontSize = 10;
                     }
                 }
             }
 
             if (r === 10) {
-                cellContent.alignment = 'center';
-                cellContent.verticalAlignment = 'middle';
+                currentAlignment = 'center';
+                currentVerticalAlignment = 'middle';
+                // Ha nem fekete cella, akkor fekete szöveg.
+                if (!isBlackCell) {
+                   currentTextColor = 'black';
+                }
+                const hasExplicitBgColor = specificCellStyle?.backgroundColor && specificCellStyle.backgroundColor !== 'inherit' && specificCellStyle.backgroundColor !== '';
+                if (!isBlackCell && !hasExplicitBgColor) {
+                    currentFillColor = 'white';
+                }
             }
 
             if (r === lastRowIndex) {
-                cellContent.bold = true;
+                currentBold = true;
                 currentFillColor = 'lightgrey';
-                cellContent.fontSize = 18 * 0.75;
-                cellContent.alignment = 'center';
-                cellContent.border = [true, true, true, true];
-                cellContent.borderColor = ['#000', '#000', '#000', '#000'];
+                currentTextColor = 'black'; // Utolsó sor szövege is fekete
+                currentFontSize = 10 * 0.75;
+                currentAlignment = 'center';
+                currentVerticalAlignment = 'middle';
+                currentBorder = [true, true, true, true];
+                currentBorderColor = ['#000', '#000', '#000', '#000'];
             }
 
-            if (c === 0 && (r === 10 || r === (rowCount - 10))) {
-                if (typeof cellContent.text === 'object' && cellContent.text.text) {
+            if (c === 0 && (r === 10 || r === firstOfLastTenRowsIndex)) {
+                if (cellContent.text) {
+                    if (typeof cellContent.text === 'string') {
+                        cellContent.text = { text: cellContent.text };
+                    }
                     cellContent.text.rotation = 270;
                     cellContent.text.alignment = 'center';
                 } else {
                     cellContent.text = {
-                        text: cellContent.text,
+                        text: escapeHtml(cellValue !== null && cellValue !== undefined ? String(cellValue) : ''),
                         rotation: 270,
                         alignment: 'center',
                     };
                 }
+
+                // Szövegszín: MINDIG fekete, KIVÉVE ha fekete cella (akkor sárga)
                 if (isBlackCell && r > 2) {
                     currentTextColor = 'yellow';
+                } else {
+                    currentTextColor = 'black'; // Itt is feltétel nélkül fekete, ha nem fekete cella
                 }
                 cellContent.margin = [0, 0, 0, 0];
             }
 
-            if (specificCellStyle?.textAlign === 'center') {
-                cellContent.alignment = 'center';
-                cellContent.verticalAlignment = 'middle';
-            }
-
-            if (r >= 1 && r <= 6) {
-                cellContent.alignment = 'left';
-            }
-
+            // JAVÍTÁS: Cellastílusok beállítása a specificCellStyle alapján
+            // KRITIKUS: A szövegszín kezelést teljesen újraírtuk
             if (specificCellStyle) {
+                if (specificCellStyle.margin) {
+                    cellContent.margin = specificCellStyle.margin.map(m => parseFloat(m) * 0.75 * scaleFactor);
+                }
                 if (specificCellStyle.backgroundColor && specificCellStyle.backgroundColor !== 'inherit' && specificCellStyle.backgroundColor !== '') {
                     currentFillColor = specificCellStyle.backgroundColor;
                 }
-                if (specificCellStyle.color && specificCellStyle.color !== 'inherit') {
-                    currentTextColor = specificCellStyle.color;
+                
+                // ÚJ SZÖVEGSZÍN KEZELÉS - DINAMIKUS SOROKRA FÓKUSZÁLVA:
+                console.log(`Row ${r}, Col ${c}: specificCellStyle.color = "${specificCellStyle.color}", isBlackCell = ${isBlackCell}, currentTextColor before = "${currentTextColor}"`);
+                
+                // Ellenőrizzük, van-e explicit szín beállítva a specificCellStyle-ban
+                const hasExplicitColor = specificCellStyle.color && 
+                                       specificCellStyle.color !== 'inherit' && 
+                                       specificCellStyle.color !== '' &&
+                                       specificCellStyle.color !== 'rgba(0, 0, 0, 0)' &&
+                                       specificCellStyle.color !== 'transparent' &&
+                                       specificCellStyle.color !== 'undefined';
+                
+                // DINAMIKUS SOROK SPECIÁLIS KEZELÉSE (r >= 11 && r < firstOfLastTenRowsIndex)
+                if (r >= 11 && r < firstOfLastTenRowsIndex) {
+                    if (!isBlackCell) {
+                        // Dinamikus sorokban MINDIG fekete a szöveg, függetlenül a specificCellStyle.color értékétől
+                        currentTextColor = 'black';
+                        console.log(`Row ${r}, Col ${c}: FORCED BLACK in dynamic rows`);
+                    } else {
+                        // Fekete cellában sárga a szöveg
+                        currentTextColor = 'yellow';
+                    }
+                } else {
+                    // NEM dinamikus sorokban alkalmazzuk a specificCellStyle színét, ha van
+                    if (hasExplicitColor) {
+                        if (isBlackCell && r > 2) {
+                            // Fekete cellában is felülírjuk, ha explicit módon be van állítva
+                            currentTextColor = specificCellStyle.color;
+                        } else if (!isBlackCell) {
+                            // Nem fekete cellában használjuk a specificCellStyle színét
+                            currentTextColor = specificCellStyle.color;
+                        }
+                    }
+                    // Ha nincs explicit szín, akkor a currentTextColor változatlan marad
                 }
-                if (specificCellStyle.fontWeight === 'bold') cellContent.bold = true;
-                if (specificCellStyle.fontSize) cellContent.fontSize = parseFloat(specificCellStyle.fontSize) * 0.75;
-                if (specificCellStyle.textAlign) cellContent.alignment = specificCellStyle.textAlign;
+                
+                console.log(`Row ${r}, Col ${c}: hasExplicitColor = ${hasExplicitColor}, currentTextColor after = "${currentTextColor}"`);
+
+                if (specificCellStyle.fontWeight === 'bold') currentBold = true;
+                if (specificCellStyle.fontSize) {
+                    currentFontSize = parseFloat(specificCellStyle.fontSize) * 0.75 * scaleFactor;
+                }
+                if (specificCellStyle.textAlign) {
+                    currentAlignment = specificCellStyle.textAlign;
+                }
+                if (specificCellStyle.verticalAlign) {
+                    currentVerticalAlignment = specificCellStyle.verticalAlign;
+                }
+                if (specificCellStyle.border !== undefined) {
+                    currentBorder = specificCellStyle.border;
+                }
+                if (specificCellStyle.borderColor !== undefined) {
+                    currentBorderColor = specificCellStyle.borderColor;
+                }
             }
 
+            // Cellastílusok alkalmazása az eredmény objektumra
             cellContent.fillColor = currentFillColor;
             cellContent.color = currentTextColor;
-
-            if ((cellValue === undefined || cellValue === null || cellValue === '') && !cellContent.image) {
-                cellContent.margin = [5, 5, 5, 5];
-            }
+            cellContent.bold = currentBold;
+            cellContent.border = currentBorder;
+            cellContent.borderColor = currentBorderColor;
+            cellContent.fontSize = currentFontSize;
+            cellContent.alignment = currentAlignment;
+            cellContent.verticalAlignment = currentVerticalAlignment;
 
             rowContent.push(cellContent);
-            console.log(`Pushed cell [${r},${c}] to rowContent. Current rowContent length: ${rowContent.length}`);
         }
-        console.log(`--- Finished Row ${r}. Final rowContent length: ${rowContent.length}, expected total columns: ${widths.length} ---`);
+
         tableBody.push(rowContent);
     }
 
     const docDefinition = {
-        pageMargins: [40, 40, 40, 40],
+        pageMargins: [PAGE_MARGIN_HORIZONTAL, 40, PAGE_MARGIN_HORIZONTAL, 40],
         content: [
             {
                 table: {
                     widths: widths,
                     body: tableBody,
-                    heights: heights
+                    heights: heights,
+                    dontBreakRows: true
                 },
                 layout: {
                     hLineWidth: function (i, node) {
-                        if (i === 0 || i === node.table.body.length) {
-                            return 2;
+                        if (i >= 0 && i <= 3) {
+                            return 0; // Nincs vonal az első 3 sor körül
                         }
-                        return 0.75;
+                        if (i === node.table.body.length) {
+                            return 0.5; // Az utolsó külső vonal
+                        }
+                        return 0.25; // Belső vízszintes vonalak
                     },
                     vLineWidth: function (i, node) {
                         if (i === 0 || i === node.table.widths.length) {
-                            return 2;
+                            return 0.5; // Külső függőleges vonalak (bal és jobb oldalon)
                         }
-                        return 0.75;
+                        return 0.25; // Belső függőleges vonalak
                     },
                     hLineColor: function (i, node) {
                         return 'black';
@@ -812,7 +1047,7 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
         ],
         defaultStyle: {
             font: 'Roboto',
-            fontSize: 10.2,
+            fontSize: 6,
             alignment: 'center',
             verticalAlignment: 'middle'
         },
@@ -872,20 +1107,27 @@ router.get('/:projectId/download-pdf', async (req, res) => {
         const downloadedImages = {};
         let imageUrlsToDownload = [];
 
-        function findImageUrls(data) {
-            if (Array.isArray(data)) {
-                data.forEach(item => findImageUrls(item));
-            } else if (typeof data === 'object' && data !== null) {
-                if (data.image && typeof data.image === 'string' && data.image.startsWith('https://storage.googleapis.com/')) {
-                    imageUrlsToDownload.push(data.image);
-                }
-                for (const key in data) {
-                    if (Object.prototype.hasOwnProperty.call(data, key)) {
-                        findImageUrls(data[key]);
-                    }
-                }
+       
+
+       function findImageUrls(data) {
+    if (Array.isArray(data)) {
+        data.forEach(item => findImageUrls(item));
+    } else if (typeof data === 'string' && data.startsWith('https://storage.googleapis.com/')) {
+        // Ha a cella értéke maga a kép URL-je (string)
+        imageUrlsToDownload.push(data);
+    } else if (typeof data === 'object' && data !== null) {
+        // Ha a cella értéke egy objektum, ami tartalmazza az URL-t
+        if (data.image && typeof data.image === 'string' && data.image.startsWith('https://storage.googleapis.com/')) {
+            imageUrlsToDownload.push(data.image);
+        }
+        // Rekurzívan vizsgáljuk az objektum további tulajdonságait is, ha vannak (bár itt valószínűleg nem lesz rá szükség)
+        for (const key in data) {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                findImageUrls(data[key]);
             }
         }
+    }
+}
         findImageUrls(jsonData);
         const uniqueImageUrls = [...new Set(imageUrlsToDownload)]; // Egyedi URL-ek
 
@@ -953,6 +1195,24 @@ router.get('/:projectId/download-pdf', async (req, res) => {
         console.log('🗑️ Nincs ideiglenes fájl törölni.');
     }
 });
+
+// Helper függvény a MIME típus meghatározásához a fájlnév kiterjesztése alapján
+function getMimeType(filename) {
+    const ext = path.extname(filename).toLowerCase();
+    switch (ext) {
+        case '.jpg':
+        case '.jpeg':
+            return 'image/jpeg';
+        case '.png':
+            return 'image/png';
+        case '.gif':
+            return 'image/gif';
+        // Ha támogatni szeretnél más típusokat, add hozzá ide
+        default:
+            console.warn(`Ismeretlen fájlkiterjesztés a MIME típushoz: ${ext}. Alapértelmezett: application/octet-stream`);
+            return 'application/octet-stream'; // Vagy lehet, hogy egy error-t dobsz, ha nem várt típus
+    }
+}
 
 // A router exportálása
 module.exports = {
