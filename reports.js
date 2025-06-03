@@ -1276,10 +1276,6 @@ router.get('/:projectId/download-pdf', async (req, res) => {
 
         fileName = `IWS_Solutions_Munkavedelmi_ellenorzesi_jegyzokonyv_${safeProjectName}.pdf`;
 
-        // A tempDir és tempFilePath deklarációk itt már feleslegesek,
-        // mivel nem használunk ideiglenes fájlt.
-        // A mappa létrehozása sem szükséges.
-
         const reportDataResult = await pool.query(
             'SELECT rd.data, rd.merge_cells, rd.column_sizes, rd.row_sizes, rd.cell_styles ' +
             'FROM project_reports pr ' +
@@ -1303,27 +1299,26 @@ router.get('/:projectId/download-pdf', async (req, res) => {
         const downloadedImages = {};
         let imageUrlsToDownload = [];
 
-       
-
-       function findImageUrls(data) {
-    if (Array.isArray(data)) {
-        data.forEach(item => findImageUrls(item));
-    } else if (typeof data === 'string' && data.startsWith('https://storage.googleapis.com/')) {
-        // Ha a cella értéke maga a kép URL-je (string)
-        imageUrlsToDownload.push(data);
-    } else if (typeof data === 'object' && data !== null) {
-        // Ha a cella értéke egy objektum, ami tartalmazza az URL-t
-        if (data.image && typeof data.image === 'string' && data.image.startsWith('https://storage.googleapis.com/')) {
-            imageUrlsToDownload.push(data.image);
-        }
-        // Rekurzívan vizsgáljuk az objektum további tulajdonságait is, ha vannak (bár itt valószínűleg nem lesz rá szükség)
-        for (const key in data) {
-            if (Object.prototype.hasOwnProperty.call(data, key)) {
-                findImageUrls(data[key]);
+        function findImageUrls(data) {
+            if (Array.isArray(data)) {
+                data.forEach(item => findImageUrls(item));
+            } else if (typeof data === 'string' && data.startsWith('https://storage.googleapis.com/')) {
+                // Ha a cella értéke maga a kép URL-je (string)
+                imageUrlsToDownload.push(data);
+            } else if (typeof data === 'object' && data !== null) {
+                // Ha a cella értéke egy objektum, ami tartalmazza az URL-t
+                if (data.image && typeof data.image === 'string' && data.image.startsWith('https://storage.googleapis.com/')) {
+                    imageUrlsToDownload.push(data.image);
+                }
+                // Rekurzívan vizsgáljuk az objektum további tulajdonságait is, ha vannak
+                for (const key in data) {
+                    if (Object.prototype.hasOwnProperty.call(data, key)) {
+                        findImageUrls(data[key]);
+                    }
+                }
             }
         }
-    }
-}
+
         findImageUrls(jsonData);
         const uniqueImageUrls = [...new Set(imageUrlsToDownload)]; // Egyedi URL-ek
 
@@ -1334,7 +1329,6 @@ router.get('/:projectId/download-pdf', async (req, res) => {
                     const imageBuffer = await downloadImageFromUrl(imageUrl);
                     const base64Image = `data:${getMimeType(path.basename(imageUrl))};base64,${imageBuffer.toString('base64')}`;
                     downloadedImages[imageUrl] = base64Image;
-                    console.log(`✅ Kép letöltve és Base64-re konvertálva a PDF-hez: ${imageUrl}`);
                 } catch (imgDownloadErr) {
                     console.error(`❌ Hiba a kép letöltésekor a PDF-hez (${imageUrl}): ${imgDownloadErr.message}`);
                     downloadedImages[imageUrl] = null; // Jelöljük hibásként
@@ -1378,6 +1372,90 @@ router.get('/:projectId/download-pdf', async (req, res) => {
             pdfDoc.end(); // Fontos: le kell zárni a pdfDoc stream-et!
         });
 
+        // --- GOOGLE DRIVE FELTÖLTÉS ---
+        try {
+            console.log('📂 PDF feltöltés indítása: fájl =', fileName);
+            console.log('📁 Cél projekt mappa:', safeProjectName);
+            console.log('📁 Szülő mappa ID:', MAIN_DRIVE_FOLDER_ID);
+
+            // Próbáljuk meg listázni a parent mappát
+            const testAccess = await driveService.files.get({
+                fileId: MAIN_DRIVE_FOLDER_ID,
+                fields: 'id, name'
+            }).catch(err => {
+                console.error("❌ NEM elérhető a MAIN_DRIVE_FOLDER_ID mappa a service account számára!");
+                throw new Error("A service account nem fér hozzá a gyökérmappához. Ellenőrizd a megosztást!");
+            });
+            console.log("✅ Elérhető a fő mappa:", testAccess.data.name);
+
+            // Először ellenőrizzük, hogy a MAIN_DRIVE_FOLDER_ID elérhető-e
+            try {
+                const rootFolderCheck = await driveService.files.get({
+                    fileId: MAIN_DRIVE_FOLDER_ID,
+                    fields: 'id, name',
+                });
+                console.log('✅ MAIN_DRIVE_FOLDER_ID elérhető:', rootFolderCheck.data.name);
+            } catch (permErr) {
+                console.error('❌ NEM elérhető a MAIN_DRIVE_FOLDER_ID mappa a service account számára!');
+                throw new Error('A service account nem fér hozzá a gyökérmappához. Ellenőrizd a megosztást!');
+            }
+
+            // Ellenőrizzük, hogy létezik-e a projekt mappa a Google Drive-on
+            const projectFolderId = await getOrCreateFolder(safeProjectName, MAIN_DRIVE_FOLDER_ID);
+            console.log('📁 Projekt mappa ID:', projectFolderId);
+
+            // Létrehozzuk az aznapi dátumozott mappát (előtte törli ha már létezik)
+            const dailyFolderId = await createDailyFolder(projectFolderId);
+            console.log('📁 Aznapi mappa ID:', dailyFolderId);
+
+            // PDF feltöltése az aznapi mappába - most bufferből
+            const uploadResult = await uploadBufferToDrive(pdfBuffer, fileName, dailyFolderId, 'application/pdf');
+            console.log('✅ PDF feltöltés sikeres! Drive URL:', uploadResult.webViewLink);
+
+            // --- Képek feltöltése Google Drive-ra ---
+            if (uniqueImageUrls.length > 0) {
+                console.log(`📸 ${uniqueImageUrls.length} egyedi kép feltöltése indítása a Drive-ra...`);
+
+                const uploadImagePromises = uniqueImageUrls.map(async (imageUrl) => {
+                    const imageFileName = path.basename(new URL(imageUrl).pathname);
+
+                    try {
+                        // 1. Kép letöltése a GCS-ről bufferbe (már megtörtént fentebb)
+                        const imageBuffer = await downloadImageFromUrl(imageUrl); 
+
+                        // 2. MIME típus meghatározása a fájlnévből
+                        const imageMimeType = getMimeType(imageFileName);
+
+                        // 3. Kép feltöltése a Google Drive-ra a bufferből
+                        const imageUploadResult = await uploadBufferToDrive(imageBuffer, imageFileName, dailyFolderId, imageMimeType); 
+                        console.log(`✅ Kép feltöltve a Drive-ra: ${imageFileName}, Drive URL: ${imageUploadResult.webViewLink}`);
+                        return imageUploadResult.webViewLink;
+                    } catch (imageProcessErr) {
+                        console.error(`❌ Hiba a kép letöltésekor/feltöltésekor a Drive-ra (${imageFileName} from ${imageUrl}): ${imageProcessErr.message}`);
+                        return null; 
+                    }
+                });
+
+                const uploadedImageLinks = await Promise.all(uploadImagePromises);
+                const successfulUploadLinks = uploadedImageLinks.filter(link => link !== null);
+
+                if (successfulUploadLinks.length > 0) {
+                    console.log(`🎉 ${successfulUploadLinks.length} kép sikeresen feltöltve a Google Drive-ra.`);
+                } else {
+                    console.log('⚠️ Egyetlen kép feltöltése sem sikerült a Google Drive-ra.');
+                }
+
+            } else {
+                console.log('⚠️ Nincsenek GCS képek a táblázatban, feltöltés kihagyva.');
+            }
+
+        } catch (uploadErr) {
+            console.error('❌ Hiba a Google Drive feltöltésnél (a PDF generálás során):', uploadErr.message);
+            console.error('📄 Részletek:', uploadErr);
+            // Itt döntheted el, hogy ha a Drive feltöltés sikertelen, az befolyásolja-e a PDF letöltését.
+            // Jelenleg tovább engedi a kódot a PDF letöltésére.
+        }
+
         // PDF válaszként küldése letöltéshez (most már a memóriában lévő bufferből)
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
@@ -1403,10 +1481,145 @@ function getMimeType(filename) {
             return 'image/png';
         case '.gif':
             return 'image/gif';
+        case '.webp':
+            return 'image/webp';
         // Ha támogatni szeretnél más típusokat, add hozzá ide
         default:
             console.warn(`Ismeretlen fájlkiterjesztés a MIME típushoz: ${ext}. Alapértelmezett: application/octet-stream`);
             return 'application/octet-stream'; // Vagy lehet, hogy egy error-t dobsz, ha nem várt típus
+    }
+}
+
+// --- GOOGLE DRIVE SEGÉDFÜGGVÉNYEK ---
+
+// Mappa létrehozása vagy meglévő visszaadása
+async function getOrCreateFolder(folderName, parentFolderId) {
+    try {
+        // Először ellenőrizzük, hogy létezik-e már a mappa
+        const existingFolders = await driveService.files.list({
+            q: `name='${folderName}' and parents in '${parentFolderId}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+            fields: 'files(id, name)',
+        });
+
+        if (existingFolders.data.files.length > 0) {
+            console.log(`📁 Projekt mappa már létezik: ${folderName}`);
+            return existingFolders.data.files[0].id;
+        }
+
+        // Ha nem létezik, létrehozzuk
+        const folderMetadata = {
+            name: folderName,
+            mimeType: 'application/vnd.google-apps.folder',
+            parents: [parentFolderId],
+        };
+
+        const folder = await driveService.files.create({
+            resource: folderMetadata,
+            fields: 'id',
+        });
+
+        console.log(`📁 Új projekt mappa létrehozva: ${folderName}`);
+        return folder.data.id;
+    } catch (error) {
+        console.error(`Hiba a mappa létrehozásakor (${folderName}):`, error.message);
+        throw error;
+    }
+}
+
+// Aznapi dátumozott mappa létrehozása (törli ha már létezik)
+async function createDailyFolder(parentFolderId) {
+    const today = new Date();
+    const dateString = today.toISOString().split('T')[0]; // YYYY-MM-DD formátum
+    const dailyFolderName = `Jelentés_${dateString}`;
+
+    try {
+        // Ellenőrizzük, hogy létezik-e már az aznapi mappa
+        const existingDailyFolders = await driveService.files.list({
+            q: `name='${dailyFolderName}' and parents in '${parentFolderId}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+            fields: 'files(id, name)',
+        });
+
+        // Ha létezik, töröljük
+        if (existingDailyFolders.data.files.length > 0) {
+            console.log(`🗑️ Meglévő aznapi mappa törlése: ${dailyFolderName}`);
+            for (const folder of existingDailyFolders.data.files) {
+                await driveService.files.delete({
+                    fileId: folder.id,
+                });
+            }
+        }
+
+        // Létrehozzuk az új aznapi mappát
+        const dailyFolderMetadata = {
+            name: dailyFolderName,
+            mimeType: 'application/vnd.google-apps.folder',
+            parents: [parentFolderId],
+        };
+
+        const dailyFolder = await driveService.files.create({
+            resource: dailyFolderMetadata,
+            fields: 'id',
+        });
+
+        console.log(`📁 Új aznapi mappa létrehozva: ${dailyFolderName}`);
+        return dailyFolder.data.id;
+    } catch (error) {
+        console.error(`Hiba az aznapi mappa létrehozásakor (${dailyFolderName}):`, error.message);
+        throw error;
+    }
+}
+
+// Buffer feltöltése Google Drive-ra
+async function uploadBufferToDrive(buffer, fileName, parentFolderId, mimeType) {
+    const fileMetadata = {
+        name: fileName,
+        parents: [parentFolderId],
+    };
+    
+    // Buffer stream létrehozása
+    const { Readable } = require('stream');
+    const bufferStream = new Readable();
+    bufferStream.push(buffer);
+    bufferStream.push(null); // Jelzi a stream végét
+    
+    const media = {
+        mimeType: mimeType,
+        body: bufferStream,
+    };
+    
+    try {
+        const response = await driveService.files.create({
+            resource: fileMetadata,
+            media: media,
+            fields: 'id, webViewLink',
+        });
+        return response.data;
+    } catch (error) {
+        console.error(`Hiba a buffer feltöltése során (${fileName}):`, error.message);
+        throw error;
+    }
+}
+
+// Fájl feltöltése Google Drive-ra (eredeti függvény, ha még szükséges)
+async function uploadFileToDrive(filePath, fileName, parentFolderId, mimeType) {
+    const fileMetadata = {
+        name: fileName,
+        parents: [parentFolderId],
+    };
+    const media = {
+        mimeType: mimeType,
+        body: fs.createReadStream(filePath),
+    };
+    try {
+        const response = await driveService.files.create({
+            resource: fileMetadata,
+            media: media,
+            fields: 'id, webViewLink',
+        });
+        return response.data;
+    } catch (error) {
+        console.error(`Hiba a fájl feltöltése során (${fileName}):`, error.message);
+        throw error;
     }
 }
 
