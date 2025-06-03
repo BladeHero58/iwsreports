@@ -1,27 +1,25 @@
-/*
 const { Pool } = require('pg');
 
+let pool;
 
-const pool = new Pool({
-    user: 'postgres', // PostgreSQL felhasználónév
-    host: 'localhost',       // Ha helyi gépen fut, ez marad
-    database: 'project_management', // Az általad létrehozott adatbázis neve
-    password: 'dbzzed58', // Az adatbázishoz tartozó jelszó
-    port: 5432,                 // PostgreSQL alapértelmezett portja
-});
+// Ellenőrizzük, hogy létezik-e a DATABASE_URL környezeti változó
+if (process.env.DATABASE_URL) {
+  // Éles környezet
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false
+    }
+  });
+} else {
+  // Lokális fejlesztői környezet
+  pool = new Pool({
+    user: 'postgres',
+    host: 'localhost',
+    database: 'project_management',
+    password: 'dbzzed58',
+    port: 5432,
+  });
+}
 
 module.exports = pool;
-*/
-
-//Éles környezet
-const { Pool } = require('pg');
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
-});
-
-module.exports = pool;
-

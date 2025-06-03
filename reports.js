@@ -11,6 +11,7 @@ const pdfFonts = require('pdfmake/build/vfs_fonts.js');
 const sharp = require('sharp');
 const path = require('path');
 const stream = require('stream');
+const { createCanvas, loadImage } = require('canvas');
 const mime = require('mime-types');
 //const { getOrCreateFolder, uploadPdfToDrive, driveService, uploadImagesToDrive, createDailyFolder } = require('./googleDrive');
 const axios = require('axios');
@@ -621,6 +622,137 @@ function escapeHtml(unsafe) {
         .replace(/'/g, "&#039;");
 }
 
+/**
+ * Elforgatja a szöveget canvas segítségével és képpé alakítja
+ * @param {string} text - A szöveg amit el szeretnénk forgatni
+ * @param {number} rotation - Forgatási szög fokokban (0, 90, 180, 270)
+ * @param {object} options - Szöveg stílus opciók (fontSize, color, bold, etc.)
+ * @returns {Promise<string>} - Elforgatott szöveg Base64 kép formátumban
+ */
+async function rotateTextWithCanvas(text, rotation = 90, options = {}) {
+    if (!text || !rotation || rotation === 0 || rotation === 360) {
+        return null; // Nincs szöveg vagy forgatás, marad szövegként
+    }
+
+    try {
+        const {
+            fontSize = 5,
+            color = 'black',
+            bold = false,
+            fontFamily = 'Arial',
+            backgroundColor = 'transparent',
+            padding = 1
+        } = options;
+
+        // Ideiglenes canvas a szöveg méretének meghatározásához
+        const tempCanvas = createCanvas(1, 1);
+        const tempCtx = tempCanvas.getContext('2d');
+        
+        // Font beállítása
+        const fontWeight = bold ? 'bold' : 'normal';
+        tempCtx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+        
+        // Szöveg méretének mérése
+        const metrics = tempCtx.measureText(text);
+        const textWidth = metrics.width;
+        const textHeight = fontSize; // Közelítő magasság
+        
+        // Canvas mérete a forgatás figyelembevételével
+        let canvasWidth, canvasHeight;
+        const normalizedRotation = ((rotation % 360) + 360) % 360;
+        
+        if (normalizedRotation === 90 || normalizedRotation === 270) {
+            canvasWidth = textHeight + (padding * 2);
+            canvasHeight = textWidth + (padding * 2);
+        } else {
+            canvasWidth = textWidth + (padding * 2);
+            canvasHeight = textHeight + (padding * 2);
+        }
+        
+        // Tényleges canvas létrehozása
+        const canvas = createCanvas(canvasWidth, canvasHeight);
+        const ctx = canvas.getContext('2d');
+        
+        // Háttér beállítása
+        if (backgroundColor !== 'transparent') {
+            ctx.fillStyle = backgroundColor;
+            ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+        }
+        
+        // Szöveg stílus beállítása
+        ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+        ctx.fillStyle = color;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        // Canvas középpontjának beállítása és forgatás
+        ctx.translate(canvasWidth / 2, canvasHeight / 2);
+        ctx.rotate((normalizedRotation * Math.PI) / 180);
+        
+        // Szöveg rajzolása
+        ctx.fillText(text, 0, 0);
+        
+        // Visszaalakítás Base64-re
+        const rotatedTextImage = canvas.toDataURL('image/png');
+        return rotatedTextImage;
+        
+    } catch (error) {
+        console.error('Hiba a szöveg forgatása során:', error);
+        return null; // Hiba esetén marad szövegként
+    }
+}
+
+/**
+ * Elforgatja a képet a megadott szöggel canvas segítségével (Node.js verzió)
+ * @param {string} base64Image - Base64 kódolt kép (data:image/...)
+ * @param {number} rotation - Forgatási szög fokokban (0, 90, 180, 270)
+ * @returns {Promise<string>} - Elforgatott kép Base64 formátumban
+ */
+async function rotateImageWithCanvas(base64Image, rotation) {
+    // Ha nincs forgatás, visszaadjuk az eredeti képet
+    if (!rotation || rotation === 0 || rotation === 360) {
+        return base64Image;
+    }
+
+    try {
+        // Base64-ből Buffer-re konvertálás
+        const base64Data = base64Image.replace(/^data:image\/[a-z]+;base64,/, '');
+        const imageBuffer = Buffer.from(base64Data, 'base64');
+        
+        // Kép betöltése
+        const img = await loadImage(imageBuffer);
+        
+        // Normalizáljuk a forgatást
+        const normalizedRotation = ((rotation % 360) + 360) % 360;
+        const radians = (normalizedRotation * Math.PI) / 180;
+        
+        // Canvas létrehozása
+        let canvas;
+        if (normalizedRotation === 90 || normalizedRotation === 270) {
+            canvas = createCanvas(img.height, img.width);
+        } else {
+            canvas = createCanvas(img.width, img.height);
+        }
+        
+        const ctx = canvas.getContext('2d');
+        
+        // Canvas középpontjának beállítása és forgatás
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate(radians);
+        
+        // Kép rajzolása (középpontból)
+        ctx.drawImage(img, -img.width / 2, -img.height / 2);
+        
+        // Visszaalakítás Base64-re
+        const rotatedBase64 = canvas.toDataURL('image/png');
+        return rotatedBase64;
+        
+    } catch (error) {
+        console.error('Hiba a kép forgatása során:', error);
+        return base64Image; // Hiba esetén visszaadjuk az eredeti képet
+    }
+}
+
 async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, rowSizes, cellStyles, downloadedImages = {}) {
     // PDF lapméretek A4-hez (pontban)
     const A4_WIDTH_PT = 595.28;
@@ -676,9 +808,7 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
     const lastRowIndex = rowCount - 1;
     const firstOfLastTenRowsIndex = Math.max(0, rowCount - 10);
 
-    // Meghatározzuk a DEFAULT_BORDER_WIDTH-et, ami a layout belső vonalainak vastagsága.
-    // Ez 0.25, ahogy a layout.hLineWidth és vLineWidth függvények is visszatérítik.
-    const DEFAULT_BORDER_WIDTH = 0.25; // Fontos: ezt globálisan, vagy a függvény elején definiáljuk.
+    const DEFAULT_BORDER_WIDTH = 0.25;
 
     for (let r = 0; r < rowCount; r++) {
         const rowContent = [];
@@ -687,10 +817,7 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
         if (Array.isArray(rowSizes) && rowSizes[r] !== undefined && !isNaN(parseFloat(rowSizes[r]))) {
             rowHeight = parseFloat(rowSizes[r]) * 0.75 * scaleFactor;
         } else {
-            // Ha nincs explicit magasság megadva a rowSizes-ban, adjunk egy alapértelmezettet.
-            // A 6-os betűmérethez (fekete celláknál) és a 0.5-ös margókhoz ez általában elegendő.
-            // Ezt az értéket finomhangolhatod, ha szükséges.
-            rowHeight = 12; // Például 12 pont alapértelmezett magasság
+            rowHeight = 12;
         }
         heights.push(rowHeight);
 
@@ -707,13 +834,13 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
             let cellValue = (jsonData[r] && jsonData[r][c] !== undefined) ? jsonData[r][c] : '';
             let cellContent = {
                 text: '',
-                alignment: 'center', // Alapértelmezett középre igazítás
-                verticalAlignment: 'middle', // Alapértelmezett középre igazítás
-                margin: [0.5, 0.5, 0.5, 0.5], // ALAPÉRTELMEZETT MARGÓ (paddingként funkcionál)
+                alignment: 'center',
+                verticalAlignment: 'middle', // <-- Ez az alapértelmezett, és a szövegnek erre kell reagálnia
+                margin: [0.5, 0.5, 0.5, 0.5],
                 fillColor: 'white',
                 color: 'black',
                 bold: false,
-                fontSize: 6
+                fontSize: 5
             };
 
             if (mergeInfo && mergeInfo.isMain) {
@@ -724,7 +851,6 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
             const specificCellStyle = cellStyles.find(style => style?.row === r && style?.col === c);
             const className = specificCellStyle?.className || '';
 
-            // Képkezelés blokk
             let imageUrlFromCell = null;
             if (typeof cellValue === 'string' && cellValue.startsWith('https://storage.googleapis.com/')) {
                 imageUrlFromCell = cellValue;
@@ -735,17 +861,38 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
             if (imageUrlFromCell) {
                 const imgSource = downloadedImages[imageUrlFromCell];
                 if (imgSource) {
-                    cellContent.image = imgSource;
-                    const rotation = cellValue.rotation || 0;
-                    const styleRotation = specificCellStyle?.rotation || 0;
-                    if (styleRotation !== 0) {
-                        cellContent.rotation = styleRotation;
-                    } else {
-                        cellContent.rotation = rotation;
+                    // --- KÉPFORGATÁS JAVÍTVA ---
+                    let rotation = 0;
+
+                    // 1. Első prioritás: specificCellStyle (ha van benne rotation)
+                    if (specificCellStyle && typeof specificCellStyle.rotation === 'number') {
+                        rotation = specificCellStyle.rotation;
+                    }
+                    // 2. Második prioritás: cellValue, ha objektum és tartalmaz rotation-t
+                    else if (typeof cellValue === 'object' && cellValue !== null && typeof cellValue.rotation === 'number') {
+                        rotation = cellValue.rotation;
                     }
 
+                    // Normalizáljuk a forgatást 0-359 fok közé
+                    rotation = ((rotation % 360) + 360) % 360;
+                    
+                    // *** ITT A LÉNYEGI VÁLTOZTATÁS: ELŐRE FORGATJUK A KÉPET ***
+                    let finalImageSource = imgSource;
+                    if (rotation !== 0) {
+                        try {
+                            console.log(`Képforgatás: [${r}, ${c}] - ${rotation} fokkal`);
+                            finalImageSource = await rotateImageWithCanvas(imgSource, rotation);
+                        } catch (error) {
+                            console.error(`Hiba a kép forgatása során [${r}, ${c}]:`, error);
+                            finalImageSource = imgSource; // Hiba esetén eredeti kép
+                        }
+                    }
+
+                    cellContent.image = finalImageSource;
                     cellContent.alignment = 'center';
-                    cellContent.margin = [0, 0, 0, 0]; // Képcellák esetén a margin nulla!
+                    cellContent.margin = [0, 0, 0, 0];
+                    // Kép esetén a verticalAlignment alapértelmezés szerint középre igazít,
+                    // de a margin beállítások fontosabbak lehetnek.
 
                     let cellWidth = (typeof widths[c] === 'number' ? widths[c] : 100);
                     let cellHeight = (typeof rowHeight === 'number' ? rowHeight : 100);
@@ -755,95 +902,166 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                     let availableWidthForImage = cellWidth - (actualCellBorderWidth * 2);
                     let availableHeightForImage = cellHeight - (actualCellBorderWidth * 2);
 
-                    if (cellContent.rotation === 90 || cellContent.rotation === 270) {
-                        cellContent.width = availableHeightForImage;
-                        cellContent.height = availableWidthForImage;
-                    } else {
-                        cellContent.width = availableWidthForImage;
-                        cellContent.height = availableHeightForImage;
-                    }
+                    // Kép méretezése a cellához
+                    cellContent.width = availableWidthForImage;
+                    cellContent.height = availableHeightForImage;
+                    
+                    // Már nem kell rotation property, mert a kép már elforgatva van
+                    // delete cellContent.rotation;
 
-                    delete cellContent.fit;
-                    delete cellContent.text;
+                    console.log(`DEBUG: Cell [${r}, ${c}] - Image URL: ${imageUrlFromCell}, Rotation: ${rotation}, Cell size: ${cellWidth}x${cellHeight}, Available: ${availableWidthForImage}x${availableHeightForImage}`);
+                    
+                    delete cellContent.text; // Ha kép van, nincs szöveg
                 } else {
+                    // Kép letöltési hiba esetén szöveges üzenet
                     cellContent.text = { text: 'Kép nem található vagy letöltési hiba', color: 'red' };
                     cellContent.image = undefined;
                     cellContent.margin = [0.5, 0.5, 0.5, 0.5];
+                    cellContent.verticalAlignment = 'middle'; // Szöveges üzenet esetén is középre
                 }
             } else {
-                cellContent.text = escapeHtml(cellValue !== null && cellValue !== undefined ? String(cellValue) : '');
-                cellContent.margin = [0.5, 0.5, 0.5, 0.5];
+                // Alapértelmezett text beállítás, ha nincs kép
+                let cellText = escapeHtml(cellValue !== null && cellValue !== undefined ? String(cellValue) : '');
+                
+                // *** SZÖVEGFORGATÁS SPECIÁLIS CELLÁKBAN ***
+                // 11. sor 1. cellája (0-indexelt: sor 10, oszlop 0)
+                // És az utolsó sortól számított 10. sor első cellája
+                const targetRows = [10, Math.max(0, rowCount - 10)];
+                const targetCol = 0;
+                
+                if (targetRows.includes(r) && c === targetCol && cellText.trim() !== '') {
+                    try {
+                        console.log(`Szövegforgatás: [${r}, ${c}] - "${cellText}" 90 fokkal`);
+                        
+                        // Szöveg stílus opciók gyűjtése
+                        const textOptions = {
+                            fontSize: currentFontSize || 12, // Ezeket a current-értékeket az outer scope-ból kapja
+                            color: currentTextColor || 'black',
+                            bold: currentBold || false,
+                            fontFamily: 'Arial',
+                            backgroundColor: 'transparent',
+                            padding: 2
+                        };
+                        
+                        const rotatedTextImage = await rotateTextWithCanvas(cellText, 90, textOptions);
+                        
+                        if (rotatedTextImage) {
+                            // Szöveg helyett kép lesz
+                            cellContent.image = rotatedTextImage;
+                            cellContent.alignment = 'center';
+                            cellContent.margin = [0, 0, 0, 0];
+                            // Mivel kép, a verticalAlignment a containerre vonatkozik
+
+                            // Kép méretezése a cellához
+                            let cellWidth = (typeof widths[c] === 'number' ? widths[c] : 100);
+                            let cellHeight = (typeof rowHeight === 'number' ? rowHeight : 100);
+                            
+                            const actualCellBorderWidth = (specificCellStyle && (specificCellStyle.border === false || (Array.isArray(specificCellStyle.border) && specificCellStyle.border.every(b => b === false)))) ? 0 : DEFAULT_BORDER_WIDTH;
+                            
+                            let availableWidthForImage = cellWidth - (actualCellBorderWidth * 2);
+                            let availableHeightForImage = cellHeight - (actualCellBorderWidth * 2);
+                            
+                            cellContent.width = availableWidthForImage;
+                            cellContent.height = availableHeightForImage;
+                            
+                            delete cellContent.text; // Nincs szöveg, csak kép
+                            
+                            console.log(`Szövegforgatás sikeres: [${r}, ${c}] - "${cellText}"`);
+                        } else {
+                            // Ha a forgatás nem sikerült, marad szövegként
+                            cellContent.text = cellText;
+                            cellContent.margin = [0.5, 0.5, 0.5, 0.5];
+                            cellContent.verticalAlignment = 'middle'; // Ha szöveg, legyen középen
+                        }
+                    } catch (error) {
+                        console.error(`Hiba a szövegforgatás során [${r}, ${c}]:`, error);
+                        // Hiba esetén marad szövegként
+                        cellContent.text = cellText;
+                        cellContent.margin = [0.5, 0.5, 0.5, 0.5];
+                        cellContent.verticalAlignment = 'middle'; // Ha szöveg, legyen középen
+                    }
+                } else {
+                    // Normál szöveg kezelés más cellákban
+                    cellContent.text = cellText;
+                    cellContent.margin = [0.5, 0.5, 0.5, 0.5];
+                    cellContent.verticalAlignment = 'middle'; // <--- Alapértelmezetten középre igazít
+                }
             }
 
             let currentFillColor = cellContent.fillColor;
-            let currentTextColor = cellContent.color; // Alapértelmezett 'black' a cellContent-ben
+            let currentTextColor = cellContent.color;
             let currentBold = cellContent.bold;
             let currentBorder = cellContent.border;
             let currentBorderColor = cellContent.borderColor;
             let currentFontSize = cellContent.fontSize;
             let currentAlignment = cellContent.alignment;
-            let currentVerticalAlignment = cellContent.verticalAlignment;
+            let currentVerticalAlignment = cellContent.verticalAlignment; // <-- Ezt is kezeli
 
             const isBlackCell = (specificCellStyle && (specificCellStyle.backgroundColor === 'black' || specificCellStyle.backgroundColor === '#000000' || specificCellStyle.backgroundColor === 'rgb(0, 0, 0)')) || className.includes('black-cell');
 
-            // Fekete cellák speciális kezelése - ez prioritást élvez
             if (isBlackCell) {
                 currentFillColor = 'black';
-                currentTextColor = 'yellow'; // Fekete cellánál sárga szöveg
+                currentTextColor = 'yellow';
                 currentBold = true;
                 currentBorder = [true, true, true, true];
                 currentBorderColor = ['yellow', 'yellow', 'yellow', 'yellow'];
-                currentFontSize = 6;
+                currentFontSize = 5;
 
                 if (r >= 0 && r <= 6) {
                     currentAlignment = 'left';
                     cellContent.margin = [2, 0.5, 0.5, 0.5];
+                    // Fekete celláknál is middle-re állítjuk, ha szöveg.
+                    // Képek esetén az image property felel az elhelyezkedésért.
+                    if (!cellContent.image) {
+                        currentVerticalAlignment = 'middle'; 
+                    }
                 } else {
                     currentAlignment = 'center';
                     cellContent.margin = [0.5, 0, 0.5, 0];
+                     if (!cellContent.image) {
+                        currentVerticalAlignment = 'middle';
+                    }
                 }
             }
 
-            // Felső 3 sor (r = 0, 1, 2)
             if (r <= 2) {
-                // Ha fekete cella az első 3 sorban, akkor felülírjuk a fekete cella stílust
-                // (mert az első 3 sorban nem lehet fekete a háttér)
                 if (isBlackCell) {
                     currentFillColor = 'white';
-                    currentTextColor = 'black'; // Itt is fekete legyen a szöveg
+                    currentTextColor = 'black';
                     currentBorder = [false, false, false, false];
                     currentBold = false;
-                } else { // Nem fekete cella az első 3 sorban
+                } else {
                     currentBorder = [false, false, false, false];
                     currentFillColor = 'white';
-                    currentTextColor = 'black'; // Itt is fekete legyen
+                    currentTextColor = 'black';
                     cellContent.margin = [0, 0, 0, 0];
                     currentBold = false;
                     currentAlignment = 'center';
+                }
+                // *** Ezt expliciten ide is visszatettem, hogy biztosan középen legyen ***
+                if (!cellContent.image) { // Csak ha szöveg van
                     currentVerticalAlignment = 'middle';
                 }
             }
 
-            // --- Dinamikusan generált sorok (12. sortól az utolsó 10 sorig) ---
             if (r >= 11 && r < firstOfLastTenRowsIndex) {
-                // Háttérszín beállítása, ha nincs explicit háttérszín és nem fekete cella
                 const hasExplicitBgColor = specificCellStyle?.backgroundColor && specificCellStyle.backgroundColor !== 'inherit' && specificCellStyle.backgroundColor !== '';
                 if (!isBlackCell && !hasExplicitBgColor) {
-                    const isEvenDynamic = (r - 11) % 2 === 0;
-                    currentFillColor = isEvenDynamic ? '#D7D7D7' : 'white';
+                    currentFillColor = (r - 11) % 2 === 0 ? '#D7D7D7' : 'white';
                 }
-                // JAVÍTÁS: A szövegszín MINDIG fekete legyen a dinamikus sorokban, kivéve ha fekete cella
                 if (!isBlackCell) {
                     currentTextColor = 'black';
                 }
+                // *** Ezt expliciten ide is visszatettem, hogy biztosan középen legyen ***
+                if (!cellContent.image) { // Csak ha szöveg van
+                    currentVerticalAlignment = 'middle';
+                }
             }
-            // --- Dinamikusan generált sorok vége ---
 
-            // Alulról a 10 sor (általános stílusok)
             if (r >= firstOfLastTenRowsIndex) {
                 if (!isBlackCell) {
                     currentFillColor = 'white';
-                    currentTextColor = 'black'; // Itt is fekete a szöveg
+                    currentTextColor = 'black';
                 }
                 if (c >= 3) {
                     currentBorder = [false, false, false, false];
@@ -851,38 +1069,46 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                         currentFillColor = 'white';
                     }
                 }
-                // Ha nem fekete cella, akkor fekete szöveg.
                 if (!isBlackCell) {
                     currentTextColor = 'black';
+                }
+                // *** Ezt expliciten ide is visszatettem, hogy biztosan középen legyen ***
+                if (!cellContent.image) { // Csak ha szöveg van
+                    currentVerticalAlignment = 'middle';
                 }
             }
 
             if (r === 0) {
-                // Az első sorban lévő fekete cella már felülíródott a fenti blokkban (r <= 2)
-                // Így itt már csak a normál (nem fekete) cellákról van szó
-                if (!isBlackCell) { // r > 6 feltétel már nem releváns r=0-nál
+                if (!isBlackCell) {
                     currentAlignment = 'center';
                 }
                 currentFillColor = 'white';
-                currentTextColor = 'black'; // Itt is fekete
+                currentTextColor = 'black';
                 currentBold = true;
                 if (c === 3) {
-                    if (cellContent.text) {
-                        if (typeof cellContent.text === 'string') {
-                            cellContent.text = { text: cellContent.text };
-                        }
+                    if (typeof cellContent.text === 'object' && cellContent.text !== null && cellContent.text.text !== undefined) {
                         cellContent.text.decoration = 'underline';
-                        cellContent.text.fontSize = 10;
+                        cellContent.text.fontSize = 7;
+                    } else if (typeof cellContent.text === 'string') {
+                        cellContent.text = { text: cellContent.text, decoration: 'underline', fontSize: 7 };
+                    } else {
+                        cellContent.text = { text: escapeHtml(cellValue !== null && cellValue !== undefined ? String(cellValue) : ''), decoration: 'underline', fontSize: 10 };
                     }
+                }
+                // *** Ezt expliciten ide is visszatettem, hogy biztosan középen legyen ***
+                if (!cellContent.image) { // Csak ha szöveg van
+                    currentVerticalAlignment = 'middle';
                 }
             }
 
             if (r === 10) {
                 currentAlignment = 'center';
-                currentVerticalAlignment = 'middle';
-                // Ha nem fekete cella, akkor fekete szöveg.
+                // *** Ezt expliciten ide is visszatettem, hogy biztosan középen legyen ***
+                if (!cellContent.image) { // Csak ha szöveg van
+                    currentVerticalAlignment = 'middle';
+                }
                 if (!isBlackCell) {
-                   currentTextColor = 'black';
+                    currentTextColor = 'black';
                 }
                 const hasExplicitBgColor = specificCellStyle?.backgroundColor && specificCellStyle.backgroundColor !== 'inherit' && specificCellStyle.backgroundColor !== '';
                 if (!isBlackCell && !hasExplicitBgColor) {
@@ -893,40 +1119,18 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
             if (r === lastRowIndex) {
                 currentBold = true;
                 currentFillColor = 'lightgrey';
-                currentTextColor = 'black'; // Utolsó sor szövege is fekete
+                currentTextColor = 'black';
                 currentFontSize = 10 * 0.75;
                 currentAlignment = 'center';
-                currentVerticalAlignment = 'middle';
+                // *** Ezt expliciten ide is visszatettem, hogy biztosan középen legyen ***
+                if (!cellContent.image) { // Csak ha szöveg van
+                    currentVerticalAlignment = 'middle';
+                }
                 currentBorder = [true, true, true, true];
                 currentBorderColor = ['#000', '#000', '#000', '#000'];
             }
 
-            if (c === 0 && (r === 10 || r === firstOfLastTenRowsIndex)) {
-                if (cellContent.text) {
-                    if (typeof cellContent.text === 'string') {
-                        cellContent.text = { text: cellContent.text };
-                    }
-                    cellContent.text.rotation = 270;
-                    cellContent.text.alignment = 'center';
-                } else {
-                    cellContent.text = {
-                        text: escapeHtml(cellValue !== null && cellValue !== undefined ? String(cellValue) : ''),
-                        rotation: 270,
-                        alignment: 'center',
-                    };
-                }
-
-                // Szövegszín: MINDIG fekete, KIVÉVE ha fekete cella (akkor sárga)
-                if (isBlackCell && r > 2) {
-                    currentTextColor = 'yellow';
-                } else {
-                    currentTextColor = 'black'; // Itt is feltétel nélkül fekete, ha nem fekete cella
-                }
-                cellContent.margin = [0, 0, 0, 0];
-            }
-
-            // JAVÍTÁS: Cellastílusok beállítása a specificCellStyle alapján
-            // KRITIKUS: A szövegszín kezelést teljesen újraírtuk
+            // specificCellStyle felülírása
             if (specificCellStyle) {
                 if (specificCellStyle.margin) {
                     cellContent.margin = specificCellStyle.margin.map(m => parseFloat(m) * 0.75 * scaleFactor);
@@ -934,42 +1138,33 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                 if (specificCellStyle.backgroundColor && specificCellStyle.backgroundColor !== 'inherit' && specificCellStyle.backgroundColor !== '') {
                     currentFillColor = specificCellStyle.backgroundColor;
                 }
-                
-                // ÚJ SZÖVEGSZÍN KEZELÉS - DINAMIKUS SOROKRA FÓKUSZÁLVA:
+
                 console.log(`Row ${r}, Col ${c}: specificCellStyle.color = "${specificCellStyle.color}", isBlackCell = ${isBlackCell}, currentTextColor before = "${currentTextColor}"`);
-                
-                // Ellenőrizzük, van-e explicit szín beállítva a specificCellStyle-ban
-                const hasExplicitColor = specificCellStyle.color && 
-                                       specificCellStyle.color !== 'inherit' && 
-                                       specificCellStyle.color !== '' &&
-                                       specificCellStyle.color !== 'rgba(0, 0, 0, 0)' &&
-                                       specificCellStyle.color !== 'transparent' &&
-                                       specificCellStyle.color !== 'undefined';
-                
-                // DINAMIKUS SOROK SPECIÁLIS KEZELÉSE (r >= 11 && r < firstOfLastTenRowsIndex)
+
+                const hasExplicitColor = specificCellStyle.color &&
+                                         specificCellStyle.color !== 'inherit' &&
+                                         specificCellStyle.color !== '' &&
+                                         specificCellStyle.color !== 'rgba(0, 0, 0, 0)' &&
+                                         specificCellStyle.color !== 'transparent' &&
+                                         specificCellStyle.color !== 'undefined';
+
                 if (r >= 11 && r < firstOfLastTenRowsIndex) {
                     if (!isBlackCell) {
-                        // Dinamikus sorokban MINDIG fekete a szöveg, függetlenül a specificCellStyle.color értékétől
                         currentTextColor = 'black';
                         console.log(`Row ${r}, Col ${c}: FORCED BLACK in dynamic rows`);
                     } else {
-                        // Fekete cellában sárga a szöveg
                         currentTextColor = 'yellow';
                     }
                 } else {
-                    // NEM dinamikus sorokban alkalmazzuk a specificCellStyle színét, ha van
                     if (hasExplicitColor) {
                         if (isBlackCell && r > 2) {
-                            // Fekete cellában is felülírjuk, ha explicit módon be van állítva
                             currentTextColor = specificCellStyle.color;
                         } else if (!isBlackCell) {
-                            // Nem fekete cellában használjuk a specificCellStyle színét
                             currentTextColor = specificCellStyle.color;
                         }
                     }
-                    // Ha nincs explicit szín, akkor a currentTextColor változatlan marad
                 }
-                
+
                 console.log(`Row ${r}, Col ${c}: hasExplicitColor = ${hasExplicitColor}, currentTextColor after = "${currentTextColor}"`);
 
                 if (specificCellStyle.fontWeight === 'bold') currentBold = true;
@@ -979,6 +1174,7 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                 if (specificCellStyle.textAlign) {
                     currentAlignment = specificCellStyle.textAlign;
                 }
+                // A specificCellStyle.verticalAlign felülírja a korábbi beállításokat
                 if (specificCellStyle.verticalAlign) {
                     currentVerticalAlignment = specificCellStyle.verticalAlign;
                 }
@@ -998,7 +1194,7 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
             cellContent.borderColor = currentBorderColor;
             cellContent.fontSize = currentFontSize;
             cellContent.alignment = currentAlignment;
-            cellContent.verticalAlignment = currentVerticalAlignment;
+            cellContent.verticalAlignment = currentVerticalAlignment; // <--- EZ A KULCS!
 
             rowContent.push(cellContent);
         }
@@ -1019,18 +1215,18 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                 layout: {
                     hLineWidth: function (i, node) {
                         if (i >= 0 && i <= 3) {
-                            return 0; // Nincs vonal az első 3 sor körül
+                            return 0;
                         }
                         if (i === node.table.body.length) {
-                            return 0.5; // Az utolsó külső vonal
+                            return 0.5;
                         }
-                        return 0.25; // Belső vízszintes vonalak
+                        return 0.25;
                     },
                     vLineWidth: function (i, node) {
                         if (i === 0 || i === node.table.widths.length) {
-                            return 0.5; // Külső függőleges vonalak (bal és jobb oldalon)
+                            return 0.5;
                         }
-                        return 0.25; // Belső függőleges vonalak
+                        return 0.25;
                     },
                     hLineColor: function (i, node) {
                         return 'black';
@@ -1047,9 +1243,9 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
         ],
         defaultStyle: {
             font: 'Roboto',
-            fontSize: 6,
+            fontSize: 5,
             alignment: 'center',
-            verticalAlignment: 'middle'
+            verticalAlignment: 'middle' // <-- Ez az alapértelmezett, ami érvényesül, ha nincs felülírva
         },
         styles: {
         }
