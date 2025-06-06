@@ -808,7 +808,15 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
     const lastRowIndex = rowCount - 1;
     const firstOfLastTenRowsIndex = Math.max(0, rowCount - 10);
 
+    // Define the start and end rows for padding exclusion
+    const firstTenRowsEndIndex = 9; // Rows 0-9 (10 rows)
+    const lastNineRowsStartIndex = Math.max(0, rowCount - 9); // Last 9 rows
+
     const DEFAULT_BORDER_WIDTH = 0.25;
+
+    // Segédtömb a képet tartalmazó cellák azonosítására
+    // Ezt kell azelőtt feltölteni, hogy a layout függvények futnának
+    const cellsWithImages = Array(rowCount).fill(null).map(() => Array(colCount).fill(false));
 
     for (let r = 0; r < rowCount; r++) {
         const rowContent = [];
@@ -835,7 +843,7 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
             let cellContent = {
                 text: '',
                 alignment: 'center',
-                verticalAlignment: 'middle', // <-- Ez az alapértelmezett, és a szövegnek erre kell reagálnia
+                verticalAlignment: 'middle',
                 margin: [0.5, 0.5, 0.5, 0.5],
                 fillColor: 'white',
                 color: 'black',
@@ -851,6 +859,16 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
             const specificCellStyle = cellStyles.find(style => style?.row === r && style?.col === c);
             const className = specificCellStyle?.className || '';
 
+            // **JAVÍTÁS: Alapértelmezett értékek inicializálása a változók használata előtt**
+            let currentFillColor = cellContent.fillColor;
+            let currentTextColor = cellContent.color;
+            let currentBold = cellContent.bold;
+            let currentBorder = cellContent.border;
+            let currentBorderColor = cellContent.borderColor;
+            let currentFontSize = cellContent.fontSize;
+            let currentAlignment = cellContent.alignment;
+            let currentVerticalAlignment = cellContent.verticalAlignment;
+
             let imageUrlFromCell = null;
             if (typeof cellValue === 'string' && cellValue.startsWith('https://storage.googleapis.com/')) {
                 imageUrlFromCell = cellValue;
@@ -861,22 +879,16 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
             if (imageUrlFromCell) {
                 const imgSource = downloadedImages[imageUrlFromCell];
                 if (imgSource) {
-                    // --- KÉPFORGATÁS JAVÍTVA ---
-                    let rotation = 0;
+                    cellsWithImages[r][c] = true; // Jelöljük, hogy ez a cella képet tartalmaz
 
-                    // 1. Első prioritás: specificCellStyle (ha van benne rotation)
+                    let rotation = 0;
                     if (specificCellStyle && typeof specificCellStyle.rotation === 'number') {
                         rotation = specificCellStyle.rotation;
-                    }
-                    // 2. Második prioritás: cellValue, ha objektum és tartalmaz rotation-t
-                    else if (typeof cellValue === 'object' && cellValue !== null && typeof cellValue.rotation === 'number') {
+                    } else if (typeof cellValue === 'object' && cellValue !== null && typeof cellValue.rotation === 'number') {
                         rotation = cellValue.rotation;
                     }
-
-                    // Normalizáljuk a forgatást 0-359 fok közé
                     rotation = ((rotation % 360) + 360) % 360;
                     
-                    // *** ITT A LÉNYEGI VÁLTOZTATÁS: ELŐRE FORGATJUK A KÉPET ***
                     let finalImageSource = imgSource;
                     if (rotation !== 0) {
                         try {
@@ -884,16 +896,14 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                             finalImageSource = await rotateImageWithCanvas(imgSource, rotation);
                         } catch (error) {
                             console.error(`Hiba a kép forgatása során [${r}, ${c}]:`, error);
-                            finalImageSource = imgSource; // Hiba esetén eredeti kép
+                            finalImageSource = imgSource;
                         }
                     }
 
                     cellContent.image = finalImageSource;
                     cellContent.alignment = 'center';
-                    cellContent.margin = [0, 0, 0, 0];
-                    // Kép esetén a verticalAlignment alapértelmezés szerint középre igazít,
-                    // de a margin beállítások fontosabbak lehetnek.
-
+                    cellContent.margin = [0, 0, 0, 0]; // A képes celláknál itt állítjuk be a margin-t 0-ra
+                    
                     let cellWidth = (typeof widths[c] === 'number' ? widths[c] : 100);
                     let cellHeight = (typeof rowHeight === 'number' ? rowHeight : 100);
 
@@ -902,30 +912,19 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                     let availableWidthForImage = cellWidth - (actualCellBorderWidth * 2);
                     let availableHeightForImage = cellHeight - (actualCellBorderWidth * 2);
 
-                    // Kép méretezése a cellához
                     cellContent.width = availableWidthForImage;
                     cellContent.height = availableHeightForImage;
                     
-                    // Már nem kell rotation property, mert a kép már elforgatva van
-                    // delete cellContent.rotation;
-
-                    console.log(`DEBUG: Cell [${r}, ${c}] - Image URL: ${imageUrlFromCell}, Rotation: ${rotation}, Cell size: ${cellWidth}x${cellHeight}, Available: ${availableWidthForImage}x${availableHeightForImage}`);
-                    
-                    delete cellContent.text; // Ha kép van, nincs szöveg
+                    delete cellContent.text;
                 } else {
-                    // Kép letöltési hiba esetén szöveges üzenet
                     cellContent.text = { text: 'Kép nem található vagy letöltési hiba', color: 'red' };
                     cellContent.image = undefined;
                     cellContent.margin = [0.5, 0.5, 0.5, 0.5];
-                    cellContent.verticalAlignment = 'middle'; // Szöveges üzenet esetén is középre
+                    cellContent.verticalAlignment = 'middle';
                 }
             } else {
-                // Alapértelmezett text beállítás, ha nincs kép
                 let cellText = escapeHtml(cellValue !== null && cellValue !== undefined ? String(cellValue) : '');
                 
-                // *** SZÖVEGFORGATÁS SPECIÁLIS CELLÁKBAN ***
-                // 11. sor 1. cellája (0-indexelt: sor 10, oszlop 0)
-                // És az utolsó sortól számított 10. sor első cellája
                 const targetRows = [10, Math.max(0, rowCount - 10)];
                 const targetCol = 0;
                 
@@ -933,9 +932,8 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                     try {
                         console.log(`Szövegforgatás: [${r}, ${c}] - "${cellText}" 90 fokkal`);
                         
-                        // Szöveg stílus opciók gyűjtése
                         const textOptions = {
-                            fontSize: currentFontSize || 12, // Ezeket a current-értékeket az outer scope-ból kapja
+                            fontSize: currentFontSize || 12,
                             color: currentTextColor || 'black',
                             bold: currentBold || false,
                             fontFamily: 'Arial',
@@ -946,13 +944,11 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                         const rotatedTextImage = await rotateTextWithCanvas(cellText, 90, textOptions);
                         
                         if (rotatedTextImage) {
-                            // Szöveg helyett kép lesz
+                            cellsWithImages[r][c] = true; // Jelöljük, hogy ez a cella képet tartalmaz (forgatott szövegkép)
                             cellContent.image = rotatedTextImage;
                             cellContent.alignment = 'center';
-                            cellContent.margin = [0, 0, 0, 0];
-                            // Mivel kép, a verticalAlignment a containerre vonatkozik
+                            cellContent.margin = [0, 0, 0, 0]; // A képes celláknál itt állítjuk be a margin-t 0-ra
 
-                            // Kép méretezése a cellához
                             let cellWidth = (typeof widths[c] === 'number' ? widths[c] : 100);
                             let cellHeight = (typeof rowHeight === 'number' ? rowHeight : 100);
                             
@@ -964,38 +960,26 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                             cellContent.width = availableWidthForImage;
                             cellContent.height = availableHeightForImage;
                             
-                            delete cellContent.text; // Nincs szöveg, csak kép
+                            delete cellContent.text;
                             
                             console.log(`Szövegforgatás sikeres: [${r}, ${c}] - "${cellText}"`);
                         } else {
-                            // Ha a forgatás nem sikerült, marad szövegként
                             cellContent.text = cellText;
                             cellContent.margin = [0.5, 0.5, 0.5, 0.5];
-                            cellContent.verticalAlignment = 'middle'; // Ha szöveg, legyen középen
+                            cellContent.verticalAlignment = 'middle';
                         }
                     } catch (error) {
                         console.error(`Hiba a szövegforgatás során [${r}, ${c}]:`, error);
-                        // Hiba esetén marad szövegként
                         cellContent.text = cellText;
                         cellContent.margin = [0.5, 0.5, 0.5, 0.5];
-                        cellContent.verticalAlignment = 'middle'; // Ha szöveg, legyen középen
+                        cellContent.verticalAlignment = 'middle';
                     }
                 } else {
-                    // Normál szöveg kezelés más cellákban
                     cellContent.text = cellText;
                     cellContent.margin = [0.5, 0.5, 0.5, 0.5];
-                    cellContent.verticalAlignment = 'middle'; // <--- Alapértelmezetten középre igazít
+                    cellContent.verticalAlignment = 'middle';
                 }
             }
-
-            let currentFillColor = cellContent.fillColor;
-            let currentTextColor = cellContent.color;
-            let currentBold = cellContent.bold;
-            let currentBorder = cellContent.border;
-            let currentBorderColor = cellContent.borderColor;
-            let currentFontSize = cellContent.fontSize;
-            let currentAlignment = cellContent.alignment;
-            let currentVerticalAlignment = cellContent.verticalAlignment; // <-- Ezt is kezeli
 
             const isBlackCell = (specificCellStyle && (specificCellStyle.backgroundColor === 'black' || specificCellStyle.backgroundColor === '#000000' || specificCellStyle.backgroundColor === 'rgb(0, 0, 0)')) || className.includes('black-cell');
 
@@ -1010,10 +994,8 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                 if (r >= 0 && r <= 6) {
                     currentAlignment = 'left';
                     cellContent.margin = [2, 0.5, 0.5, 0.5];
-                    // Fekete celláknál is middle-re állítjuk, ha szöveg.
-                    // Képek esetén az image property felel az elhelyezkedésért.
                     if (!cellContent.image) {
-                        currentVerticalAlignment = 'middle'; 
+                        currentVerticalAlignment = 'middle';
                     }
                 } else {
                     currentAlignment = 'center';
@@ -1038,8 +1020,7 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                     currentBold = false;
                     currentAlignment = 'center';
                 }
-                // *** Ezt expliciten ide is visszatettem, hogy biztosan középen legyen ***
-                if (!cellContent.image) { // Csak ha szöveg van
+                if (!cellContent.image) {
                     currentVerticalAlignment = 'middle';
                 }
             }
@@ -1052,8 +1033,7 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                 if (!isBlackCell) {
                     currentTextColor = 'black';
                 }
-                // *** Ezt expliciten ide is visszatettem, hogy biztosan középen legyen ***
-                if (!cellContent.image) { // Csak ha szöveg van
+                if (!cellContent.image) {
                     currentVerticalAlignment = 'middle';
                 }
             }
@@ -1072,8 +1052,7 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                 if (!isBlackCell) {
                     currentTextColor = 'black';
                 }
-                // *** Ezt expliciten ide is visszatettem, hogy biztosan középen legyen ***
-                if (!cellContent.image) { // Csak ha szöveg van
+                if (!cellContent.image) {
                     currentVerticalAlignment = 'middle';
                 }
             }
@@ -1095,16 +1074,14 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                         cellContent.text = { text: escapeHtml(cellValue !== null && cellValue !== undefined ? String(cellValue) : ''), decoration: 'underline', fontSize: 10 };
                     }
                 }
-                // *** Ezt expliciten ide is visszatettem, hogy biztosan középen legyen ***
-                if (!cellContent.image) { // Csak ha szöveg van
+                if (!cellContent.image) {
                     currentVerticalAlignment = 'middle';
                 }
             }
 
             if (r === 10) {
                 currentAlignment = 'center';
-                // *** Ezt expliciten ide is visszatettem, hogy biztosan középen legyen ***
-                if (!cellContent.image) { // Csak ha szöveg van
+                if (!cellContent.image) {
                     currentVerticalAlignment = 'middle';
                 }
                 if (!isBlackCell) {
@@ -1122,8 +1099,7 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                 currentTextColor = 'black';
                 currentFontSize = 10 * 0.75;
                 currentAlignment = 'center';
-                // *** Ezt expliciten ide is visszatettem, hogy biztosan középen legyen ***
-                if (!cellContent.image) { // Csak ha szöveg van
+                if (!cellContent.image) {
                     currentVerticalAlignment = 'middle';
                 }
                 currentBorder = [true, true, true, true];
@@ -1132,7 +1108,9 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
 
             // specificCellStyle felülírása
             if (specificCellStyle) {
-                if (specificCellStyle.margin) {
+                // A margin beállítás itt továbbra is van, de a layout padding funkció felülírja, ha nem képes celláról van szó.
+                // A képes celláknál a cellContent.margin már 0-ra van állítva fentebb.
+                if (specificCellStyle.margin && !cellsWithImages[r][c]) { // Csak akkor alkalmazza, ha nem képes cella
                     cellContent.margin = specificCellStyle.margin.map(m => parseFloat(m) * 0.75 * scaleFactor);
                 }
                 if (specificCellStyle.backgroundColor && specificCellStyle.backgroundColor !== 'inherit' && specificCellStyle.backgroundColor !== '') {
@@ -1174,7 +1152,6 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                 if (specificCellStyle.textAlign) {
                     currentAlignment = specificCellStyle.textAlign;
                 }
-                // A specificCellStyle.verticalAlign felülírja a korábbi beállításokat
                 if (specificCellStyle.verticalAlign) {
                     currentVerticalAlignment = specificCellStyle.verticalAlign;
                 }
@@ -1186,6 +1163,22 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                 }
             }
 
+            // *** ÚJ PADDING LOGIKA - Az első 10 és utolsó 9 soron kívül minden sorban padding alkalmazása ***
+            // Csak akkor alkalmazzuk a paddinget, ha:
+            // 1. A sor nem az első 10 sorban van (r > 9)
+            // 2. A sor nem az utolsó 9 sorban van (r < lastNineRowsStartIndex)
+            // 3. A cella nem tartalmaz képet (cellsWithImages[r][c] === false)
+            if (r > 9 && r < lastNineRowsStartIndex && !cellsWithImages[r][c]) {
+                // Felső és alsó padding hozzáadása (2pt mindkét oldalon)
+                const paddingAmount = 2;
+                cellContent.margin = [
+                    cellContent.margin[0], // bal margin megmarad
+                    cellContent.margin[1] + paddingAmount, // felső margin + padding
+                    cellContent.margin[2], // jobb margin megmarad
+                    cellContent.margin[3] + paddingAmount  // alsó margin + padding
+                ];
+            }
+
             // Cellastílusok alkalmazása az eredmény objektumra
             cellContent.fillColor = currentFillColor;
             cellContent.color = currentTextColor;
@@ -1194,7 +1187,7 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
             cellContent.borderColor = currentBorderColor;
             cellContent.fontSize = currentFontSize;
             cellContent.alignment = currentAlignment;
-            cellContent.verticalAlignment = currentVerticalAlignment; // <--- EZ A KULCS!
+            cellContent.verticalAlignment = currentVerticalAlignment;
 
             rowContent.push(cellContent);
         }
@@ -1245,7 +1238,7 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
             font: 'Roboto',
             fontSize: 5,
             alignment: 'center',
-            verticalAlignment: 'middle' // <-- Ez az alapértelmezett, ami érvényesül, ha nincs felülírva
+            verticalAlignment: 'middle'
         },
         styles: {
         }
@@ -1256,11 +1249,13 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
 
 // --- PDFmaker pdf generálás GET végpont ---
 router.get('/:projectId/download-pdf', async (req, res) => {
+
     const { projectId } = req.params;
 
     let fileName; // Deklaráció a try blokkon kívülre
 
     try {
+
         const projectResult = await pool.query(
             'SELECT name FROM projects WHERE id = $1',
             [projectId]
@@ -1372,88 +1367,98 @@ router.get('/:projectId/download-pdf', async (req, res) => {
             pdfDoc.end(); // Fontos: le kell zárni a pdfDoc stream-et!
         });
 
-        // --- GOOGLE DRIVE FELTÖLTÉS ---
-        try {
-            console.log('📂 PDF feltöltés indítása: fájl =', fileName);
-            console.log('📁 Cél projekt mappa:', safeProjectName);
-            console.log('📁 Szülő mappa ID:', MAIN_DRIVE_FOLDER_ID);
-
-            // Próbáljuk meg listázni a parent mappát
-            const testAccess = await driveService.files.get({
-                fileId: MAIN_DRIVE_FOLDER_ID,
-                fields: 'id, name'
-            }).catch(err => {
-                console.error("❌ NEM elérhető a MAIN_DRIVE_FOLDER_ID mappa a service account számára!");
-                throw new Error("A service account nem fér hozzá a gyökérmappához. Ellenőrizd a megosztást!");
-            });
-            console.log("✅ Elérhető a fő mappa:", testAccess.data.name);
-
-            // Először ellenőrizzük, hogy a MAIN_DRIVE_FOLDER_ID elérhető-e
+        // --- KÖRNYEZET ALAPÚ GOOGLE DRIVE FELTÖLTÉS ---
+        // Csak éles környezetben (DATABASE_URL létezik) töltjük fel a Drive-ra
+        const isProduction = !!process.env.DATABASE_URL;
+        
+        if (isProduction) {
+            console.log('🏭 Éles környezet - Google Drive feltöltés engedélyezve');
+            
             try {
-                const rootFolderCheck = await driveService.files.get({
+                console.log('📂 PDF feltöltés indítása: fájl =', fileName);
+                console.log('📁 Cél projekt mappa:', safeProjectName);
+                console.log('📁 Szülő mappa ID:', MAIN_DRIVE_FOLDER_ID);
+
+                // Próbáljuk meg listázni a parent mappát
+                const testAccess = await driveService.files.get({
                     fileId: MAIN_DRIVE_FOLDER_ID,
-                    fields: 'id, name',
+                    fields: 'id, name'
+                }).catch(err => {
+                    console.error("❌ NEM elérhető a MAIN_DRIVE_FOLDER_ID mappa a service account számára!");
+                    throw new Error("A service account nem fér hozzá a gyökérmappához. Ellenőrizd a megosztást!");
                 });
-                console.log('✅ MAIN_DRIVE_FOLDER_ID elérhető:', rootFolderCheck.data.name);
-            } catch (permErr) {
-                console.error('❌ NEM elérhető a MAIN_DRIVE_FOLDER_ID mappa a service account számára!');
-                throw new Error('A service account nem fér hozzá a gyökérmappához. Ellenőrizd a megosztást!');
-            }
+                console.log("✅ Elérhető a fő mappa:", testAccess.data.name);
 
-            // Ellenőrizzük, hogy létezik-e a projekt mappa a Google Drive-on
-            const projectFolderId = await getOrCreateFolder(safeProjectName, MAIN_DRIVE_FOLDER_ID);
-            console.log('📁 Projekt mappa ID:', projectFolderId);
-
-            // Létrehozzuk az aznapi dátumozott mappát (előtte törli ha már létezik)
-            const dailyFolderId = await createDailyFolder(projectFolderId);
-            console.log('📁 Aznapi mappa ID:', dailyFolderId);
-
-            // PDF feltöltése az aznapi mappába - most bufferből
-            const uploadResult = await uploadBufferToDrive(pdfBuffer, fileName, dailyFolderId, 'application/pdf');
-            console.log('✅ PDF feltöltés sikeres! Drive URL:', uploadResult.webViewLink);
-
-            // --- Képek feltöltése Google Drive-ra ---
-            if (uniqueImageUrls.length > 0) {
-                console.log(`📸 ${uniqueImageUrls.length} egyedi kép feltöltése indítása a Drive-ra...`);
-
-                const uploadImagePromises = uniqueImageUrls.map(async (imageUrl) => {
-                    const imageFileName = path.basename(new URL(imageUrl).pathname);
-
-                    try {
-                        // 1. Kép letöltése a GCS-ről bufferbe (már megtörtént fentebb)
-                        const imageBuffer = await downloadImageFromUrl(imageUrl); 
-
-                        // 2. MIME típus meghatározása a fájlnévből
-                        const imageMimeType = getMimeType(imageFileName);
-
-                        // 3. Kép feltöltése a Google Drive-ra a bufferből
-                        const imageUploadResult = await uploadBufferToDrive(imageBuffer, imageFileName, dailyFolderId, imageMimeType); 
-                        console.log(`✅ Kép feltöltve a Drive-ra: ${imageFileName}, Drive URL: ${imageUploadResult.webViewLink}`);
-                        return imageUploadResult.webViewLink;
-                    } catch (imageProcessErr) {
-                        console.error(`❌ Hiba a kép letöltésekor/feltöltésekor a Drive-ra (${imageFileName} from ${imageUrl}): ${imageProcessErr.message}`);
-                        return null; 
-                    }
-                });
-
-                const uploadedImageLinks = await Promise.all(uploadImagePromises);
-                const successfulUploadLinks = uploadedImageLinks.filter(link => link !== null);
-
-                if (successfulUploadLinks.length > 0) {
-                    console.log(`🎉 ${successfulUploadLinks.length} kép sikeresen feltöltve a Google Drive-ra.`);
-                } else {
-                    console.log('⚠️ Egyetlen kép feltöltése sem sikerült a Google Drive-ra.');
+                // Először ellenőrizzük, hogy a MAIN_DRIVE_FOLDER_ID elérhető-e
+                try {
+                    const rootFolderCheck = await driveService.files.get({
+                        fileId: MAIN_DRIVE_FOLDER_ID,
+                        fields: 'id, name',
+                    });
+                    console.log('✅ MAIN_DRIVE_FOLDER_ID elérhető:', rootFolderCheck.data.name);
+                } catch (permErr) {
+                    console.error('❌ NEM elérhető a MAIN_DRIVE_FOLDER_ID mappa a service account számára!');
+                    throw new Error('A service account nem fér hozzá a gyökérmappához. Ellenőrizd a megosztást!');
                 }
 
-            } else {
-                console.log('⚠️ Nincsenek GCS képek a táblázatban, feltöltés kihagyva.');
-            }
+                // Ellenőrizzük, hogy létezik-e a projekt mappa a Google Drive-on
+                const projectFolderId = await getOrCreateFolder(safeProjectName, MAIN_DRIVE_FOLDER_ID);
+                console.log('📁 Projekt mappa ID:', projectFolderId);
 
-        } catch (uploadErr) {
-            console.error('❌ Hiba a Google Drive feltöltésnél (a PDF generálás során):', uploadErr.message);
-            console.error('📄 Részletek:', uploadErr);
-            // Itt döntheted el, hogy ha a Drive feltöltés sikertelen, az befolyásolja-e a PDF letöltését.
-            // Jelenleg tovább engedi a kódot a PDF letöltésére.
+                // Létrehozzuk az aznapi dátumozott mappát (előtte törli ha már létezik)
+                const dailyFolderId = await createDailyFolder(projectFolderId);
+                console.log('📁 Aznapi mappa ID:', dailyFolderId);
+
+                // PDF feltöltése az aznapi mappába - most bufferből
+                const uploadResult = await uploadBufferToDrive(pdfBuffer, fileName, dailyFolderId, 'application/pdf');
+                console.log('✅ PDF feltöltés sikeres! Drive URL:', uploadResult.webViewLink);
+
+                // --- Képek feltöltése Google Drive-ra ---
+                if (uniqueImageUrls.length > 0) {
+                    console.log(`📸 ${uniqueImageUrls.length} egyedi kép feltöltése indítása a Drive-ra...`);
+
+                    const uploadImagePromises = uniqueImageUrls.map(async (imageUrl) => {
+                        const imageFileName = path.basename(new URL(imageUrl).pathname);
+
+                        try {
+                            // 1. Kép letöltése a GCS-ről bufferbe (már megtörtént fentebb)
+                            const imageBuffer = await downloadImageFromUrl(imageUrl);
+
+                            // 2. MIME típus meghatározása a fájlnévből
+                            const imageMimeType = getMimeType(imageFileName);
+
+                            // 3. Kép feltöltése a Google Drive-ra a bufferből
+                            const imageUploadResult = await uploadBufferToDrive(imageBuffer, imageFileName, dailyFolderId, imageMimeType);
+                            console.log(`✅ Kép feltöltve a Drive-ra: ${imageFileName}, Drive URL: ${imageUploadResult.webViewLink}`);
+                            return imageUploadResult.webViewLink;
+                        } catch (imageProcessErr) {
+                            console.error(`❌ Hiba a kép letöltésekor/feltöltésekor a Drive-ra (${imageFileName} from ${imageUrl}): ${imageProcessErr.message}`);
+                            return null;
+                        }
+                    });
+
+                    const uploadedImageLinks = await Promise.all(uploadImagePromises);
+                    const successfulUploadLinks = uploadedImageLinks.filter(link => link !== null);
+
+                    if (successfulUploadLinks.length > 0) {
+                        console.log(`🎉 ${successfulUploadLinks.length} kép sikeresen feltöltve a Google Drive-ra.`);
+                    } else {
+                        console.log('⚠️ Egyetlen kép feltöltése sem sikerült a Google Drive-ra.');
+                    }
+
+                } else {
+                    console.log('⚠️ Nincsenek GCS képek a táblázatban, feltöltés kihagyva.');
+                }
+
+            } catch (uploadErr) {
+                console.error('❌ Hiba a Google Drive feltöltésnél (a PDF generálás során):', uploadErr.message);
+                console.error('📄 Részletek:', uploadErr);
+                // Itt döntheted el, hogy ha a Drive feltöltés sikertelen, az befolyásolja-e a PDF letöltését.
+                // Jelenleg tovább engedi a kódot a PDF letöltésére.
+            }
+        } else {
+            console.log('🏠 Fejlesztői környezet (localhost) - Google Drive feltöltés kihagyva');
+            console.log('💡 A PDF csak letöltésre kerül, Drive feltöltés nem történik meg.');
         }
 
         // PDF válaszként küldése letöltéshez (most már a memóriában lévő bufferből)
@@ -1468,6 +1473,7 @@ router.get('/:projectId/download-pdf', async (req, res) => {
         // Nincs szükség fájl törlésére, mivel nem hoztunk létre ideiglenes fájlt.
         console.log('🗑️ Nincs ideiglenes fájl törölni.');
     }
+
 });
 
 // Helper függvény a MIME típus meghatározásához a fájlnév kiterjesztése alapján
@@ -1491,6 +1497,40 @@ function getMimeType(filename) {
 }
 
 // --- GOOGLE DRIVE SEGÉDFÜGGVÉNYEK ---
+
+// Mappa létrehozása vagy meglévő visszaadása
+async function getOrCreateFolder(folderName, parentFolderId) {
+    try {
+        // Először ellenőrizzük, hogy létezik-e már a mappa
+        const existingFolders = await driveService.files.list({
+            q: `name='${folderName}' and parents in '${parentFolderId}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+            fields: 'files(id, name)',
+        });
+
+        if (existingFolders.data.files.length > 0) {
+            console.log(`📁 Projekt mappa már létezik: ${folderName}`);
+            return existingFolders.data.files[0].id;
+        }
+
+        // Ha nem létezik, létrehozzuk
+        const folderMetadata = {
+            name: folderName,
+            mimeType: 'application/vnd.google-apps.folder',
+            parents: [parentFolderId],
+        };
+
+        const folder = await driveService.files.create({
+            resource: folderMetadata,
+            fields: 'id',
+        });
+
+        console.log(`📁 Új projekt mappa létrehozva: ${folderName}`);
+        return folder.data.id;
+    } catch (error) {
+        console.error(`Hiba a mappa létrehozásakor (${folderName}):`, error.message);
+        throw error;
+    }
+}
 
 // Mappa létrehozása vagy meglévő visszaadása
 async function getOrCreateFolder(folderName, parentFolderId) {
@@ -1575,18 +1615,18 @@ async function uploadBufferToDrive(buffer, fileName, parentFolderId, mimeType) {
         name: fileName,
         parents: [parentFolderId],
     };
-    
+   
     // Buffer stream létrehozása
     const { Readable } = require('stream');
     const bufferStream = new Readable();
     bufferStream.push(buffer);
     bufferStream.push(null); // Jelzi a stream végét
-    
+   
     const media = {
         mimeType: mimeType,
         body: bufferStream,
     };
-    
+   
     try {
         const response = await driveService.files.create({
             resource: fileMetadata,
