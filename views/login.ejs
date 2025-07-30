@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="hu">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,18 +7,79 @@
 
     <link rel="stylesheet" href="css/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" 1  href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet"> 
-
-    <script src="https://cdn.jsdelivr.net/npm/handsontable@latest/dist/handsontable.full.min.js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@latest/dist/handsontable.full.min.css">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
 </head>
 <body>
     <h1>Bejelentkezés</h1>
-    <form action="/login" method="POST">
+    <!-- Üzenetek megjelenítésére szolgáló div -->
+    <div id="message" class="message" style="display:none;"></div>
+    <form id="loginForm">
         <input type="text" name="username" placeholder="Felhasználónév" required>
         <input type="password" name="password" placeholder="Jelszó" required>
         <button type="submit" class="btn">Bejelentkezés</button>
     </form>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginForm = document.getElementById('loginForm');
+            const messageDiv = document.getElementById('message');
+
+            // Segédfüggvény üzenetek megjelenítéséhez
+            function showMessage(msg, type) {
+                messageDiv.textContent = msg;
+                // Feltételezzük, hogy a 'message', 'error', 'success' osztályok definiálva vannak a style.css-ben
+                messageDiv.className = `message ${type}`;
+                messageDiv.style.display = 'block';
+                setTimeout(() => {
+                    messageDiv.style.display = 'none';
+                }, 5000);
+            }
+
+            // Az űrlap elküldésének elfogása
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault(); // Megakadályozza az alapértelmezett űrlap elküldést (oldalfrissítést)
+
+                // Az űrlap mezőinek értékének lekérése a 'name' attribútum alapján
+                const username = loginForm.elements.username.value;
+                const password = loginForm.elements.password.value;
+
+                try {
+                    // AJAX POST kérés küldése a backend /login végpontjára
+                    const response = await fetch('/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json' // Fontos: JSON formátumban küldjük az adatokat
+                        },
+                        body: JSON.stringify({ username, password }) // Adatok JSON stringgé alakítása
+                    });
+
+                    // A válasz JSON formátumban való feldolgozása
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        // Sikeres bejelentkezés esetén:
+                        // 1. JWT token tárolása a böngésző local storage-jában
+                        localStorage.setItem('token', data.token);
+                        showMessage(data.message, 'success');
+
+                        // 2. Felhasználó átirányítása a jogosultsága alapján
+                        if (data.user && data.user.isAdmin) {
+                            window.location.href = '/admin-dashboard'; // Admin felhasználó
+                        } else {
+                            window.location.href = '/dashboard'; // Normál felhasználó
+                        }
+                    } else {
+                        // Sikertelen bejelentkezés esetén:
+                        showMessage(data.message || 'Sikertelen bejelentkezés.', 'error');
+                    }
+                } catch (error) {
+                    // Hálózati vagy egyéb hiba esetén
+                    console.error('Hiba a bejelentkezés során:', error);
+                    showMessage('Hálózati hiba a bejelentkezés során.', 'error');
+                }
+            });
+        });
+    </script>
 </body>
 </html>

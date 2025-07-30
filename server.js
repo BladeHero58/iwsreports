@@ -6,16 +6,25 @@ const LocalStrategy = require('passport-local').Strategy;
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
-const pool = require('./db');
+const { pool, knex } = require('./db'); // Győződj meg róla, hogy ez helyesen importál a db.js-ből
 const { v4: uuidv4 } = require('uuid');
 const bodyParser = require('body-parser');
+const jwt = require('jsonwebtoken'); // JWT importálása
+
+// --- ÚJ DEBUG LOG ---
+console.log('Backend (server.js startup): process.env.JWT_SECRET:', process.env.JWT_SECRET ? 'Loaded (first 10 chars: ' + process.env.JWT_SECRET.substring(0, 10) + '...)' : 'NOT LOADED or EMPTY!');
+// --- VÉGE ÚJ DEBUG LOG ---
 
 const app = express();
- // A szerver portja
-const PORT = process.env.PORT || 3000;
+// A szerver portja
+const PORT = process.env.PORT || 3000; // Használhatod a 3000-et, ha ez a kód megoldja a problémát, vagy a 3001-et, ha továbbra is gond van.
 
 // !!! FONTOS: Most a reports.js már az inicializálási Promise-t is exportálja
 const { router: reportsRouter, initializationPromise } = require('./reports'); // Betöltjük a reports.js fájlt
+
+// Importáljuk az óranyilvántartó routert
+const timeEntriesRouter = require('./routes/timeEntries'); // <-- EZ AZ ÚJ IMPORTÁLÁS!
+const scheduleRouter = require('./routes/schedule'); // <-- ÚJ: Importáld a schedule routert Beosztás
 
 // Middleware beállítások
 app.use(bodyParser.json({limit: '50mb'}));
@@ -23,61 +32,89 @@ app.use(bodyParser.urlencoded({limit: '50mb', extended: true}));
 app.use(express.json({limit: '50mb'}));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-//statikus fájlkiszolgálás
+// statikus fájlkiszolgálás
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/reports', reportsRouter); // Összekapcsolva a reports.js-sel. A middlewear után helyezkedik el a kódban.
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Az óranyilvántartó router regisztrálása
+// Ezt a reportsRouter előtt vagy után is elhelyezheted, mivel nem igényel aszinkron inicializálást.
+app.use('/api/time-entries', timeEntriesRouter); // <-- EZ AZ ÚJ ROUTER REGISZTRÁCIÓ!
+app.use('/api/schedule', scheduleRouter); // <-- ÚJ: Csatlakoztasd a schedule routert
+
 // ************************************************************
-// FŐ ALKALMAZÁS INDÍTÓ FÜGGVÉNY - EZ HIÁNYZOTT!
+// FŐ ALKALMAZÁS INDÍTÓ FÜGGVÉNY
 // ************************************************************
 async function startApplication() {
-  try {
-    // Várjuk meg a Google Cloud szolgáltatások inicializálását
+    // Aszinkron inicializálások, amiknek csak egyszer kell lefutniuk
     console.log("Waiting for Google Cloud Services to initialize from reports.js...");
-    await initializationPromise; // <--- EZ AZ A FONTOS SOR, AMI VÁRJA AZ INICIALIZÁLÁST!
+    await initializationPromise;
     console.log("Google Cloud Services initialization complete.");
 
-    // Itt kellene futtatni a migrációt is, ha az inicializálás előtt nem futott le
-    // Pl: await runDatabaseMigrations();
-
     // Most, hogy minden inicializálva van, csatoljuk a reports routert
-    // Ezt a sort ITT KELL ELHELYEZNI, az `await initializationPromise` után!
-    app.use('/reports', reportsRouter); // Összekapcsolva a reports.js-sel.
+    app.use('/reports', reportsRouter);
 
     // Itt lekérjük az adminokat és projekteket.
     // Fontos, hogy ezek is async/await-tel fussanak, és a szerver indulása előtt történjenek.
-    let admins = []; // Deklaráció a scope-ban, hogy elérhető legyen a függvényen kívülről
+    let admins = []; // Deklaráció a scope-ban
     let projects = []; // Deklaráció a scope-ban
 
-    try {
-        const adminResult = await pool.query('SELECT * FROM users WHERE is_admin = TRUE');
-        admins = adminResult.rows;
-        console.log('Admins fetched:', admins.length);
-    } catch (err) {
-        console.error('Error fetching admins during startup:', err);
-        // Ezt is lehet process.exit(1)-gyel kezelni, ha kritikus a hiba
+    // ... (a startApplication függvény többi része, pl. adminok/projektek lekérése)
+
+    let currentPort = PORT; // Kezdő port
+    const MAX_PORT_RETRIES = 5; // Hány portot próbálunk ki maximum
+    let retries = 0;
+
+    // Port foglaltság ellenőrző függvény
+    function tryStartServer(port) {
+        return new Promise((resolve, reject) => {
+            const server = app.listen(port, () => {
+                console.log(`Szerver fut a http://localhost:${port} címen`);
+                console.log("Google Drive Service sikeresen inicializálva.");
+                resolve(server);
+            });
+
+            server.on('error', (error) => {
+                if (error.code === 'EADDRINUSE') {
+                    console.log(`Port ${port} már használatban van, próbálkozás a következő porttal...`);
+                    reject(new Error(`Port ${port} foglalt`));
+                } else {
+                    console.error("Szerver hiba:", error);
+                    reject(error);
+                }
+            });
+        });
     }
 
-    try {
-        const projectsResult = await pool.query('SELECT * FROM projects');
-        projects = projectsResult.rows;
-        console.log('Projects fetched:', projects.length);
-    } catch (err) {
-        console.error('Error fetching projects during startup:', err);
-        // Ezt is lehet process.exit(1)-gyel kezelni, ha kritikus a hiba
+    // Port próbálgatás ciklus
+    while (retries < MAX_PORT_RETRIES) {
+        try {
+            await tryStartServer(currentPort);
+            // Ha ide eljutunk, a szerver sikeresen elindult
+            return;
+        } catch (error) {
+            if (error.message.includes('foglalt')) {
+                currentPort++; // Növeljük a port számát
+                retries++;
+                console.log(`Próbálkozás a ${currentPort} porttal... (${retries}/${MAX_PORT_RETRIES})`);
+            } else {
+                // Más típusú hiba esetén azonnal kilépünk
+                console.error("Alkalmazás indítási hiba:", error);
+                process.exit(1);
+            }
+        }
     }
 
-    } catch (error) {
-    console.error("Kritikus hiba az alkalmazás indításakor (Google Cloud Services inicializálás vagy más):", error.message);
-    process.exit(1); // Kilépés, ha kritikus inicializálási hiba van
-  }
+    console.error(`Nem sikerült elindítani a szervert ${MAX_PORT_RETRIES} próbálkozás után.`);
+    console.error(`Próbált portok: ${PORT} - ${currentPort - 1}`);
+    process.exit(1);
 }
 
-// ************************************************************
-// HÍVD MEG A FŐ INDÍTÓ FÜGGVÉNYT!
-// ************************************************************
-startApplication();
+// Ez a blokk biztosítja, hogy a startApplication() csak akkor hívódjon meg,
+// ha a server.js a fő modul (azaz közvetlenül futtatják, nem importálják).
+// Ez megakadályozza a duplikált szerverindításokat nodemon esetén.
+if (require.main === module) {
+    startApplication(); // <-- EZ AZ EGYETLEN HELYES HÍVÁS!
+}
 
 // Express-session kezelés
 app.use(
@@ -193,44 +230,67 @@ app.post('/register', async (req, res) => {
 });
 
 // login
+
+// Login útvonal módosítása
 app.post(
-  '/login',
-  (req, res, next) => {
-    passport.authenticate('local', (err, user, info) => {
-      if (err) {
-        return next(err);
-      }
-      if (!user) {
-        return res.status(401).json({ message: 'A felhasználónév és jelszó páros nem megfelelő.' });
-      }
-      req.logIn(user, (err) => {
-        if (err) {
-          return next(err);
+        '/login',
+        (req, res, next) => {
+            passport.authenticate('local', (err, user, info) => {
+                if (err) {
+                    console.error('Backend (server.js): Passport authentication error:', err);
+                    return next(err);
+                }
+                if (!user) {
+                    console.log('Backend (server.js): Login failed: Invalid username or password.');
+                    // Fontos: Itt már JSON-t küldünk vissza, nem átirányítunk!
+                    return res.status(401).json({ message: 'A felhasználónév és jelszó páros nem megfelelő.' });
+                }
+                req.logIn(user, (err) => {
+                    if (err) {
+                        console.error('Backend (server.js): req.logIn error:', err);
+                        return next(err);
+                    }
+                    // Sikeres hitelesítés, folytatjuk a következő middleware-rel
+                    console.log('Backend (server.js): User successfully authenticated via Passport.');
+                    return next();
+                });
+            })(req, res, next);
+        },
+        async (req, res) => {
+            try {
+                const user = req.user; // A felhasználói adatokat a passport biztosítja
+
+                // Lekérdezzük a felhasználó is_admin státuszát az adatbázisból
+                const result = await pool.query('SELECT is_admin FROM users WHERE id = $1', [user.id]);
+                const isAdmin = result.rows[0] ? result.rows[0].is_admin : false;
+
+                // JWT token generálása
+                const token = jwt.sign(
+                    { id: user.id, username: user.username, isAdmin: isAdmin },
+                    process.env.JWT_SECRET || 'your_jwt_secret_key', // Használj erős, környezeti változóból jövő secretet!
+                    { expiresIn: '1h' } // A token érvényességi ideje
+                );
+
+                console.log(`Backend (server.js): Login successful for user: ${user.username}, isAdmin: ${isAdmin}. Token generated.`);
+
+                // Tokent és felhasználói adatokat küldünk JSON válaszként
+                res.json({
+                    message: 'Sikeres bejelentkezés!',
+                    token: token,
+                    user: {
+                        id: user.id,
+                        username: user.username,
+                        email: user.email, // Ha az email is elérhető a req.user-ből
+                        isAdmin: isAdmin
+                    }
+                });
+
+            } catch (error) {
+                console.error('Backend (server.js): Error during token generation or admin status check:', error);
+                res.status(500).json({ message: 'Hiba történt a bejelentkezés során.' });
+            }
         }
-        return next(); // Sikeres hitelesítés, folytatjuk a következő middleware-rel
-      });
-    })(req, res, next);
-  },
-  async (req, res) => {
-    try {
-      // A bejelentkezett felhasználó adatainak ellenőrzése
-      const user = req.user; // A felhasználói adatokat a passport biztosítja
-
-      // Ellenőrizzük, hogy admin-e a felhasználó az adatbázis alapján
-      const result = await pool.query('SELECT * FROM users WHERE id = $1', [user.id]);
-      const currentUser = result.rows[0];
-
-      if (currentUser.is_admin) {
-        res.redirect('/admin-dashboard'); // Adminokat az admin dashboardra irányítjuk
-      } else {
-        res.redirect('/dashboard'); // Normál felhasználók a sima dashboardra kerülnek
-      }
-    } catch (error) {
-      console.error('Error checking admin status:', error);
-      res.status(500).json({ message: 'Hiba történt a jogosultságok ellenőrzése során.' });
-    }
-  }
-);
+    );
 
 // Alapértelmezett útvonal (login oldal)
 app.get('/', (req, res, next) => {
@@ -252,29 +312,6 @@ app.get('/login', (req, res) => {
 app.get('/register', (req, res) => {
   res.render('register'); // register.ejs fájl renderelése
 });
-
-// Admin jogosultságok ellenőrzése
-async function isAdmin(req, res, next) {
-  if (req.isAuthenticated()) {
-    try {
-      // A bejelentkezett felhasználó adatainak ellenőrzése az adatbázisból
-      const result = await pool.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
-      const currentUser = result.rows[0];
-
-      // Ellenőrizzük, hogy admin-e a felhasználó
-      if (currentUser && currentUser.is_admin) {
-        return next();
-      } else {
-        return res.redirect('/login'); // Admin jogosultságok hiányában irány a login oldal
-      }
-    } catch (error) {
-      console.error('Error checking admin status:', error);
-      return res.redirect('/login'); // Hiba esetén irány a login oldal
-    }
-  } else {
-    return res.redirect('/login'); // Ha nincs bejelentkezve, irány a login oldal
-  }
-}
   
   // Dashboard oldal megjelenítése normál felhasználóknak
 app.get('/dashboard', (req, res) => {
@@ -761,22 +798,48 @@ app.post('/update-password', isAuthenticated, async (req, res) => {
 
 // Profil oldal megjelenítése
 app.get('/profile', isAuthenticated, async (req, res) => {
-  try {
-    // Lekérjük a felhasználói adatokat az adatbázisból
-    const result = await pool.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
-    const user = result.rows[0];
+    try {
+        // 1. Lekérjük a felhasználói adatokat az adatbázisból (Knex-szel)
+        const user = await knex('users').where({ id: req.user.id }).first();
 
-    if (!user) {
-      return res.status(404).render('error', { message: 'Felhasználó nem található.' });
+        if (!user) {
+            return res.status(404).render('error', { message: 'Felhasználó nem található.' });
+        }
+
+        // 2. Lekérjük a felhasználó saját időbejegyzéseit (time_entries)
+        // Csatlakozunk a 'projects' táblához, hogy lekérjük a projekt nevét is
+        const timeEntries = await knex('time_entries')
+            .leftJoin('projects', 'time_entries.project_id', 'projects.id') // LEFT JOIN, mert project_id lehet NULL
+            .where('time_entries.user_id', req.user.id)
+            .select(
+                'time_entries.id',
+                'time_entries.entry_date',
+                'time_entries.hours_worked',
+                'time_entries.entry_type',
+                'time_entries.notes',
+                'projects.name as project_name' // Lekérjük a projekt nevét
+            )
+            .orderBy('time_entries.entry_date', 'desc'); // Rendezés dátum szerint, legújabb elöl
+
+        // 3. Lekérjük a felhasználó saját beosztásait (appointments)
+        const appointments = await knex('appointments')
+            .where({ user_id: req.user.id })
+            .select('*')
+            .orderBy('start_time', 'asc'); // Rendezés kezdő idő szerint
+
+        // 4. Rendereljük a profile.ejs oldalt, és átadjuk az összes adatot
+        res.render('profile', {
+            user,
+            timeEntries,
+            appointments
+        });
+
+    } catch (err) {
+        console.error('Hiba a profil betöltésekor:', err);
+        res.status(500).send('Hiba történt a profil megjelenítésekor.');
     }
-
-    // Ha be van jelentkezve, rendereljük a profile.ejs oldalt, és átadjuk a felhasználói adatokat
-    res.render('profile', { user });
-  } catch (err) {
-    console.error('Hiba a profil betöltésekor:', err);
-    res.status(500).send('Hiba történt a profil megjelenítésekor.');
-  }
 });
+
 
 // Kijelentkezés
 app.get('/logout', (req, res) => {
@@ -1013,7 +1076,3 @@ app.get('/admin/users', isAdmin, async (req, res) => {
   }
 });
 
-// Szerver indítása
-app.listen(PORT, () => { // Itt használjuk a nagybetűs PORT változót
-    console.log(`Szerver fut a http://localhost:${PORT} címen`);
-});

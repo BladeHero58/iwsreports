@@ -1,35 +1,1744 @@
 <!DOCTYPE html>
 <html lang="hu">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Felhasználói Profil</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Felhasználói Profil</title>
 
-  <link rel="stylesheet" href="css/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" 1  href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet"> 
-    
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
+
+    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/main.min.css' rel='stylesheet' />
+
+    <link rel="stylesheet" href="/css/style.css"> 
+<link href="/css/main.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="/css/pages/schedule.css"> 
+
 </head>
 <body>
-  <h1>Üdvözöljük, <%= user.username %>!</h1>
-  <p>Email: <%= user.email %></p>
-  <p>Felhasználói név: <%= user.username %></p>
-  
-  <h2>Jelszó módosítása</h2>
-  <form action="/update-password" method="POST">
-    <label for="newPassword">Új jelszó:</label>
-    <input type="password" id="newPassword" name="newPassword" required>
-    
-    <label for="confirmPassword">Új jelszó megerősítése:</label>
-    <input type="password" id="confirmPassword" name="confirmPassword" required>
-    
-    <button type="submit">Jelszó módosítása</button>
-  </form>
-  
-  <form action="/dashboard" method="GET">
-    <button type="submit" class="logout-btn">Vissza az írányítópultra</button>
-</form>
+   <h1>Üdvözöljük, <%= user.username %>!</h1>
+<p>Email: <%= user.email %></p>
+<p>Felhasználói név: <%= user.username %></p>
 
+<hr>
+
+<h2>Óranyilvántartás</h2>
+
+<div id='calendar'></div>
+<div class="pdf-download-container">
+    <button id="downloadPdfButton" class="btn-big">PDF letöltése az aktuális hónapról</button>
+</div>
+<hr>
+
+<div class="container"> 
+    <div id="errorMessage" class="error-message hidden"></div>
+    <div id="successMessage" class="success-message hidden"></div>
+    
+    <main>
+        <h2>Beosztások</h2>
+        <div id="loadingSchedule" class="loading-spinner"></div>
+    
+        <div id="adminControls" class="admin-controls hidden">
+            <h3>Beosztási időszak kezelése</h3>
+            <div id="periodControls" class="period-controls hidden">
+                <div class="form-group">
+                    <label for="periodStartDate">Kezdő dátum:</label>
+                    <input type="date" id="periodStartDate" name="periodStartDate">
+                </div>
+                <div class="form-group">
+                    <label for="periodEndDate">Befejező dátum:</label>
+                    <input type="date" id="periodEndDate" name="periodEndDate">
+                </div>
+                <button type="button" id="savePeriodBtn" class="btn">Időszak Mentése</button>
+                <p id="periodLastUpdated" class="last-updated"></p>
+            </div>
+
+            <h4>Új Alkalmazott hozzáadása a beosztáshoz</h4>
+            <form id="addScheduleRowForm">
+                <div class="form-group">
+                    <label for="newRowEmployeeName">Alkalmazott neve:</label>
+                    <input type="text" id="newRowEmployeeName" name="employeeName" required>
+                </div>
+                <button type="submit" class="btn">Alkalmazott hozzáadása</button>
+                <button type="button" id="toggleWeekendColumns" class="btn">Hétvége oszlopok mutatása/elrejtése</button>
+            </form>
+        </div>
+        
+        <div class="schedule-table-container">
+            <div id="schedulePeriodDisplay" class="schedule-period-display hidden">
+                </div>
+            <table id="weeklyScheduleTable" class="hidden">
+                <thead>
+                    <tr>
+                        <th>Név</th>
+                        <th>Hétfő</th>
+                        <th>Kedd</th>
+                        <th>Szerda</th>
+                        <th>Csütörtök</th>
+                        <th>Péntek</th>
+                        <th class="weekend-column hidden">Szombat</th>
+                        <th class="weekend-column hidden">Vasárnap</th>
+                        <th id="actionsHeader" class="hidden">Műveletek</th>
+                    </tr>
+                </thead>
+                <tbody id="weeklyScheduleTableBody">
+                </tbody>
+            </table>
+        </div>
+    
+        <div class="notes-section">
+            <h3>Üzenet</h3>
+            <textarea id="notesContent" rows="10" placeholder="Ide írhatók fontos megjegyzések a beosztáshoz..."></textarea>
+            <div id="notesControls" class="hidden">
+                <button id="saveNotesBtn" class="btn">Megjegyzések mentése</button>
+            </div>
+        </div>
+    
+        <div id="messageContainer" class="message-container"></div>
+    </main>
+    
+</div> 
+<div id="timeEntryModal" class="modal">
+    <div class="modal-content">
+        <span class="close-button">&times;</span>
+        <h3 id="modalTitle">Időbejegyzés</h3>
+        <div id="modalMessage" class="message hidden"></div>
+        <form id="timeEntryForm">
+            <input type="hidden" id="entryId" name="id">
+            <label for="modalEntryDate">Dátum:</label>
+            <input type="date" id="modalEntryDate" name="entry_date" required>
+            
+            <div id="startTimeContainer" class="form-group hidden">
+                <label for="modalStartTime">Kezdés időpontja:</label>
+                <input type="datetime-local" id="modalStartTime" name="start_time">
+            </div>
+
+            <div id="endTimeContainer" class="form-group hidden">
+                <label for="modalEndTime">Befejezés időpontja:</label>
+                <input type="datetime-local" id="modalEndTime" name="end_time">
+            </div>
+
+            <label for="modalEntryType">Típus:</label>
+            <select id="modalEntryType" name="entry_type" required>
+                <option value="work">Munka</option>
+                <option value="leave">Szabadság</option>
+                <option value="sick_leave">Táppénz</option>
+                <option value="custom">Egyedi</option>
+            </select>
+
+            <div id="modalProjectSelection" class="hidden">
+                <label for="modalProjectId">Projekt:</label>
+                <select id="modalProjectId" name="project_id">
+                    <option value="">Válasszon projektet</option>
+                </select>
+            </div>
+
+            <label for="modalHoursWorked">Munkaórák (számított):</label>
+            <input type="number" id="modalHoursWorked" name="hours_worked" step="0.01" min="0" readonly value="0">
+
+            <label for="modalNotes">Megjegyzés:</label>
+            <textarea id="modalNotes" name="notes" rows="3"></textarea>
+
+            <button type="submit" id="saveEntryButton" class="btn">Mentés</button>
+            <button type="button" id="deleteEntryButton" class="logout-btn">Törlés</button>
+        </form>
+    </div>
+</div>
+
+    <div class="password-section-container">
+    <h3>Jelszó módosítása</h3>
+    <form action="/update-password" method="POST">
+        <label for="newPassword">Új jelszó:</label>
+        <input type="password" id="newPassword" name="newPassword" required>
+
+        <label for="confirmPassword">Új jelszó megerősítése:</label>
+        <input type="password" id="confirmPassword" name="confirmPassword" required>
+
+        <button type="submit" id="pwButton" class="btn">Jelszó módosítása</button>
+    </form>
+
+    <form action="/dashboard" method="GET">
+        <button type="submit" class="logout-btn">Vissza az irányítópultra</button>
+    </form>
+</div>
+
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js'></script>
+
+    <script>
+        // KÖZVETLEN ELLENŐRZÉS A SCRIPT BETÖLTŐDÉSEKOR
+        console.log('Frontend (profile.ejs - early check): localStorage "token" value:', localStorage.getItem('token') ? 'Token megtalálható (első 10 karakter): ' + localStorage.getItem('token').substring(0, 10) + '...' : 'Nincs token');
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const userId = <%= user.id %>; // A bejelentkezett felhasználó ID-je
+            console.log('Frontend (profile.ejs): DOMContentLoaded esemény elindult.');
+            console.log('Frontend (profile.ejs): Felhasználó ID:', userId);
+
+            const modal = document.getElementById('timeEntryModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalMessage = document.getElementById('modalMessage');
+            const closeButton = document.querySelector('#timeEntryModal .close-button');
+            const timeEntryForm = document.getElementById('timeEntryForm');
+            const entryIdInput = document.getElementById('entryId');
+            const modalEntryDateInput = document.getElementById('modalEntryDate');
+            const modalEntryTypeSelect = document.getElementById('modalEntryType');
+            const modalProjectSelectionDiv = document.getElementById('modalProjectSelection');
+            const modalProjectIdSelect = document.getElementById('modalProjectId');
+            const modalHoursWorkedInput = document.getElementById('modalHoursWorked');
+            const modalNotesTextarea = document.getElementById('modalNotes');
+            const saveEntryButton = document.getElementById('saveEntryButton');
+            const deleteEntryButton = document.getElementById('deleteEntryButton');
+            const startTimeContainer = document.getElementById('startTimeContainer');
+            const endTimeContainer = document.getElementById('endTimeContainer');
+            const modalStartTimeInput = document.getElementById('modalStartTime');
+            const modalEndTimeInput = document.getElementById('modalEndTime');
+
+            let allProjects = []; // Itt tároljuk a lekérdezett projekteket
+
+            // --- Segédfüggvények ---
+
+            function getToken() {
+                const token = localStorage.getItem('token');
+                console.log('Frontend (profile.ejs): getToken() hívás (DOMContentLoaded belül).');
+                if (token) {
+                    console.log('Frontend (profile.ejs): getToken() eredménye: Token megtalálható (első 10 karakter):', token.substring(0, 10) + '...');
+                } else {
+                    console.warn('Frontend (profile.ejs): getToken() eredménye: Nincs token a localStorage-ban.');
+                }
+                return token;
+            }
+
+            function showMessage(msg, type) {
+                modalMessage.textContent = msg;
+                modalMessage.className = `message ${type}`;
+                modalMessage.classList.remove('hidden');
+                console.log(`Frontend (profile.ejs): Üzenet megjelenítése (${type}): ${msg}`);
+                setTimeout(() => {
+                    modalMessage.classList.add('hidden');
+                }, 5000);
+            }
+
+            // Projektek lekérése és legördülő menü feltöltése
+            async function fetchProjects() {
+                console.log('Frontend (profile.ejs): fetchProjects() elindult.');
+                try {
+                    const token = getToken();
+                    if (!token) {
+                        console.warn('Frontend (profile.ejs): fetchProjects: Nincs token, projektek lekérése kihagyva.');
+                        return [];
+                    }
+                    console.log('Frontend (profile.ejs): Projektek lekérése a /api/time-entries/projects végpontról...');
+                    const response = await fetch('/api/time-entries/projects', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    console.log('Frontend (profile.ejs): Projektek válasz státusz:', response.status);
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error('Frontend (profile.ejs): HTTP hiba a projektek lekérésekor:', response.status, errorText);
+                        throw new Error(`HTTP hiba! Státusz: ${response.status}, Üzenet: ${errorText}`);
+                    }
+                    allProjects = await response.json();
+                    console.log('Frontend (profile.ejs): Sikeresen lekérdezett projektek:', allProjects);
+                    populateProjectDropdown(modalProjectIdSelect, allProjects);
+                    return allProjects;
+                } catch (error) {
+                    console.error('Frontend (profile.ejs): Hiba a projektek lekérésekor:', error);
+                    showMessage('Hiba a projektek betöltésekor.', 'error');
+                    return [];
+                }
+            }
+
+            function populateProjectDropdown(selectElement, projects) {
+                console.log('Frontend (profile.ejs): populateProjectDropdown() elindult, projektek:', projects);
+                selectElement.innerHTML = '<option value="">Válasszon projektet</option>';
+                if (projects && projects.length > 0) {
+                    projects.forEach(project => {
+                        const option = document.createElement('option');
+                        option.value = project.id;
+                        option.textContent = project.name;
+                        selectElement.appendChild(option);
+                    });
+                    console.log('Frontend (profile.ejs): Projekt legördülő feltöltve.');
+                } else {
+                    console.log('Frontend (profile.ejs): Nincs projekt a feltöltéshez.');
+                }
+            }
+
+            // ÚJ: Kiszámolja az óraszámot a kezdő és befejező időpont alapján, figyelembe véve a fél óra ebédszünetet
+            function calculateHoursWorked() {
+                const startStr = modalStartTimeInput.value;
+                const endStr = modalEndTimeInput.value;
+
+                if (!startStr || !endStr) {
+                    modalHoursWorkedInput.value = 0;
+                    return;
+                }
+
+                const startDate = new Date(startStr);
+                const endDate = new Date(endStr);
+
+                if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+                    modalHoursWorkedInput.value = 0;
+                    return;
+                }
+
+                let diffMillis = endDate.getTime() - startDate.getTime();
+                let hours = diffMillis / (1000 * 60 * 60);
+
+                // Fizetetlen ebédszünet levonása: fél óra (0.5 óra)
+                if (hours > 0) {
+                    hours -= 0.5; 
+                }
+                
+                // Győződjünk meg róla, hogy az óraszám nem negatív
+                if (hours < 0) {
+                    hours = 0;
+                }
+
+                modalHoursWorkedInput.value = hours.toFixed(2); // Két tizedesjegyre kerekítve
+            }
+
+// Javított fetchTimeEntriesForCalendar függvény
+async function fetchTimeEntriesForCalendar(fetchInfo, successCallback, failureCallback) {
+    console.log('Frontend (profile.ejs): fetchTimeEntriesForCalendar() elindult.');
+    try {
+        const token = getToken();
+        if (!token) {
+            console.warn('Frontend (profile.ejs): fetchTimeEntriesForCalendar: Nincs token, időbejegyzések lekérése kihagyva a naptárhoz.');
+            failureCallback('Nincs hitelesítve.');
+            return;
+        }
+
+        console.log('Frontend (profile.ejs): Időbejegyzések lekérése a /api/time-entries végpontról...');
+        const response = await fetch('/api/time-entries', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        console.log('Frontend (profile.ejs): Időbejegyzések válasz státusz:', response.status);
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Frontend (profile.ejs): HTTP hiba az időbejegyzések lekérésekor:', response.status, errorText);
+            throw new Error(`HTTP hiba! Státusz: ${response.status}, Üzenet: ${errorText}`);
+        }
+        const data = await response.json();
+        console.log('Frontend (profile.ejs): Sikeresen lekérdezett időbejegyzések:', data);
+
+        // Átalakítjuk az adatokat FullCalendar esemény formátumba
+        const events = data.map(entry => {
+            const project = allProjects.find(p => String(p.id) === String(entry.project_id));
+            let title = '';
+            let color = '#3788d8'; // Alapértelmezett kék (ha valami nem illeszkedik)
+            let textColor = '#ffffff'; // Alapértelmezett szövegszín a sávokon
+
+            // Mivel minden bejegyzés sávként kell, hogy megjelenjen,
+            // mindegyiket "egész napos"-nak vesszük a naptár szempontjából.
+            const isAllDayEvent = true; 
+            const eventStart = entry.entry_date; // Csak a dátum (YYYY-MM-DD)
+            const eventEnd = null; // Egész napos eseménynél nincs szükség end időre
+
+            // Bejegyzés típusának fordítása és szín beállítása
+            if (entry.entry_type === 'leave') {
+                title = 'Szabadság';
+                color = '#ffc107'; // Sárga
+                textColor = '#333333'; // Fekete szöveg a sárgán
+            } else if (entry.entry_type === 'sick_leave') {
+                title = 'Táppénz';
+                color = '#dc3545'; // Piros
+                textColor = '#ffffff'; // Fehér szöveg a piroson
+            } else if (entry.entry_type === 'work') {
+                // Munka bejegyzés is egész napos sávként jelenik meg
+                title = project ? project.name : 'Munka'; // Csak a projekt neve
+                color = '#007bff'; // Világoskék a munkához
+                textColor = '#ffffff'; // Fehér szöveg
+            } else if (entry.entry_type === 'custom') {
+                title = entry.notes || 'Egyedi bejegyzés'; // Megjegyzés vagy 'Egyedi bejegyzés'
+                color = '#6f42c1'; // Lila
+                textColor = '#ffffff'; // Fehér szöveg
+            } else {
+                // Alapértelmezés (ha van más típus, vagy nem illeszkedik)
+                title = entry.notes || entry.entry_type;
+                color = '#3788d8'; 
+                textColor = '#ffffff';
+            }
+
+            console.log(`Debug - Entry ID: ${entry.id}, Típus: ${entry.entry_type}, Cím: ${title}, Szín: ${color}`);
+
+            return {
+                id: entry.id,
+                title: title,
+                start: eventStart,
+                end: eventEnd,
+                allDay: isAllDayEvent,
+                // A 'display' tulajdonságot elhagyjuk, vagy 'block'-ra állítjuk.
+                // Ha allDay: true, a FullCalendar alapértelmezetten "block" display-t fog használni
+                // a dayGrid nézetben, ami sávokat eredményez.
+                // display: 'block', // Ezt lehet expliciten is megadni, de allDay: true mellett nem feltétlenül szükséges.
+                color: color,
+                textColor: textColor,
+                extendedProps: {
+                    userId: entry.user_id,
+                    entryType: entry.entry_type,
+                    projectId: entry.project_id,
+                    hoursWorked: entry.hours_worked,
+                    notes: entry.notes,
+                    actualStartTime: entry.start_time, 
+                    actualEndTime: entry.end_time,
+                    originalProjectName: project ? project.name : (entry.project_name || null)
+                }
+            };
+        });
+        console.log('Frontend (profile.ejs): FullCalendar események generálva:', events);
+        successCallback(events);
+    } catch (error) {
+        console.error('Frontend (profile.ejs): Hiba az időbejegyzések lekérésekor a naptárhoz:', error);
+        showMessage('Hiba az időbejegyzések betöltésekor a naptárba.', 'error');
+        failureCallback(error);
+    }
+}
+
+            // --- Modal kezelés ---
+
+            function showModal(mode, event = null, date = null) {
+                modal.classList.add('show');
+                modalMessage.classList.add('hidden'); // Rejtjük az előző üzenetet
+
+                if (mode === 'add') {
+                    modalTitle.textContent = 'Új időbejegyzés rögzítése';
+                    timeEntryForm.reset();
+                    entryIdInput.value = '';
+                    
+                    if (date) {
+                        const year = date.getFullYear();
+                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                        const day = String(date.getDate()).padStart(2, '0');
+                        modalEntryDateInput.value = `${year}-${month}-${day}`;
+
+                        // Alapértelmezett kezdő és befejező időpontok új bejegyzéshez
+                        modalStartTimeInput.value = `${year}-${month}-${day}T07:00`; // Pl. 7:00
+                        modalEndTimeInput.value = `${year}-${month}-${day}T15:30`; // Pl. 15:30
+                        console.log(`Frontend (profile.ejs): Dátum és idő beállítva: ${modalEntryDateInput.value} ${modalStartTimeInput.value}-${modalEndTimeInput.value}`);
+                    } else {
+                        modalEntryDateInput.value = '';
+                        modalStartTimeInput.value = '';
+                        modalEndTimeInput.value = '';
+                    }
+                    
+                    modalEntryTypeSelect.value = 'work';
+                    // Az óraszámot a calculateHoursWorked fogja beállítani
+                    
+                    toggleProjectAndHoursFields('work'); // Ez hívja meg a calculateHoursWorked()-et is
+                    deleteEntryButton.classList.add('hidden');
+                } else if (mode === 'edit') {
+                    modalTitle.textContent = 'Időbejegyzés szerkesztése';
+                    entryIdInput.value = event.id;
+                    
+                    if (event.start) {
+                        const eventDate = new Date(event.start);
+                        const year = eventDate.getFullYear();
+                        const month = String(eventDate.getMonth() + 1).padStart(2, '0');
+                        const day = String(eventDate.getDate()).padStart(2, '0');
+                        modalEntryDateInput.value = `${year}-${month}-${day}`;
+                    } else {
+                        modalEntryDateInput.value = '';
+                    }
+                    
+                    // Kezdő és befejező időpontok betöltése szerkesztésnél
+                    // Ellenőrizzük, hogy léteznek-e az extendedProps-ban, és formázzuk őket
+                    modalStartTimeInput.value = event.extendedProps.actualStartTime ? new Date(event.extendedProps.actualStartTime).toISOString().slice(0, 16) : '';
+                    modalEndTimeInput.value = event.extendedProps.actualEndTime ? new Date(event.extendedProps.actualEndTime).toISOString().slice(0, 16) : '';
+                    
+                    modalEntryTypeSelect.value = event.extendedProps.entryType || 'work';
+                    modalNotesTextarea.value = event.extendedProps.notes || '';
+
+                    toggleProjectAndHoursFields(modalEntryTypeSelect.value, event.extendedProps.projectId);
+                    deleteEntryButton.classList.remove('hidden');
+
+                    // Hívjuk meg az óraszám számítását, miután betöltöttük az időpontokat
+                    calculateHoursWorked();
+                }
+            }
+
+            function hideModal() {
+                modal.classList.remove('show');
+                console.log('Frontend (profile.ejs): Modal elrejtve.');
+            }
+
+            closeButton.addEventListener('click', hideModal);
+            window.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    hideModal();
+                }
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    hideModal();
+                }
+            });
+
+            // Törlés gomb eseménykezelő hozzáadása
+            deleteEntryButton.addEventListener('click', async (e) => {
+                e.preventDefault();
+                console.log('Frontend (profile.ejs): Törlés gomb megnyomva.');
+                
+                const entryId = entryIdInput.value;
+                if (!entryId) {
+                    console.log('Frontend (profile.ejs): Nincs entry ID a törléshez.');
+                    showMessage('Nincs kiválasztott bejegyzés a törléshez.', 'error');
+                    return;
+                }
+
+                if (!confirm('Biztosan törölni szeretné ezt az időbejegyzést?')) {
+                    console.log('Frontend (profile.ejs): Törlés megszakítva a felhasználó által.');
+                    return;
+                }
+
+                const token = getToken();
+                if (!token) {
+                    console.log('Frontend (profile.ejs): Nincs token, törlés megszakítva.');
+                    showMessage('Nincs hitelesítve. Kérjük, jelentkezzen be.', 'error');
+                    return;
+                }
+
+                console.log(`Frontend (profile.ejs): Törlés küldése: Entry ID: ${entryId}`);
+
+                try {
+                    const response = await fetch(`/api/time-entries/${entryId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    const result = await response.json();
+                    console.log('Frontend (profile.ejs): Törlés backend válasz:', result);
+                    
+                    if (response.ok) {
+                        showMessage(result.message || 'Időbejegyzés sikeresen törölve!', 'success');
+                        calendar.refetchEvents(); // Naptár frissítése
+                        hideModal();
+                    } else {
+                        showMessage(result.message || 'Hiba a törlés során.', 'error');
+                    }
+                } catch (error) {
+                    console.error('Frontend (profile.ejs): Hiba a törlés hálózati kérés során:', error);
+                    showMessage('Hiba történt a törlés hálózati kérése során.', 'error');
+                }
+            });
+
+            // --- Óraszám és Projekt mezők kezelése a típus alapján ---
+            function toggleProjectAndHoursFields(entryType, projectId = null) {
+                if (entryType === 'work') {
+                    modalProjectSelectionDiv.classList.remove('hidden');
+                    modalProjectIdSelect.setAttribute('required', 'required');
+                    
+                    startTimeContainer.classList.remove('hidden');
+                    endTimeContainer.classList.remove('hidden');
+                    modalStartTimeInput.setAttribute('required', 'required');
+                    modalEndTimeInput.setAttribute('required', 'required');
+                    
+                    modalHoursWorkedInput.removeAttribute('disabled'); // Engedélyezzük, de readonly
+                    modalHoursWorkedInput.removeAttribute('required'); // Nem a felhasználó tölti ki
+                } else {
+                    modalProjectSelectionDiv.classList.add('hidden');
+                    modalProjectIdSelect.removeAttribute('required');
+                    modalProjectIdSelect.value = '';
+
+                    startTimeContainer.classList.add('hidden');
+                    endTimeContainer.classList.add('hidden');
+                    modalStartTimeInput.removeAttribute('required');
+                    modalEndTimeInput.removeAttribute('required');
+                    modalStartTimeInput.value = ''; // Töröljük az értéket
+                    modalEndTimeInput.value = '';   // Töröljük az értéket
+
+                    // Nem munka típus esetén az óraszám mindig 8 legyen, és letiltva
+                    modalHoursWorkedInput.value = 8;
+                    modalHoursWorkedInput.setAttribute('disabled', 'true');
+                }
+
+                if (projectId !== null) {
+                    modalProjectIdSelect.value = projectId;
+                }
+                
+                // Mindig futtassuk az óraszám számítását, ha munka típusról van szó, vagy állítsuk alapértékre
+                calculateHoursWorked();
+            }
+
+            // Eseménykezelők a modal űrlaphoz ---
+            modalEntryTypeSelect.addEventListener('change', (e) => {
+                console.log('Frontend (profile.ejs): Típus változott:', e.target.value);
+                toggleProjectAndHoursFields(e.target.value);
+            });
+
+            // ÚJ: Eseményfigyelők a kezdő és befejező idő mezőkhöz
+            modalStartTimeInput.addEventListener('change', calculateHoursWorked);
+            modalEndTimeInput.addEventListener('change', calculateHoursWorked);
+
+            timeEntryForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                console.log('Frontend (profile.ejs): Űrlap elküldve.');
+
+                const formData = new FormData(timeEntryForm);
+                const data = Object.fromEntries(formData.entries());
+                console.log('Frontend (profile.ejs): RAW űrlap adatok:', data);
+
+                const entryId = data.id; // Kinyerjük az ID-t a FormData-ból
+                const method = entryId ? 'PUT' : 'POST';
+                const url = entryId ? `/api/time-entries/${entryId}` : '/api/time-entries';
+
+                // Az hours_worked értékét a calculateHoursWorked állítja be
+                // Ha nem munka típus, akkor a toggleProjectAndHoursFields állítja 8-ra és disable-eli
+                // Így a data.hours_worked már helyes lesz
+                data.hours_worked = parseFloat(modalHoursWorkedInput.value); // Biztos, ami biztos
+
+                // start_time és end_time csak akkor menjen el, ha munka típusú és láthatóak a mezők
+                if (data.entry_type === 'work' && !startTimeContainer.classList.contains('hidden')) {
+                    // Az input mező már YYYY-MM-DDTHH:mm formátumot ad, ez megfelelő
+                    data.start_time = modalStartTimeInput.value;
+                    data.end_time = modalEndTimeInput.value;
+                } else {
+                    // Nem munka típusnál vagy ha rejtettek a mezők, ne küldjünk start/end időt
+                    // Vagy küldjünk null-t, ha a backend ezt várja
+                    data.start_time = null;
+                    data.end_time = null;
+                }
+
+                // Töröljük a project_id-t, ha nem munka típus
+                if (data.entry_type !== 'work') {
+                    delete data.project_id;
+                }
+                // Ha munka típus, de nincs projekt kiválasztva
+                if (data.entry_type === 'work' && !data.project_id) {
+                    showMessage('Kérjük, válasszon projektet munka típus esetén.', 'error');
+                    return;
+                }
+
+
+                const token = getToken();
+                if (!token) {
+                    showMessage('Nincs hitelesítve. Kérjük, jelentkezzen be.', 'error');
+                    return;
+                }
+
+                try {
+                    console.log(`Frontend (profile.ejs): Küldés: ${method} ${url} - Adatok:`, data);
+                    const response = await fetch(url, {
+                        method: method,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify(data)
+                    });
+
+                    const result = await response.json();
+                    console.log('Frontend (profile.ejs): Backend válasz:', result);
+
+                    if (response.ok) {
+                        showMessage(result.message || 'Időbejegyzés sikeresen mentve!', 'success');
+                        calendar.refetchEvents(); // Naptár frissítése
+                        hideModal();
+                    } else {
+                        showMessage(result.message || 'Hiba történt a mentés során.', 'error');
+                    }
+                } catch (error) {
+                    console.error('Frontend (profile.ejs): Hiba a hálózati kérés során:', error);
+                    showMessage('Hiba történt a hálózati kérés során.', 'error');
+                }
+            });
+
+            // --- FullCalendar inicializálás ---
+            var calendarEl = document.getElementById('calendar');
+            var calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth', // Alapértelmezett hónap nézet
+                locale: 'hu', // Magyar nyelv beállítása
+                weekends: true, // Hétvégék megjelenítése
+                editable: true, // Lehetővé teszi az események húzását és átméretezését
+                selectable: true, // Lehetővé teszi a dátumok kijelölését
+                dayMaxEvents: true, // Több esemény esetén "további" link
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    // ÚJ: Időalapú nézetek hozzáadása
+                    right: 'dayGridMonth,timeGridWeek,timeGridDay' 
+                },
+                // Dinamikusan tölti be az eseményeket
+                events: fetchTimeEntriesForCalendar, 
+                
+                // Eseményre kattintás kezelése (szerkesztés)
+                eventClick: function(info) {
+                    console.log('Frontend (profile.ejs): Eseményre kattintva:', info.event);
+                    showModal('edit', info.event);
+                },
+                // Dátumra kattintás kezelése (új bejegyzés)
+                dateClick: function(info) {
+                    console.log('Frontend (profile.ejs): Dátumra kattintva:', info.dateStr);
+                    showModal('add', null, info.date);
+                },
+                // Esemény áthúzásának kezelése (dátum módosítás)
+                eventDrop: async function(info) {
+                    console.log('Frontend (profile.ejs): Esemény áthúzva:', info.event);
+                    const token = getToken();
+                    if (!token) {
+                        showMessage('Nincs hitelesítve. Kérjük, jelentkezzen be.', 'error');
+                        info.revert(); // Visszaállítja az eseményt az eredeti helyére
+                        return;
+                    }
+
+                    const newDate = info.event.start.toISOString().slice(0, 10); // Csak a dátum
+                    let newStartTime = info.event.extendedProps.actualStartTime;
+                    let newEndTime = info.event.extendedProps.actualEndTime;
+
+                    // Ha az esemény munka típusú és idővel rendelkezik, frissítsük az időpontokat is
+                    if (info.event.extendedProps.entryType === 'work' && info.event.start) {
+                        const originalStartDate = new Date(info.event.extendedProps.actualStartTime);
+                        const originalEndDate = new Date(info.event.extendedProps.actualEndTime);
+
+                        // Kiszámoljuk az időtartamot (különbséget) órában
+                        const diffHours = (originalEndDate.getTime() - originalStartDate.getTime()) / (1000 * 60 * 60);
+
+                        // Új kezdő időpont (az új dátum és az eredeti idő alapján)
+                        const newStart = new Date(newDate + 'T' + originalStartDate.toTimeString().slice(0, 8));
+                        const newEnd = new Date(newStart.getTime() + diffHours * 60 * 60 * 1000); // Új befejező időpont
+
+                        newStartTime = newStart.toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm
+                        newEndTime = newEnd.toISOString().slice(0, 16);     // YYYY-MM-DDTHH:mm
+                    }
+
+
+                    const dataToUpdate = {
+                        entry_date: newDate,
+                        entry_type: info.event.extendedProps.entryType,
+                        project_id: info.event.extendedProps.projectId,
+                        hours_worked: info.event.extendedProps.hoursWorked,
+                        notes: info.event.extendedProps.notes,
+                        start_time: newStartTime, // Küldjük el a frissített időpontokat
+                        end_time: newEndTime
+                    };
+                    
+                    try {
+                        const response = await fetch(`/api/time-entries/${info.event.id}`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify(dataToUpdate)
+                        });
+
+                        const result = await response.json();
+                        if (!response.ok) {
+                            showMessage(result.message || 'Hiba az időbejegyzés frissítése során.', 'error');
+                            info.revert(); // Visszaállítja az eseményt
+                        } else {
+                            showMessage(result.message || 'Időbejegyzés sikeresen frissítve!', 'success');
+                            // A naptár automatikusan frissül, ha nem volt revert
+                            // Frissítjük az extendedProps-ot is, hogy a showModal() helyesen működjön legközelebb
+                            info.event.setExtendedProp('entry_date', newDate);
+                            info.event.setExtendedProp('actualStartTime', newStartTime);
+                            info.event.setExtendedProp('actualEndTime', newEndTime);
+                        }
+                    } catch (error) {
+                        console.error('Frontend (profile.ejs): Hiba az áthúzásos frissítés hálózati kérés során:', error);
+                        showMessage('Hiba történt az időbejegyzés áthelyezésekor.', 'error');
+                        info.revert(); // Visszaállítja az eseményt
+                    }
+                },
+                 // Esemény átméretezésének kezelése
+                eventResize: async function(info) {
+                    console.log('Frontend (profile.ejs): Esemény átméretezve:', info.event);
+                    const token = getToken();
+                    if (!token) {
+                        showMessage('Nincs hitelesítve. Kérjük, jelentkezzen be.', 'error');
+                        info.revert();
+                        return;
+                    }
+
+                    const newStartTime = info.event.start ? info.event.start.toISOString().slice(0, 16) : null;
+                    const newEndTime = info.event.end ? info.event.end.toISOString().slice(0, 16) : null;
+
+                    // Új óraszám kiszámítása az átméretezett időpontok alapján
+                    let newHoursWorked = 0;
+                    if (newStartTime && newEndTime) {
+                        const start = new Date(newStartTime);
+                        const end = new Date(newEndTime);
+                        let diffMillis = end.getTime() - start.getTime();
+                        newHoursWorked = diffMillis / (1000 * 60 * 60);
+                        
+                        // Levonjuk az ebédszünetet, ha munka típus
+                        if (info.event.extendedProps.entryType === 'work' && newHoursWorked > 0) {
+                            newHoursWorked -= 0.5;
+                        }
+                        if (newHoursWorked < 0) newHoursWorked = 0;
+                    } else if (info.event.extendedProps.entryType !== 'work') {
+                        // Ha egész napos és nem munka, marad 8 óra
+                        newHoursWorked = 8; 
+                    }
+
+
+                    const dataToUpdate = {
+                        entry_date: info.event.start.toISOString().slice(0, 10), // A dátum, nem az idő
+                        entry_type: info.event.extendedProps.entryType,
+                        project_id: info.event.extendedProps.projectId,
+                        hours_worked: newHoursWorked.toFixed(2), // Frissített óraszám
+                        notes: info.event.extendedProps.notes,
+                        start_time: newStartTime, // Frissített start_time
+                        end_time: newEndTime      // Frissített end_time
+                    };
+
+                    try {
+                        const response = await fetch(`/api/time-entries/${info.event.id}`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify(dataToUpdate)
+                        });
+
+                        const result = await response.json();
+                        if (!response.ok) {
+                            showMessage(result.message || 'Hiba az időbejegyzés átméretezése során.', 'error');
+                            info.revert();
+                        } else {
+                            showMessage(result.message || 'Időbejegyzés sikeresen frissítve!', 'success');
+                            // Frissítjük az extendedProps-ot is
+                            info.event.setExtendedProp('hoursWorked', newHoursWorked.toFixed(2));
+                            info.event.setExtendedProp('actualStartTime', newStartTime);
+                            info.event.setExtendedProp('actualEndTime', newEndTime);
+
+                             // Frissítsük az esemény címét is a módosított órákkal és időpontokkal
+                            let updatedTitle = '';
+                            const project = allProjects.find(p => String(p.id) === String(info.event.extendedProps.projectId));
+                            const projectName = project ? project.name : (info.event.extendedProps.originalProjectName || 'Ismeretlen Projekt');
+
+                            if (info.event.extendedProps.entryType === 'work' && newStartTime && newEndTime) {
+                                const startDisplay = new Date(newStartTime).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
+                                const endDisplay = new Date(newEndTime).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
+                                updatedTitle = `${startDisplay}-${endDisplay} ${newHoursWorked.toFixed(2)} óra - ${projectName}`;
+                            } else {
+                                updatedTitle = `${newHoursWorked.toFixed(2)} óra - ${info.event.extendedProps.notes || info.event.extendedProps.entryType}`;
+                            }
+                            info.event.setProp('title', updatedTitle);
+
+                        }
+                    } catch (error) {
+                        console.error('Frontend (profile.ejs): Hiba az átméretezés hálózati kérés során:', error);
+                        showMessage('Hiba történt az időbejegyzés átméretezésekor.', 'error');
+                        info.revert();
+                    }
+                }
+            });
+            calendar.render();
+
+            // Projektek betöltése, majd naptár események frissítése
+            await fetchProjects();
+            calendar.refetchEvents(); // Kezdeti események betöltése a naptárba
+
+            // A beosztás részhez tartozó JavaScript (ez marad változatlan)
+            const adminControls = document.getElementById('adminControls');
+            const scheduleTable = document.getElementById('scheduleTable');
+            const scheduleTableBody = document.getElementById('scheduleTableBody');
+            const loadingSchedule = document.getElementById('loadingSchedule');
+            const errorMessage = document.getElementById('errorMessage');
+            const successMessage = document.getElementById('successMessage');
+            const addScheduleForm = document.getElementById('addScheduleForm');
+            const actionsHeader = document.getElementById('actionsHeader');
+
+            const notesContent = document.getElementById('notesContent');
+            const saveNotesBtn = document.getElementById('saveNotesBtn');
+            const loadingNotes = document.getElementById('loadingNotes');
+            const notesContainer = document.getElementById('notesContainer');
+            const notesControls = document.getElementById('notesControls');
+
+            // Admin jogosultság ellenőrzése
+            const checkAdminStatus = async () => {
+                const token = getToken();
+                if (!token) {
+                    console.warn('Frontend (profile.ejs): checkAdminStatus: Nincs token, admin státusz ellenőrzése kihagyva.');
+                    return false;
+                }
+                try {
+                    const response = await fetch('/api/user/isAdmin', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (!response.ok) {
+                        console.error('Frontend (profile.ejs): Hiba az admin státusz lekérésekor:', response.status);
+                        return false;
+                    }
+                    const data = await response.json();
+                    if (data.isAdmin) {
+                        adminControls.classList.remove('hidden');
+                        actionsHeader.classList.remove('hidden');
+                        notesControls.classList.remove('hidden'); // Admin láthatja a mentés gombot
+                        notesContent.removeAttribute('readonly'); // Admin szerkesztheti a jegyzeteket
+                        return true;
+                    }
+                    notesContent.setAttribute('readonly', 'true'); // Nem admin nem szerkesztheti
+                    return false;
+                } catch (error) {
+                    console.error('Frontend (profile.ejs): Hiba az admin státusz ellenőrzésekor:', error);
+                    return false;
+                }
+            };
+
+            // Üzenetek megjelenítése
+            const displayMessage = (message, type) => {
+                const msgElement = type === 'success' ? successMessage : errorMessage;
+                msgElement.textContent = message;
+                msgElement.style.display = 'block';
+                setTimeout(() => {
+                    msgElement.style.display = 'none';
+                }, 5000);
+            };
+
+            // Beosztások lekérése
+            const fetchSchedules = async () => {
+                loadingSchedule.classList.remove('hidden');
+                scheduleTable.classList.add('hidden');
+                try {
+                    const token = getToken();
+                    if (!token) {
+                        displayMessage('Nincs hitelesítve. Kérjük, jelentkezzen be.', 'error');
+                        loadingSchedule.classList.add('hidden');
+                        return;
+                    }
+                    const response = await fetch('/api/schedules', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Hiba a beosztások betöltésekor.');
+                    }
+                    const schedules = await response.json();
+                    renderSchedules(schedules);
+                } catch (error) {
+                    console.error('Frontend (profile.ejs): Hiba a beosztások lekérésekor:', error);
+                    displayMessage(error.message, 'error');
+                } finally {
+                    loadingSchedule.classList.add('hidden');
+                    scheduleTable.classList.remove('hidden');
+                }
+            };
+
+            // Beosztások renderelése
+            const renderSchedules = (schedules) => {
+                scheduleTableBody.innerHTML = '';
+                const isAdmin = adminControls.classList.contains('hidden') ? false : true; // Ellenőrizzük, hogy az admin kontrollok láthatóak-e
+                schedules.forEach(schedule => {
+                    const row = scheduleTableBody.insertRow();
+                    row.dataset.id = schedule.id;
+                    
+                    const formatDateTime = (isoString) => {
+                        if (!isoString) return '';
+                        const date = new Date(isoString);
+                        return date.toLocaleString('hu-HU', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        });
+                    };
+
+                    row.insertCell().textContent = formatDateTime(schedule.start_time);
+                    row.insertCell().textContent = formatDateTime(schedule.end_time);
+                    row.insertCell().textContent = schedule.location || '';
+                    row.insertCell().textContent = schedule.description || '';
+
+                    if (isAdmin) {
+                        const actionsCell = row.insertCell();
+                        actionsCell.classList.add('action-buttons');
+                        const editBtn = document.createElement('button');
+                        editBtn.textContent = 'Szerkesztés';
+                        editBtn.onclick = () => enableRowEditing(row, schedule);
+                        actionsCell.appendChild(editBtn);
+
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.textContent = 'Törlés';
+                        deleteBtn.classList.add('delete-btn');
+                        deleteBtn.onclick = () => deleteSchedule(schedule.id);
+                        actionsCell.appendChild(deleteBtn);
+                    }
+                });
+            };
+
+            // Sor szerkesztés engedélyezése
+            const enableRowEditing = (row, originalSchedule) => {
+                if (row.classList.contains('editing')) return; // Már szerkesztési módban van
+
+                const isAdmin = adminControls.classList.contains('hidden') ? false : true;
+                if (!isAdmin) return; // Csak admin szerkesztheti
+
+                row.classList.add('editing');
+
+                const cells = Array.from(row.cells);
+                // startTime, endTime, location, description
+                const editableFields = ['start_time', 'end_time', 'location', 'description'];
+
+                cells.slice(0, editableFields.length).forEach((cell, index) => {
+                    const fieldName = editableFields[index];
+                    const originalValue = originalSchedule[fieldName] || '';
+                    let inputElement;
+
+                    if (fieldName === 'start_time' || fieldName === 'end_time') {
+                        inputElement = document.createElement('input');
+                        inputElement.type = 'datetime-local';
+                        // A dátum és idő konvertálása YYYY-MM-DDTHH:MM formátumba
+                        if (originalValue) {
+                            const date = new Date(originalValue);
+                            inputElement.value = date.toISOString().slice(0, 16);
+                        }
+                    } else if (fieldName === 'description') {
+                        inputElement = document.createElement('textarea');
+                        inputElement.value = originalValue;
+                    } else {
+                        inputElement = document.createElement('input');
+                        inputElement.type = 'text';
+                        inputElement.value = originalValue;
+                    }
+
+                    cell.innerHTML = '';
+                    cell.appendChild(inputElement);
+                });
+
+                const actionsCell = cells[cells.length - 1]; // Utolsó cella, a műveletek
+                actionsCell.innerHTML = ''; // Töröljük a régi gombokat
+
+                const saveBtn = document.createElement('button');
+                saveBtn.textContent = 'Mentés';
+                saveBtn.onclick = () => saveSchedule(row, originalSchedule.id);
+                actionsCell.appendChild(saveBtn);
+
+                const cancelBtn = document.createElement('button');
+                cancelBtn.textContent = 'Mégse';
+                cancelBtn.classList.add('btn-danger');
+                cancelBtn.onclick = () => {
+                    row.classList.remove('editing');
+                    renderSchedules([originalSchedule]); // Rendereljük újra csak ezt a sort
+                    fetchSchedules(); // Frissítsük az egész táblát, hogy biztosan helyes legyen
+                };
+                actionsCell.appendChild(cancelBtn);
+            };
+
+            // Sor mentése
+            const saveSchedule = async (row, scheduleId) => {
+                const cells = Array.from(row.cells);
+                const updatedData = {
+                    id: scheduleId,
+                    start_time: cells[0].querySelector('input').value,
+                    end_time: cells[1].querySelector('input').value,
+                    location: cells[2].querySelector('input').value,
+                    description: cells[3].querySelector('textarea') ? cells[3].querySelector('textarea').value : cells[3].querySelector('input').value
+                };
+
+                const token = getToken();
+                if (!token) {
+                    displayMessage('Nincs hitelesítve. Kérjük, jelentkezzen be.', 'error');
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/schedules/${scheduleId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify(updatedData)
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Hiba a beosztás frissítésekor.');
+                    }
+                    displayMessage('Beosztás sikeresen frissítve!', 'success');
+                    row.classList.remove('editing');
+                    fetchSchedules(); // Frissítsük a táblázatot
+                } catch (error) {
+                    console.error('Frontend (profile.ejs): Hiba a beosztás mentésekor:', error);
+                    displayMessage(error.message, 'error');
+                }
+            };
+
+            // Beosztás törlése
+            const deleteSchedule = async (scheduleId) => {
+                if (!confirm('Biztosan törölni szeretné ezt a beosztást?')) {
+                    return;
+                }
+                const token = getToken();
+                if (!token) {
+                    displayMessage('Nincs hitelesítve. Kérjük, jelentkezzen be.', 'error');
+                    return;
+                }
+                try {
+                    const response = await fetch(`/api/schedules/${scheduleId}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Hiba a beosztás törlésekor.');
+                    }
+                    displayMessage('Beosztás sikeresen törölve!', 'success');
+                    fetchSchedules(); // Frissítsük a táblázatot
+                } catch (error) {
+                    console.error('Frontend (profile.ejs): Hiba a beosztás törlésekor:', error);
+                    displayMessage(error.message, 'error');
+                }
+            };
+
+            // Új beosztás hozzáadása űrlap kezelése
+            addScheduleForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const formData = new FormData(addScheduleForm);
+                const data = Object.fromEntries(formData.entries());
+
+                const token = getToken();
+                if (!token) {
+                    displayMessage('Nincs hitelesítve. Kérjük, jelentkezzen be.', 'error');
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/api/schedules', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify(data)
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Hiba az új beosztás hozzáadásakor.');
+                    }
+                    displayMessage('Beosztás sikeresen hozzáadva!', 'success');
+                    addScheduleForm.reset();
+                    fetchSchedules(); // Frissítsük a táblázatot
+                } catch (error) {
+                    console.error('Frontend (profile.ejs): Hiba az új beosztás hozzáadásakor:', error);
+                    displayMessage(error.message, 'error');
+                }
+            });
+
+            // Megjegyzések lekérése
+            const fetchNotes = async () => {
+                loadingNotes.classList.remove('hidden');
+                notesContainer.classList.add('hidden');
+                try {
+                    const token = getToken();
+                    if (!token) {
+                        displayMessage('Nincs hitelesítve. Kérjük, jelentkezzen be.', 'error');
+                        loadingNotes.classList.add('hidden');
+                        return;
+                    }
+                    const response = await fetch('/api/notes', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Hiba a megjegyzések betöltésekor.');
+                    }
+                    const notesData = await response.json();
+                    notesContent.value = notesData.content || '';
+                } catch (error) {
+                    console.error('Frontend (profile.ejs): Hiba a megjegyzések lekérésekor:', error);
+                    displayMessage(error.message, 'error');
+                } finally {
+                    loadingNotes.classList.add('hidden');
+                    notesContainer.classList.remove('hidden');
+                }
+            };
+
+            // Megjegyzések mentése
+            saveNotesBtn.addEventListener('click', async () => {
+                const content = notesContent.value;
+                const token = getToken();
+                if (!token) {
+                    displayMessage('Nincs hitelesítve. Kérjük, jelentkezzen be.', 'error');
+                    return;
+                }
+                try {
+                    const response = await fetch('/api/notes', {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ content })
+                    });
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Hiba a megjegyzések mentésekor.');
+                    }
+                    displayMessage('Megjegyzések sikeresen mentve!', 'success');
+                } catch (error) {
+                    console.error('Frontend (profile.ejs): Hiba a megjegyzések mentésekor:', error);
+                    displayMessage(error.message, 'error');
+                }
+            });
+
+            // Az oldal betöltésekor futó függvények
+            await checkAdminStatus();
+            fetchSchedules();
+            fetchNotes();
+
+        }); // End of DOMContentLoaded
+
+//BEOSZTÁS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!4
+// Globális változók
+let currentUser = null;
+let weeklySchedules = []; // Ebbe töltjük be az új heti beosztásokat
+let currentSchedulePeriod = null; // Globális változó a beosztási időszak tárolására
+let editingRowId = null;
+let showWeekendColumns = false; // Állapot a hétvégi oszlopok láthatóságához
+
+// Inicializálás
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Oldal betöltve, inicializálás...');
+    checkAuthentication(); // Hitelesítés ellenőrzése
+    loadSchedulePeriod(); // Beosztási időszak betöltése
+    loadWeeklySchedules(); // Heti beosztások betöltése
+    loadNotes(); // Megjegyzések betöltése (ha van)
+    setupEventListeners(); // Eseményfigyelők beállítása
+});
+
+// Event listenerek beállítása
+function setupEventListeners() {
+    // Új beosztás sor hozzáadása form
+    document.getElementById('addScheduleRowForm').addEventListener('submit', handleAddScheduleRow);
+    
+    // Megjegyzések mentése
+    document.getElementById('saveNotesBtn').addEventListener('click', saveNotes);
+
+    // Hétvégi oszlopok kapcsoló gomb
+    document.getElementById('toggleWeekendColumns').addEventListener('click', toggleWeekendColumns);
+
+    // Dátum módosítása a beosztási időszak admin vezérlőn (csak adminnak)
+    const savePeriodBtn = document.getElementById('savePeriodBtn');
+    if (savePeriodBtn) { // Ellenőrizzük, hogy létezik-e az elem
+        savePeriodBtn.addEventListener('click', updateSchedulePeriod);
+    }
+}
+
+// --- Hitelesítés és jogosultság kezelés ---
+
+function checkAuthentication() {
+    const token = localStorage.getItem('token');
+    if (!token) {
+        showError('Nincs bejelentkezve. Jelentkezzen be a beosztások megtekintéséhez.');
+        // Opcionálisan átirányítás a login oldalra
+        // window.location.href = '/login.html'; 
+        return;
+    }
+    
+    try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        currentUser = payload;
+        console.log('Jelenlegi felhasználó:', currentUser);
+        
+        // Admin kontrollok megjelenítése, ha admin
+        if (currentUser.isAdmin) {
+            document.getElementById('adminControls').classList.remove('hidden');
+            const actionsHeader = document.getElementById('actionsHeader');
+            if (actionsHeader) actionsHeader.classList.remove('hidden');
+            document.getElementById('notesControls').classList.remove('hidden');
+            document.getElementById('toggleWeekendColumns').classList.remove('hidden');
+            document.getElementById('periodControls').classList.remove('hidden'); // Időszak kezelő látható
+        } else {
+            document.getElementById('notesContent').readOnly = true;
+        }
+    } catch (error) {
+        console.error('Hiba a token dekódolásakor:', error);
+        showError('Érvénytelen token. Kérjük, jelentkezzen be újra.');
+        localStorage.removeItem('token');
+        // window.location.href = '/login.html';
+    }
+}
+
+// --- Beosztási időszak kezelése ---
+
+async function loadSchedulePeriod() {
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch('/api/schedule/period', {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP hiba! Státusz: ${response.status}`);
+        }
+
+        currentSchedulePeriod = await response.json();
+        console.log('Betöltött beosztási időszak:', currentSchedulePeriod);
+
+        // Frissítjük az admin felületen lévő dátum inputokat
+        if (currentUser?.isAdmin && currentSchedulePeriod) {
+            document.getElementById('periodStartDate').value = formatDateForInput(currentSchedulePeriod.start_date);
+            document.getElementById('periodEndDate').value = formatDateForInput(currentSchedulePeriod.end_date);
+            document.getElementById('periodLastUpdated').textContent = `Utolsó frissítés: ${formatDateTime(currentSchedulePeriod.updated_at)}`;
+        }
+        
+        // Megjelenítjük a beosztási időszakot minden felhasználónak
+        displaySchedulePeriod();
+
+    } catch (error) {
+        console.error('Hiba a beosztási időszak betöltésekor:', error);
+        showError('Hiba történt a beosztási időszak betöltésekor: ' + error.message);
+    }
+}
+
+async function updateSchedulePeriod() {
+    const periodStartDate = document.getElementById('periodStartDate').value;
+    const periodEndDate = document.getElementById('periodEndDate').value;
+
+    if (!periodStartDate || !periodEndDate) {
+        showError('Kérjük, adja meg a beosztási időszak kezdő és befejező dátumát.');
+        return;
+    }
+
+    if (new Date(periodEndDate) < new Date(periodStartDate)) {
+        showError('A befejező dátum nem lehet korábbi a kezdő dátumnál.');
+        return;
+    }
+
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch('/api/schedule/period', {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                start_date: periodStartDate,
+                end_date: periodEndDate
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`HTTP hiba! Státusz: ${response.status}. Üzenet: ${errorData.message || 'Ismeretlen hiba.'}`);
+        }
+
+        const result = await response.json();
+        console.log('Beosztási időszak frissítve:', result);
+        showSuccess('Beosztási időszak sikeresen frissítve!'); // Értesítés
+        await loadSchedulePeriod(); // Újratöltjük a frissített időszakot és megjelenítjük
+    } catch (error) {
+        console.error('Hiba a beosztási időszak frissítésekor:', error);
+        showError('Hiba történt a beosztási időszak frissítésekor: ' + error.message);
+    }
+}
+
+/**
+ * Megjeleníti az aktuális beosztási időszakot a táblázat fölött minden felhasználó számára.
+ */
+function displaySchedulePeriod() {
+    const displayDiv = document.getElementById('schedulePeriodDisplay');
+    if (displayDiv && currentSchedulePeriod) {
+        displayDiv.innerHTML = `
+            <p><strong>Aktuális beosztási időszak:</strong> 
+            ${formatDate(currentSchedulePeriod.start_date)} - ${formatDate(currentSchedulePeriod.end_date)}
+            </p>
+        `;
+        displayDiv.classList.remove('hidden');
+    } else if (displayDiv) {
+        displayDiv.classList.add('hidden'); // Ha nincs időszak, elrejtjük
+    }
+}
+
+
+// --- Heti beosztások kezelése ---
+
+async function loadWeeklySchedules() {
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch('/api/schedule/weekly', {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            if (response.status === 403) {
+                throw new Error('Nincs jogosultságod megtekinteni a beosztásokat.');
+            }
+            throw new Error(`HTTP hiba! Státusz: ${response.status}`);
+        }
+        
+        weeklySchedules = await response.json();
+        console.log('Betöltött heti beosztások:', weeklySchedules);
+        renderWeeklyScheduleTable(); // A táblázat renderelése
+        
+    } catch (error) {
+        console.error('Hiba a heti beosztások betöltésekor:', error);
+        showError('Hiba történt a beosztások betöltésekor: ' + error.message);
+    } finally {
+        document.getElementById('loadingSchedule').classList.add('hidden');
+        document.getElementById('weeklyScheduleTable').classList.remove('hidden');
+    }
+}
+
+function renderWeeklyScheduleTable() {
+    const tbody = document.getElementById('weeklyScheduleTableBody');
+    tbody.innerHTML = '';
+
+    const weekendHeaders = document.querySelectorAll('#weeklyScheduleTable thead .weekend-column');
+    weekendHeaders.forEach(th => th.classList.toggle('hidden', !showWeekendColumns));
+
+    const actionsHeader = document.getElementById('actionsHeader');
+    if (actionsHeader) actionsHeader.classList.toggle('hidden', !currentUser?.isAdmin);
+
+
+    if (weeklySchedules.length === 0) {
+        const row = tbody.insertRow();
+        const cell = row.insertCell();
+        const totalColumns = 1 + 5 + (showWeekendColumns ? 2 : 0) + (currentUser?.isAdmin ? 1 : 0); // Név + 5 munkanap + 2 hétvége (opcionális) + Műveletek (opcionális)
+        cell.colSpan = totalColumns;
+        cell.textContent = 'Nincsenek heti beosztások.';
+        cell.style.textAlign = 'center';
+        cell.style.fontStyle = 'italic';
+        cell.style.color = '#666';
+        return;
+    }
+
+    weeklySchedules.forEach(entry => {
+        const row = tbody.insertRow();
+        row.dataset.entryId = entry.id;
+
+        const nameCell = row.insertCell();
+        nameCell.className = currentUser?.isAdmin ? 'editable-cell' : '';
+        nameCell.innerHTML = currentUser?.isAdmin ?
+            `<input type="text" value="${entry.employee_name || ''}" readonly data-field="employee_name">` :
+            (entry.employee_name || '-');
+
+        const weekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+        weekdays.forEach(day => {
+            const cell = row.insertCell();
+            cell.className = currentUser?.isAdmin ? 'editable-cell' : '';
+            cell.innerHTML = currentUser?.isAdmin ?
+                `<input type="text" value="${entry[`${day}_shift`] || ''}" readonly data-field="${day}_shift">` :
+                (entry[`${day}_shift`] || '-');
+        });
+
+        const weekendDays = ['saturday', 'sunday'];
+        weekendDays.forEach(day => {
+            const cell = row.insertCell();
+            cell.classList.add('weekend-column');
+            if (!showWeekendColumns) cell.classList.add('hidden');
+            cell.className += currentUser?.isAdmin ? ' editable-cell' : '';
+            cell.innerHTML = currentUser?.isAdmin ?
+                `<input type="text" value="${entry[`${day}_shift`] || ''}" readonly data-field="${day}_shift">` :
+                (entry[`${day}_shift`] || '-');
+        });
+
+        if (currentUser?.isAdmin) {
+            const actionsCell = row.insertCell();
+            actionsCell.className = 'action-buttons';
+            actionsCell.innerHTML = `
+                <button onclick="editRow(${entry.id})" class="edit-btn">Szerkesztés</button>
+                <button onclick="deleteWeeklyScheduleEntry(${entry.id})" class="btn-danger">Törlés</button>
+                <button onclick="saveRow(${entry.id})" class="save-btn hidden">Mentés</button>
+                <button onclick="cancelEdit(${entry.id})" class="cancel-btn hidden">Mégse</button>
+            `;
+        }
+    });
+}
+
+function editRow(entryId) {
+    if (editingRowId !== null && editingRowId !== entryId) {
+        cancelEdit(editingRowId);
+    }
+    
+    editingRowId = entryId;
+    const row = document.querySelector(`tr[data-entry-id="${entryId}"]`);
+    
+    const editableInputs = row.querySelectorAll('.editable-cell input');
+    editableInputs.forEach(input => {
+        input.readOnly = false;
+        input.parentElement.classList.add('editing');
+    });
+    
+    row.querySelector('.edit-btn').classList.add('hidden');
+    row.querySelector('.save-btn').classList.remove('hidden');
+    row.querySelector('.cancel-btn').classList.remove('hidden');
+}
+
+async function saveRow(entryId) {
+    const row = document.querySelector(`tr[data-entry-id="${entryId}"]`);
+    const inputs = row.querySelectorAll('.editable-cell input');
+    
+    const updateData = {};
+    inputs.forEach(input => {
+        const field = input.dataset.field;
+        updateData[field] = input.value;
+    });
+    
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/schedule/weekly/${entryId}`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(updateData)
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`HTTP hiba! Státusz: ${response.status}. Üzenet: ${errorData.message || 'Ismeretlen hiba.'}`);
+        }
+        
+        const result = await response.json();
+        console.log('Heti beosztás frissítve:', result);
+        
+        showSuccess('Heti beosztás sikeresen frissítve!');
+        loadWeeklySchedules();
+        editingRowId = null;
+        
+    } catch (error) {
+        console.error('Hiba a heti beosztás frissítésekor:', error);
+        showError('Hiba történt a beosztás frissítésekor: ' + error.message);
+    }
+}
+
+function cancelEdit(entryId) {
+    editingRowId = null;
+    loadWeeklySchedules();
+}
+
+async function deleteWeeklyScheduleEntry(entryId) {
+    if (!confirm('Biztosan törölni szeretné ezt a beosztás sort? Ez visszavonhatatlan!')) {
+        return;
+    }
+    
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/schedule/weekly/${entryId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`HTTP hiba! Státusz: ${response.status}. Üzenet: ${errorData.message || 'Ismeretlen hiba.'}`);
+        }
+        
+        showSuccess('Beosztás sor sikeresen törölve!');
+        loadWeeklySchedules();
+        
+    } catch (error) {
+        console.error('Hiba a beosztás sor törlésekor:', error);
+        showError('Hiba történt a beosztás sor törlésekor: ' + error.message);
+    }
+}
+
+async function handleAddScheduleRow(event) {
+    event.preventDefault();
+
+    const formData = new FormData(event.target);
+    const scheduleData = {
+        employee_name: formData.get('employeeName'),
+        monday_shift: '',
+        tuesday_shift: '',
+        wednesday_shift: '',
+        thursday_shift: '',
+        friday_shift: '',
+        saturday_shift: showWeekendColumns ? '' : null,
+        sunday_shift: showWeekendColumns ? '' : null,
+    };
+
+    if (!scheduleData.employee_name) {
+        showError('Kérjük, adja meg az alkalmazott nevét.');
+        return;
+    }
+
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch('/api/schedule/weekly', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(scheduleData)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`HTTP hiba! Státusz: ${response.status}. Üzenet: ${errorData.message || 'Ismeretlen hiba.'}`);
+        }
+
+        const result = await response.json();
+        console.log('Új heti beosztás sor létrehozva:', result);
+
+        showSuccess('Új beosztás sor sikeresen hozzáadva!');
+        event.target.reset();
+        loadWeeklySchedules();
+
+    } catch (error) {
+        console.error('Hiba az új beosztás sor létrehozásakor:', error);
+        showError('Hiba történt a beosztás sor létrehozásakor: ' + error.message);
+    }
+}
+
+function toggleWeekendColumns() {
+    showWeekendColumns = !showWeekendColumns;
+    renderWeeklyScheduleTable();
+
+    const toggleButton = document.getElementById('toggleWeekendColumns');
+    if (toggleButton) {
+        toggleButton.textContent = showWeekendColumns ? 'Hétvége oszlopok elrejtése' : 'Hétvége oszlopok mutatása';
+    }
+}
+
+// --- Megjegyzések kezelése ---
+
+async function loadNotes() {
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch('/api/schedule/notes', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP hiba! Státusz: ${response.status}`);
+        }
+        const notes = await response.json();
+        document.getElementById('notesContent').value = notes.content || '';
+    } catch (error) {
+        console.error('Hiba a megjegyzések betöltésekor:', error);
+        showError('Hiba a megjegyzések betöltésekor.');
+    }
+}
+
+async function saveNotes() {
+    const content = document.getElementById('notesContent').value;
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch('/api/schedule/notes', {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ content })
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`HTTP hiba! Státusz: ${response.status}. Üzenet: ${errorData.message || 'Ismeretlen hiba.'}`);
+        }
+        showSuccess('Megjegyzések sikeresen mentve!'); // Értesítés
+    } catch (error) {
+        console.error('Hiba a megjegyzések mentésekor:', error);
+        showError('Hiba a megjegyzések mentésekor: ' + error.message);
+    }
+}
+
+
+// --- Segédfunkciók ---
+
+function showError(message) {
+    const errorDiv = document.getElementById('errorMessage');
+    errorDiv.textContent = message;
+    errorDiv.classList.remove('hidden');
+    errorDiv.style.display = 'block';
+    setTimeout(() => {
+        errorDiv.classList.add('hidden');
+        errorDiv.style.display = 'none';
+    }, 5000);
+}
+
+function showSuccess(message) {
+    const successDiv = document.getElementById('successMessage');
+    successDiv.textContent = message;
+    successDiv.classList.remove('hidden');
+    successDiv.style.display = 'block';
+    setTimeout(() => {
+        successDiv.classList.add('hidden');
+        successDiv.style.display = 'none';
+    }, 5000);
+}
+
+function formatDateForInput(dateString) {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toISOString().split('T')[0];
+}
+
+function formatDate(dateString) {
+    if (!dateString) return '-';
+    const options = { year: 'numeric', month: '2-digit', day: '2-digit' };
+    return new Date(dateString).toLocaleDateString('hu-HU', options);
+}
+
+function formatDateTime(dateTimeString) {
+    if (!dateTimeString) return '-';
+    const options = { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' };
+    return new Date(dateTimeString).toLocaleDateString('hu-HU', options);
+}
+
+ // --------------------------------------------------------------------------
+ //  PDF GENERÁLÁS
+ // ---------------------------------------------------------------------------
+
+ // A downloadPdf funkció ide jön, amit küldtél.
+document.addEventListener('DOMContentLoaded', () => {
+    const downloadButton = document.getElementById('downloadPdfButton');
+
+    if (downloadButton) {
+        downloadButton.addEventListener('click', () => {
+            const now = new Date();
+            const year = now.getFullYear();
+            // A hónapot 1-től 12-ig szeretnénk, a Date objektum 0-11-ig számoz.
+            const month = now.getMonth() + 1; 
+            
+            // Meghívjuk a PDF letöltő funkciót az aktuális évvel és hónappal
+            downloadPdf(year, month);
+        });
+    }
+});
+
+//pdf letöltés function
+const downloadPdf = async (year, month) => {
+    try {
+        const response = await fetch(`/api/time-entries/download-report?year=${year}&month=${month}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}` // Token küldése
+            }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Hiba történt a PDF letöltésekor.');
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `munkaido_jelentes_${year}_${month}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error('Hiba a PDF letöltésekor:', error);
+        // Hibaüzenet megjelenítése a felhasználónak
+    }
+};
+    </script>
 </body>
 </html>

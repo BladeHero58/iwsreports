@@ -1,0 +1,404 @@
+// Jegyzőkönyv/public/css/pages/_schedule.scss
+// Ez a fájl tartalmazza a beosztás oldal specifikus stílusait,
+// és felülírja az alapértelmezett globális stílusokat, ha szükséges.
+
+// A style.css-ből hiányzó VAGY felülírandó alap stílusok
+// (ezek a _base.scss-ből jönnek, de itt felülíródnak)
+
+// --- BODY ---
+// Itt csak egy 'body' definíciót hagyunk meg. Ha a háttérkép kell, akkor az, ha az alap szín, akkor az.
+// Mivel azt mondtad, hogy a háttérkép és a gombok nem jelennek meg, ezt prioritásként kezeljük.
+body {
+    background-color: #ffffff; // Visszaállítjuk fehérre vagy az eredeti színre
+    background-image: url("/images/IWS.jpg"); // EZ AZ ABSZOLÚT ÚTVONAL!
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    margin-left: 3%;
+    font-family: "Montserrat", sans-serif;
+    color: #333;
+}
+
+// --- HEADER STÍLUSOK (h1-h6) ---
+// Itt is csak egy definíció marad. Az alábbi a _schedule.scss elején levő, ami felülírja.
+h1, h2, h3, h4, h5, h6, p, li, a, button {
+    font-family: "Montserrat", sans-serif;
+}
+// A 'h1' stílus ismételt definíciója alább felülírná a fentit, ezért kivettük.
+h1 {
+    color: #333;
+    text-align: center;
+    margin-bottom: 30px;
+    font-size: 2em
+}
+h2 { // A h2 színét innen vesszük, ha van specifikus szín
+    color: #2c3e50;
+    text-align: center;
+    font-size: 2.5em
+}
+h3 { 
+    font-size: 1.5em
+}
+
+// --- GOMB STÍLUSOK (.btn, .logout-btn) ---
+// Itt is csak egy definíció marad. Az `.action-buttons button` és a második `.logout-btn` felülírná ezeket.
+// Ezért fontos eldönteni, melyik a prioritás. Az eredeti style.css-es btn és logout-btn stílusokat tartjuk meg.
+.btn {
+    background-color: #f6ee48;
+    color: #202020;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 50px;
+    font-weight: 400;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    margin: 5px;
+    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.btn:hover {
+    background-color: #5c0099;
+    color: white;
+    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.logout-btn {
+    background-color: #5c0099; // Az eredeti sárga logout gomb szín
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 50px;
+    font-weight: 400;
+    cursor: pointer;
+    transition: background-color 0.3s ease, color 0.3s ease;
+    margin-top: 80px;
+    margin-bottom: 3%;
+    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.logout-btn:hover {
+    background-color: #202020;
+    color: white;
+    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+// --- ÁLTALÁNOS GOMB STÍLUSOK (ha valami button elemen nincs .btn class) ---
+// Ezek felülíródnak a .btn vagy action-buttons stílussal, ha azok érvényesek.
+button {
+    background-color: #007bff;
+    color: white;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    margin-right: 10px;
+    margin-bottom: 10px;
+}
+button:hover {
+    background-color: #0056b3;
+}
+button:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+}
+.btn-danger {
+    background-color: #dc3545;
+}
+.btn-danger:hover {
+    background-color: #c82333;
+}
+
+
+// --- FORM STÍLUSOK ---
+form {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+form label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #555;
+}
+form input[type="text"],
+form input[type="number"],
+form input[type="date"],
+form input[type="password"],
+form input[type="datetime-local"],
+form select,
+form textarea {
+    width: calc(100% - 20px);
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+// A formon belüli button stílus is itt van, de a `.btn` és az általános `button` felülírhatja.
+form button {
+    background-color: #007bff;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 44px; /* Rounded corners */
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s ease;
+}
+form button:hover {
+    background-color: #0056b3;
+}
+
+
+// --- AKCIÓ GOMBOK (Ezek specifikusak, ezért itt maradnak) ---
+.action-buttons button {
+    background-color: #28a745; /* Edit */
+    margin-right: 5px;
+}
+.action-buttons button.delete-btn {
+    background-color: #dc3545; /* Delete */
+}
+.action-buttons button:hover {
+    opacity: 0.9;
+}
+// Az alábbi .logout-btn stílus duplikáció, felülírná a fentit. Ezért töröltük.
+// .logout-btn { background-color: #6c757d; }
+// .logout-btn:hover { background-color: #5a6268; }
+
+
+// --- ÁLTALÁNOS ÉS KONTÉNER STÍLUSOK ---
+hr {
+    border: 0;
+    height: 1px;
+    background-image: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0));
+    margin: 40px 0;
+}
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.admin-controls {
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #e7f3ff;
+    border-radius: 8px;
+    border: 1px solid #b8daff;
+}
+.form-group {
+    margin-bottom: 15px;
+}
+label { // Ez is duplikáció, de valószínűleg ide tartozik mint általános label stílus
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+input, textarea { // Button-t kivettük, mert már van egy általános button stílus
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+textarea {
+    resize: vertical;
+    min-height: 60px;
+}
+
+
+// --- MODAL STÍLUSOK ---
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.4);
+    justify-content: center;
+    align-items: center;
+}
+.modal.show {
+    display: flex;
+}
+.modal-content {
+    background-color: #fefefe;
+    margin: auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%;
+    max-width: 500px;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    position: relative;
+}
+.close-button {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    position: absolute;
+    top: 10px;
+    right: 15px;
+}
+.close-button:hover,
+.close-button:focus {
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+
+// --- FullCalendar specifikus stílusok ---
+#calendar {
+    max-width: 900px;
+    margin: 40px auto;
+    padding: 0 10px;
+}
+.fc-event {
+    cursor: pointer;
+}
+.fc-daygrid-event {
+    white-space: normal;
+}
+
+// --- Beosztás táblázat stílusának módosításai ---
+.schedule-table-container {
+    overflow-x: auto;
+    margin-bottom: 30px;
+}
+#weeklyScheduleTable {
+    width: 100%;
+    max-width: 1200px;
+    border-collapse: collapse;
+    margin: 20px auto;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    background-color: #fff;
+}
+#weeklyScheduleTable th,
+#weeklyScheduleTable td {
+    border: 1px solid #cceeff;
+    padding: 12px 15px;
+    text-align: left;
+    white-space: nowrap;
+    min-width: 100px;
+}
+#weeklyScheduleTable th {
+    background-color: #e0f2f7;
+    font-weight: bold;
+    color: #333;
+    text-transform: uppercase;
+    font-size: 0.9em;
+}
+#weeklyScheduleTable tr:nth-child(even) {
+    background-color: #f9fdfd;
+}
+#weeklyScheduleTable tr:hover {
+    background-color: #eaf8ff;
+}
+
+// --- EGYÉB SPECIFIKUS ELEMEK ---
+.editable-cell {
+    position: relative;
+}
+.editable-cell input {
+    width: calc(100% - 8px);
+    border: none;
+    background: transparent;
+    padding: 4px;
+    font-size: 1em;
+    box-sizing: border-box;
+}
+.editable-cell.editing input {
+    border: 2px solid #007bff;
+    background: white;
+    border-radius: 4px;
+}
+.action-buttons {
+    white-space: nowrap;
+}
+.action-buttons button { // Ez az action-buttons-on belüli gomb, a .btn-től eltérő stílus
+    padding: 5px 10px;
+    margin: 2px;
+    font-size: 12px;
+    border-radius: 5px;
+}
+.notes-section {
+    margin-top: 30px;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+#notesContent {
+    resize: both;
+    font-family: 'Montserrat', Arial, sans-serif;
+    font-size: 1.1em;
+    padding: 10px;
+    width: 100%;
+    min-height: 150px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+.editable-cell textarea {
+    resize: both;
+    font-family: 'Montserrat', Arial, sans-serif;
+    font-size: 1.1em;
+}
+.hidden {
+    display: none !important;
+}
+
+/* Stílus az időszak megjelenítőnek */
+.schedule-period-display {
+    background-color: #f6ee48;
+    border: 1px solid #e0d733;
+    padding: 10px 15px;
+    margin-bottom: 20px;
+    border-radius: 5px;
+    color: #202020;
+    font-weight: bold;
+    text-align: center;
+    font-size: 1.4em;
+    margin-top: 20px;
+}
+.schedule-period-display p {
+    margin: 0;
+}
+.pdf-download-container {
+    width: fit-content; /* Fontos! Vagy adj meg egy fix szélességet, pl. 250px */
+    margin: 0 auto; /* Ez igazítja középre horizontálisan */
+    text-align: center; /* Ha a gomb lenne direktben a divben, ez is segíthet */
+    padding: 10px; /* Példa: egy kis belső térköz */
+}
+.btn-big {
+    background-color: #f6ee48;
+    color: #202020;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 50px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    margin: 5px;
+    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.btn-big:hover {
+    background-color: #5c0099;
+    color: white;
+    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+    transform: scale(1.05); /* Ezt a sort add hozzá! A gomb 5%-kal nagyobb lesz */
+}
+.password-section-container{
+    max-width: 1200px;
+    margin: 0 auto;   /* Ez igazítja középre horizontálisan */
+}

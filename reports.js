@@ -3,7 +3,7 @@ require("dotenv").config();
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
-const { Pool } = require('pg');
+// const { Pool } = require('pg'); // Ezt a sort már korábban törölni/kommentelni kellett!
 const XLSX = require('xlsx');
 const puppeteer = require('puppeteer');
 const PdfPrinter = require('pdfmake');
@@ -20,13 +20,12 @@ const MAIN_DRIVE_FOLDER_ID = '1yc0G2dryo4XZeHmZ3FzV4yG4Gxjj2w7j'; // Állítsd b
 
 const { Storage } = require('@google-cloud/storage');
 
-
 // PostgreSQL konfiguráció
+// A db.js fájlból importáljuk a pool objektumot.
+// Ezt a sort kell használni, és ez váltja ki a korábbi, hibás deklarációkat.
+const { pool } = require('./db'); // <-- EZ A HELYES ÉS EGYETLEN IMPORTÁLÁS A POOL OBJEKTUMHOZ! ÉLES
 
-//Éles környezet adatbázis
-const pool = require('./db');
-
-const router = express.Router(); 
+const router = express.Router();
 
 // Middleware a form adatok feldolgozására
 router.use(express.urlencoded({ extended: true }));

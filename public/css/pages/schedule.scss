@@ -1,0 +1,6 @@
+// Jegyzőkönyv/public/css/pages/schedule.scss
+// Ez a fájl lesz lefordítva public/css/pages/schedule.css-re.
+
+@use '../base'; // Importálja a globális alapstílusokat a _base.scss-ből
+// @use '../components/buttons'; // Ha van külön buttons partial, akkor ez kell ide
+@use '_schedule'; // **FONTOS:** Ez importálja az oldal-specifikus stílusokat
