@@ -1,60 +1,80 @@
+// migrateProjects.js
 const fs = require('fs');
-const pool = require('./db'); // Az adatbázis kapcsolat importálása
+
+// Ide be kell töltened a Knex konfigurációt és inicializálnod a Knex-et
+const environment = process.env.NODE_ENV || 'development';
+const knexConfig = require('./knexfile.js')[environment]; // Feltételezi, hogy a knexfile.js a gyökérkönyvtárban van
+const knex = require('knex')(knexConfig); // Knex inicializálása
 
 async function migrateProjects() {
+    console.log("Projektek migrálása elindult!"); // Hozzáadva egy log
     const projects = JSON.parse(fs.readFileSync('./projects.json', 'utf-8'));
 
     try {
         for (const project of projects) {
-            // Ellenőrizd, hogy létezik-e már a projekt az adatbázisban
-            const checkProject = await pool.query(
-                `SELECT id FROM projects WHERE external_id = $1`,
-                [project.id]
-            );
-
             let projectId;
-            if (checkProject.rows.length === 0) {
+
+            // Ellenőrizd, hogy létezik-e már a projekt az adatbázisban a Knex query builderrel
+            const checkProject = await knex('projects')
+                .select('id')
+                .where('external_id', project.id)
+                .first(); // .first() hogy csak az első találatot kapjuk meg
+
+            if (!checkProject) { // Ha a checkProject null vagy undefined
                 // Ha nem létezik, szúrjuk be
-                const result = await pool.query(
-                    `INSERT INTO projects (external_id, name, description, status)
-                     VALUES ($1, $2, $3, $4)
-                     RETURNING id`,
-                    [project.id, project.name, project.description, project.status]
-                );
-                projectId = result.rows[0].id;
+                const [insertedId] = await knex('projects').insert({
+                    external_id: project.id, // Ha az external_id a json-ben szereplő id
+                    name: project.name,
+                    description: project.description,
+                    status: project.status
+                }).returning('id'); // A Knex returning metódusa visszaadja a beszúrt id-t
+
+                projectId = insertedId;
                 console.log(`Inserted project: ${project.name} with ID: ${projectId}`);
             } else {
                 // Ha létezik, használjuk a meglévő ID-t
-                projectId = checkProject.rows[0].id;
+                projectId = checkProject.id;
                 console.log(`Project already exists: ${project.name} with ID: ${projectId}`);
             }
 
             // Felhasználók beszúrása a "project_users" táblába
             for (const userId of project.assignedUsers) {
-                const checkUser = await pool.query(
-                    `SELECT id FROM project_users WHERE project_id = $1 AND user_id = $2`,
-                    [projectId, userId]
-                );
+                // Ellenőrzés Knex-szel
+                const checkUserAssignment = await knex('project_users')
+                    .select('id')
+                    .where({ project_id: projectId, user_id: userId })
+                    .first();
 
-                if (checkUser.rows.length === 0) {
-                    await pool.query(
-                        `INSERT INTO project_users (project_id, user_id)
-                         VALUES ($1, $2)`,
-                        [projectId, userId]
-                    );
+                if (!checkUserAssignment) {
+                    await knex('project_users').insert({
+                        project_id: projectId,
+                        user_id: userId
+                    });
                     console.log(`Assigned user ${userId} to project ${project.name}`);
                 } else {
                     console.log(`User ${userId} already assigned to project ${project.name}`);
                 }
             }
         }
+        console.log("Projektek migrálása befejeződött."); // Log a befejezéshez
     } catch (err) {
-        console.error('Error migrating projects:', err);
+        console.error('Hiba a projektek migrálásakor:', err);
+        throw err; // Fontos: dobja tovább a hibát, hogy a process.exit(1) megtörténjen, ha hiba van
     } finally {
-        pool.end(); // Kapcsolat bezárása
+        // Itt ne hívd a knex.destroy()-t vagy pool.end()-et,
+        // mert a migrate.js futtatja ezt is, és az kezeli a kapcsolat lezárását,
+        // vagy a fő server.js fájl tartja fenn a kapcsolatot.
+        // A Knex-kapcsolat bezárását a fő alkalmazásnak (server.js) kell kezelnie,
+        // vagy ott, ahol a Knex inicializálva van, és ahol már nincs szükség rá.
     }
 }
 
 // Script futtatása
-migrateProjects();
-
+migrateProjects()
+    .then(() => {
+        console.log("migrateProjects.js sikeresen befejeződött.");
+    })
+    .catch((error) => {
+        console.error("migrateProjects.js futása hibával végződött:", error);
+        process.exit(1); // Kilépés hibakóddal, ha hiba történt
+    });
