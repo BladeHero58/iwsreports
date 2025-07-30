@@ -6,24 +6,25 @@ const LocalStrategy = require('passport-local').Strategy;
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
-const { pool, knex } = require('./db');
+const { pool, knex } = require('./db'); // Győződj meg róla, hogy ez helyesen importál a db.js-ből
 const { v4: uuidv4 } = require('uuid');
 const bodyParser = require('body-parser');
-const jwt = require('jsonwebtoken');
+const jwt = require('jsonwebtoken'); // JWT importálása
 
-// --- DEBUG LOG ---
+// --- ÚJ DEBUG LOG ---
 console.log('Backend (server.js startup): process.env.JWT_SECRET:', process.env.JWT_SECRET ? 'Loaded (first 10 chars: ' + process.env.JWT_SECRET.substring(0, 10) + '...)' : 'NOT LOADED or EMPTY!');
+// --- VÉGE ÚJ DEBUG LOG ---
 
 const app = express();
-// Render.com portkezelés - PORT környezeti változót használja
-const PORT = process.env.PORT || 3000;
+// A szerver portja
+const PORT = process.env.PORT || 3000; // Használhatod a 3000-et, ha ez a kód megoldja a problémát, vagy a 3001-et, ha továbbra is gond van.
 
 // !!! FONTOS: Most a reports.js már az inicializálási Promise-t is exportálja
-const { router: reportsRouter, initializationPromise } = require('./reports');
+const { router: reportsRouter, initializationPromise } = require('./reports'); // Betöltjük a reports.js fájlt
 
 // Importáljuk az óranyilvántartó routert
-const timeEntriesRouter = require('./routes/timeEntries');
-const scheduleRouter = require('./routes/schedule');
+const timeEntriesRouter = require('./routes/timeEntries'); // <-- EZ AZ ÚJ IMPORTÁLÁS!
+const scheduleRouter = require('./routes/schedule'); // <-- ÚJ: Importáld a schedule routert Beosztás
 
 // Middleware beállítások
 app.use(bodyParser.json({limit: '50mb'}));
@@ -35,6 +36,86 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Az óranyilvántartó router regisztrálása
+// Ezt a reportsRouter előtt vagy után is elhelyezheted, mivel nem igényel aszinkron inicializálást.
+app.use('/api/time-entries', timeEntriesRouter); // <-- EZ AZ ÚJ ROUTER REGISZTRÁCIÓ!
+app.use('/api/schedule', scheduleRouter); // <-- ÚJ: Csatlakoztasd a schedule routert
+
+// ************************************************************
+// FŐ ALKALMAZÁS INDÍTÓ FÜGGVÉNY
+// ************************************************************
+async function startApplication() {
+    // Aszinkron inicializálások, amiknek csak egyszer kell lefutniuk
+    console.log("Waiting for Google Cloud Services to initialize from reports.js...");
+    await initializationPromise;
+    console.log("Google Cloud Services initialization complete.");
+
+    // Most, hogy minden inicializálva van, csatoljuk a reports routert
+    app.use('/reports', reportsRouter);
+
+    // Itt lekérjük az adminokat és projekteket.
+    // Fontos, hogy ezek is async/await-tel fussanak, és a szerver indulása előtt történjenek.
+    let admins = []; // Deklaráció a scope-ban
+    let projects = []; // Deklaráció a scope-ban
+
+    // ... (a startApplication függvény többi része, pl. adminok/projektek lekérése)
+
+    let currentPort = PORT; // Kezdő port
+    const MAX_PORT_RETRIES = 5; // Hány portot próbálunk ki maximum
+    let retries = 0;
+
+    // Port foglaltság ellenőrző függvény
+    function tryStartServer(port) {
+        return new Promise((resolve, reject) => {
+            const server = app.listen(port, () => {
+                console.log(`Szerver fut a http://localhost:${port} címen`);
+                console.log("Google Drive Service sikeresen inicializálva.");
+                resolve(server);
+            });
+
+            server.on('error', (error) => {
+                if (error.code === 'EADDRINUSE') {
+                    console.log(`Port ${port} már használatban van, próbálkozás a következő porttal...`);
+                    reject(new Error(`Port ${port} foglalt`));
+                } else {
+                    console.error("Szerver hiba:", error);
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    // Port próbálgatás ciklus
+    while (retries < MAX_PORT_RETRIES) {
+        try {
+            await tryStartServer(currentPort);
+            // Ha ide eljutunk, a szerver sikeresen elindult
+            return;
+        } catch (error) {
+            if (error.message.includes('foglalt')) {
+                currentPort++; // Növeljük a port számát
+                retries++;
+                console.log(`Próbálkozás a ${currentPort} porttal... (${retries}/${MAX_PORT_RETRIES})`);
+            } else {
+                // Más típusú hiba esetén azonnal kilépünk
+                console.error("Alkalmazás indítási hiba:", error);
+                process.exit(1);
+            }
+        }
+    }
+
+    console.error(`Nem sikerült elindítani a szervert ${MAX_PORT_RETRIES} próbálkozás után.`);
+    console.error(`Próbált portok: ${PORT} - ${currentPort - 1}`);
+    process.exit(1);
+}
+
+// Ez a blokk biztosítja, hogy a startApplication() csak akkor hívódjon meg,
+// ha a server.js a fő modul (azaz közvetlenül futtatják, nem importálják).
+// Ez megakadályozza a duplikált szerverindításokat nodemon esetén.
+if (require.main === module) {
+    startApplication(); // <-- EZ AZ EGYETLEN HELYES HÍVÁS!
+}
+
 // Express-session kezelés
 app.use(
   session({
@@ -44,94 +125,43 @@ app.use(
   })
 );
 
+let admins = [];
+pool.query('SELECT * FROM users WHERE is_admin = TRUE', (err, result) => {
+  if (err) {
+    console.error('Error fetching admins:', err);
+  } else {
+    admins = result.rows;
+  }
+});
+
+let projects = [];
+pool.query('SELECT * FROM projects', (err, result) => {
+  if (err) {
+    console.error('Error fetching projects:', err);
+  } else {
+    projects = result.rows;
+  }
+});
+
 // Passport inicializálása
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Az óranyilvántartó router regisztrálása
-app.use('/api/time-entries', timeEntriesRouter);
-app.use('/api/schedule', scheduleRouter);
-
-// Sablon motor beállítása
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
-
-// Globális változók inicializálása
-let admins = [];
-let projects = [];
+// Felhasználók betöltése 
 let users = [];
-
-// ************************************************************
-// FŐ ALKALMAZÁS INDÍTÓ FÜGGVÉNY
-// ************************************************************
-async function startApplication() {
-    try {
-        console.log("Initializing application...");
-        
-        // Aszinkron inicializálások
-        console.log("Waiting for Google Cloud Services to initialize from reports.js...");
-        await initializationPromise;
-        console.log("Google Cloud Services initialization complete.");
-
-        // Most, hogy minden inicializálva van, csatoljuk a reports routert
-        app.use('/reports', reportsRouter);
-
-        // Adminok betöltése
-        try {
-            const adminResult = await pool.query('SELECT * FROM users WHERE is_admin = TRUE');
-            admins = adminResult.rows;
-            console.log('Admins loaded:', admins.length);
-        } catch (err) {
-            console.error('Error fetching admins:', err);
-        }
-
-        // Projektek betöltése
-        try {
-            const projectResult = await pool.query('SELECT * FROM projects');
-            projects = projectResult.rows;
-            console.log('Projects loaded:', projects.length);
-        } catch (err) {
-            console.error('Error fetching projects:', err);
-        }
-
-        // Felhasználók betöltése
-        try {
-            const userResult = await pool.query('SELECT * FROM users');
-            users = userResult.rows;
-            console.log('Users loaded:', users.length);
-        } catch (err) {
-            console.error('Error fetching users:', err);
-        }
-
-        // Szerver indítása - egyszerű, Render.com kompatibilis módon
-        app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Szerver fut a http://0.0.0.0:${PORT} címen`);
+pool.query('SELECT * FROM users', (err, result) => {
+  if (err) {
+    console.error('Error fetching users:', err);
+  } else {
+    users = result.rows;
+  }
 });
-
-        server.on('error', (error) => {
-            console.error("Szerver hiba:", error);
-            process.exit(1);
-        });
-
-        // Graceful shutdown
-        process.on('SIGTERM', () => {
-            console.log('SIGTERM kapva, szerver leállítása...');
-            server.close(() => {
-                console.log('Szerver leállítva.');
-                process.exit(0);
-            });
-        });
-
-    } catch (error) {
-        console.error("Alkalmazás indítási hiba:", error);
-        process.exit(1);
-    }
-}
 
 // Passport stratégia
 passport.use(
   new LocalStrategy(async (username, password, done) => {
     try {
+      // Felhasználó keresése az adatbázisban
       const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
       const user = result.rows[0];
 
@@ -139,12 +169,14 @@ passport.use(
         return done(null, false, { message: 'Nem található ilyen felhasználó.' });
       }
 
+      // Jelszó ellenőrzése
       const isMatch = await bcrypt.compare(password, user.password);
       if (!isMatch) {
         return done(null, false, { message: 'Hibás jelszó.' });
       }
 
-      user.isAdmin = user.is_admin;
+      // Ellenőrizzük, hogy admin-e a felhasználó
+      user.isAdmin = user.is_admin; // Az adatbázis mező alapján állítjuk be
       return done(null, user);
     } catch (err) {
       return done(err);
@@ -152,25 +184,9 @@ passport.use(
   })
 );
 
-// Middleware: Admin jogosultság ellenőrzése
-function isAdmin(req, res, next) {
-  if (req.isAuthenticated() && req.user.isAdmin) {
-    return next();
-  }
-  res.status(403).send('Nincs jogosultsága az oldal megtekintéséhez.');
-}
-
-// Middleware: Autentikáció ellenőrzése
-function isAuthenticated(req, res, next) {
-  if (req.isAuthenticated && req.isAuthenticated()) {
-    return next();
-  }
-  res.redirect('/login');
-}
-
 //Admin hozzáadása
 app.post('/add-admin', (req, res) => {
-  const { username, password, email } = req.body;
+  const { username, password, email } = req.body;  // Email mező hozzáadása
 
   bcrypt.hash(password, 10, async (err, hashedPassword) => {
     if (err) {
@@ -178,12 +194,14 @@ app.post('/add-admin', (req, res) => {
     }
 
     try {
+      // Admin felhasználó hozzáadása az adatbázishoz
       const result = await pool.query(
         'INSERT INTO users (username, password, email, is_admin) VALUES ($1, $2, $3, TRUE) RETURNING *',
-        [username, hashedPassword, email]
+        [username, hashedPassword, email]  // Az email mezőt is hozzáadjuk
       );
 
       const newAdmin = result.rows[0];
+
       res.status(201).json({ message: 'Admin sikeresen hozzáadva!' });
     } catch (error) {
       console.error('Error adding admin:', error);
@@ -198,6 +216,7 @@ app.post('/register', async (req, res) => {
   const hashedPassword = await bcrypt.hash(password, 10);
 
   try {
+    // Új felhasználó hozzáadása az adatbázishoz
     const result = await pool.query(
       'INSERT INTO users (username, password, is_admin) VALUES ($1, $2, FALSE) RETURNING id',
       [username, hashedPassword]
@@ -210,68 +229,75 @@ app.post('/register', async (req, res) => {
   }
 });
 
+// login
+
 // Login útvonal módosítása
 app.post(
-  '/login',
-  (req, res, next) => {
-    passport.authenticate('local', (err, user, info) => {
-      if (err) {
-        console.error('Backend (server.js): Passport authentication error:', err);
-        return next(err);
-      }
-      if (!user) {
-        console.log('Backend (server.js): Login failed: Invalid username or password.');
-        return res.status(401).json({ message: 'A felhasználónév és jelszó páros nem megfelelő.' });
-      }
-      req.logIn(user, (err) => {
-        if (err) {
-          console.error('Backend (server.js): req.logIn error:', err);
-          return next(err);
+        '/login',
+        (req, res, next) => {
+            passport.authenticate('local', (err, user, info) => {
+                if (err) {
+                    console.error('Backend (server.js): Passport authentication error:', err);
+                    return next(err);
+                }
+                if (!user) {
+                    console.log('Backend (server.js): Login failed: Invalid username or password.');
+                    // Fontos: Itt már JSON-t küldünk vissza, nem átirányítunk!
+                    return res.status(401).json({ message: 'A felhasználónév és jelszó páros nem megfelelő.' });
+                }
+                req.logIn(user, (err) => {
+                    if (err) {
+                        console.error('Backend (server.js): req.logIn error:', err);
+                        return next(err);
+                    }
+                    // Sikeres hitelesítés, folytatjuk a következő middleware-rel
+                    console.log('Backend (server.js): User successfully authenticated via Passport.');
+                    return next();
+                });
+            })(req, res, next);
+        },
+        async (req, res) => {
+            try {
+                const user = req.user; // A felhasználói adatokat a passport biztosítja
+
+                // Lekérdezzük a felhasználó is_admin státuszát az adatbázisból
+                const result = await pool.query('SELECT is_admin FROM users WHERE id = $1', [user.id]);
+                const isAdmin = result.rows[0] ? result.rows[0].is_admin : false;
+
+                // JWT token generálása
+                const token = jwt.sign(
+                    { id: user.id, username: user.username, isAdmin: isAdmin },
+                    process.env.JWT_SECRET || 'your_jwt_secret_key', // Használj erős, környezeti változóból jövő secretet!
+                    { expiresIn: '1h' } // A token érvényességi ideje
+                );
+
+                console.log(`Backend (server.js): Login successful for user: ${user.username}, isAdmin: ${isAdmin}. Token generated.`);
+
+                // Tokent és felhasználói adatokat küldünk JSON válaszként
+                res.json({
+                    message: 'Sikeres bejelentkezés!',
+                    token: token,
+                    user: {
+                        id: user.id,
+                        username: user.username,
+                        email: user.email, // Ha az email is elérhető a req.user-ből
+                        isAdmin: isAdmin
+                    }
+                });
+
+            } catch (error) {
+                console.error('Backend (server.js): Error during token generation or admin status check:', error);
+                res.status(500).json({ message: 'Hiba történt a bejelentkezés során.' });
+            }
         }
-        console.log('Backend (server.js): User successfully authenticated via Passport.');
-        return next();
-      });
-    })(req, res, next);
-  },
-  async (req, res) => {
-    try {
-      const user = req.user;
-
-      const result = await pool.query('SELECT is_admin FROM users WHERE id = $1', [user.id]);
-      const isAdmin = result.rows[0] ? result.rows[0].is_admin : false;
-
-      const token = jwt.sign(
-        { id: user.id, username: user.username, isAdmin: isAdmin },
-        process.env.JWT_SECRET || 'your_jwt_secret_key',
-        { expiresIn: '1h' }
-      );
-
-      console.log(`Backend (server.js): Login successful for user: ${user.username}, isAdmin: ${isAdmin}. Token generated.`);
-
-      res.json({
-        message: 'Sikeres bejelentkezés!',
-        token: token,
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          isAdmin: isAdmin
-        }
-      });
-
-    } catch (error) {
-      console.error('Backend (server.js): Error during token generation or admin status check:', error);
-      res.status(500).json({ message: 'Hiba történt a bejelentkezés során.' });
-    }
-  }
-);
+    );
 
 // Alapértelmezett útvonal (login oldal)
 app.get('/', (req, res, next) => {
   res.render('login', (err, html) => {
     if (err) {
       console.error(err);
-      return next(err);
+      return next(err); // Hibakezelőnek adja át a hibát
     }
     res.send(html);
   });
@@ -279,46 +305,52 @@ app.get('/', (req, res, next) => {
 
 // Login oldal megjelenítése
 app.get('/login', (req, res) => {
-  res.render('login');
+  res.render('login'); // login.ejs fájl renderelése
 });
 
 // Regisztrációs oldal megjelenítése
 app.get('/register', (req, res) => {
-  res.render('register');
+  res.render('register'); // register.ejs fájl renderelése
 });
   
-// Dashboard oldal megjelenítése normál felhasználóknak
+  // Dashboard oldal megjelenítése normál felhasználóknak
 app.get('/dashboard', (req, res) => {
   if (!req.isAuthenticated() || req.user.isAdmin) {
-    return res.redirect('/login');
+    return res.redirect('/login'); // Ha nincs bejelentkezve, vagy admin, irány a login
   }
-  res.render('dashboard', { user: req.user });
+  res.render('dashboard', { user: req.user }); // Átadjuk a felhasználó adatokat a dashboard.ejs-nek
 });
   
 // Admin dashboard oldal megjelenítése
 app.get('/admin-dashboard', isAdmin, (req, res) => {
-  const user = req.user;
-  const projectsData = users.flatMap(user => user.projects || []);
+ // A bejelentkezett felhasználó adatai
+ const user = req.user;
 
-  res.render('admin-dashboard', {
-    user: req.user,
-    projects: projects
-  });
+ // Projektek adatainak biztosítása (ezek az adatok kell, hogy jöjjenek a projektekből)
+ const projectsData = users.flatMap(user => user.projects || []); // Minden felhasználóhoz tartozó projektek
+
+ // A sablon renderelése, felhasználó és projektek adataival
+ res.render('admin-dashboard', {
+   user: req.user, // Bejelentkezett felhasználó adatai
+   projects: projects // Projektek a projects.json-ból
+ });
 });
 
 // Felhasználói adatok sorosítása
 passport.serializeUser((user, done) => {
+  // A felhasználó 'id' mezőjét és az 'isAdmin' tulajdonságot mentjük
   done(null, { id: user.id, isAdmin: user.isAdmin });
 });
 
 // Felhasználói adatok visszanyerése
 passport.deserializeUser(async (userData, done) => {
   try {
+    // Az id alapján keresünk az adatbázisban
     const result = await pool.query('SELECT * FROM users WHERE id = $1', [userData.id]);
     const user = result.rows[0];
 
     if (user) {
-      user.isAdmin = userData.isAdmin;
+      user.isAdmin = userData.isAdmin; // Az isAdmin tulajdonságot visszaállítjuk
       done(null, user);
     } else {
       done(new Error('Felhasználó nem található.'));
@@ -328,9 +360,13 @@ passport.deserializeUser(async (userData, done) => {
   }
 });
 
+// Sablon motor beállítása
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views')); // views mappa beállítása
+
 // Projekt hozzáadása form megjelenítése
 app.get('/admin/projects/add', isAdmin, (req, res) => {
-  res.render('add-project');
+  res.render('add-project'); // Az `add-project.ejs` nevű sablon megjelenítése
 });
 
 // Admin: Új projekt hozzáadása
@@ -338,13 +374,16 @@ app.post('/admin/projects/add', isAdmin, async (req, res) => {
   const { name, description, status } = req.body;
 
   try {
+    // Egyedi azonosító generálása
     const externalId = uuidv4();
 
+    // Ellenőrizni, hogy létezik-e az `external_id`
     const checkResult = await pool.query('SELECT COUNT(*) FROM projects WHERE external_id = $1', [externalId]);
     if (parseInt(checkResult.rows[0].count, 10) > 0) {
       throw new Error('Az external_id már létezik. Próbálja újra.');
     }
 
+    // Adatbázisba mentés
     const result = await pool.query(
       'INSERT INTO projects (name, description, status, external_id) VALUES ($1, $2, $3, $4) RETURNING id, name',
       [name, description, status, externalId]
@@ -353,9 +392,10 @@ app.post('/admin/projects/add', isAdmin, async (req, res) => {
     const newProject = result.rows[0];
     console.log('Új projekt hozzáadva:', newProject);
 
+    // A project_reports rekord létrehozása az új projekthez
     await pool.query(
       'INSERT INTO project_reports (user_id, created_at, updated_at, project_id, name) VALUES ($1, NOW(), NOW(), $2, $3)',
-      [1, newProject.id, newProject.name]
+      [1, newProject.id, newProject.name] // Az alapértelmezett user_id = 1, ezt a tényleges értékekre módosíthatod
     );
 
     console.log('Új jegyzőkönyv rekord létrehozva a project_reports táblában.');
@@ -364,6 +404,7 @@ app.post('/admin/projects/add', isAdmin, async (req, res) => {
   } catch (error) {
     console.error('Error adding project:', error);
 
+    // Az egyediség megsértésének kezelése
     if (error.code === '23505') {
       res.status(400).json({ message: 'Hiba: Az external_id már létezik. Próbáljon újra.' });
     } else {
@@ -385,6 +426,7 @@ app.post('/admin/users/add', isAdmin, async (req, res) => {
 
   const { username, password, confirmPassword, isAdmin } = req.body;
 
+  // Ellenőrizzük, hogy van-e felhasználónév és jelszó
   if (!username || !password || !confirmPassword) {
     return res.render('add-users', { 
       error: 'Minden mező kitöltése kötelező',
@@ -392,6 +434,7 @@ app.post('/admin/users/add', isAdmin, async (req, res) => {
     });
   }
 
+  // Ellenőrizzük, hogy a két jelszó egyezik-e
   if (password !== confirmPassword) {
     return res.render('add-users', { 
       error: 'A két jelszó nem egyezik',
@@ -400,6 +443,7 @@ app.post('/admin/users/add', isAdmin, async (req, res) => {
   }
 
   try {
+    // Ellenőrizzük, hogy a felhasználónév egyedi-e
     const userCheck = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
     if (userCheck.rows.length > 0) {
       return res.render('add-users', { 
@@ -408,13 +452,16 @@ app.post('/admin/users/add', isAdmin, async (req, res) => {
       });
     }
 
+    // Titkosítjuk a jelszót
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Új felhasználó adatainak mentése az adatbázisba
     const result = await pool.query(
       'INSERT INTO users (username, password, is_admin) VALUES ($1, $2, $3) RETURNING *',
       [username, hashedPassword, isAdmin ? true : false]
     );
 
+    // Egyszerű átirányítás az admin/users oldalra sikeres létrehozás után
     res.redirect('/admin/users');
   } catch (error) {
     console.error('Error adding user:', error);
@@ -430,13 +477,16 @@ app.post('/admin/users/delete/:id', isAdmin, async (req, res) => {
   const userId = req.params.id;
   
   try {
+    // Ellenőrizzük, hogy a felhasználó létezik-e
     const userCheck = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
     if (userCheck.rows.length === 0) {
       return res.status(404).json({ error: 'A felhasználó nem található!' });
     }
     
+    // Törölni a felhasználót az adatbázisból
     await pool.query('DELETE FROM users WHERE id = $1', [userId]);
     
+    // Átirányítás a felhasználók oldalra sikeres törlés után
     res.redirect('/admin/users');
   } catch (error) {
     console.error('Error deleting user:', error);
@@ -453,16 +503,19 @@ app.post('/admin/assign-project', isAdmin, async (req, res) => {
   }
 
   try {
+    // Ellenőrizzük, hogy létezik-e a felhasználó
     const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'Felhasználó nem található' });
     }
 
+    // Ellenőrizzük, hogy létezik-e a projekt
     const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1', [projectId]);
     if (projectResult.rows.length === 0) {
       return res.status(404).json({ error: 'Projekt nem található' });
     }
 
+    // A felhasználó és projekt összekapcsolása a kapcsolótáblában
     await pool.query(
       'INSERT INTO user_projects (user_id, project_id) VALUES ($1, $2)',
       [userId, projectId]
@@ -480,16 +533,19 @@ app.post('/admin/projects/:projectId/remove-user/:userId', isAdmin, async (req, 
   const { projectId, userId } = req.params;
 
   try {
+    // Ellenőrizzük, hogy létezik-e a projekt
     const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1', [projectId]);
     if (projectResult.rows.length === 0) {
       return res.status(404).send('Projekt nem található');
     }
 
+    // Ellenőrizzük, hogy létezik-e a felhasználó
     const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
     if (userResult.rows.length === 0) {
       return res.status(404).send('Felhasználó nem található');
     }
 
+    // Ellenőrizzük, hogy a felhasználó hozzárendelve van-e a projekthez a user_projects táblában
     const userProjectResult = await pool.query(
       'SELECT * FROM user_projects WHERE user_id = $1 AND project_id = $2',
       [userId, projectId]
@@ -498,6 +554,7 @@ app.post('/admin/projects/:projectId/remove-user/:userId', isAdmin, async (req, 
       return res.status(404).send('Felhasználó nincs hozzárendelve ehhez a projekthez');
     }
 
+    // Felhasználó eltávolítása a kapcsolótáblából
     await pool.query(
       'DELETE FROM user_projects WHERE user_id = $1 AND project_id = $2',
       [userId, projectId]
@@ -515,12 +572,17 @@ app.post('/admin/projects/delete', isAdmin, async (req, res) => {
   const { projectId } = req.body;
 
   try {
+    // Projekt törlése az 'projects' táblából
     await pool.query('DELETE FROM projects WHERE id = $1', [projectId]);
+
+    // Felhasználói projektek törlése a 'user_projects' táblából
     await pool.query('DELETE FROM user_projects WHERE project_id = $1', [projectId]);
 
+    // A frissített projektek betöltése és megjelenítése
     const result = await pool.query('SELECT * FROM projects');
     const updatedProjects = result.rows;
 
+    // A projektek oldal megjelenítése a törlés után
     res.render('projects', { 
       projects: updatedProjects,
       message: 'A projekt sikeresen törlésre került.' 
@@ -536,6 +598,7 @@ app.post('/admin/projects/:projectId/assign-users', isAdmin, async (req, res) =>
   const projectId = req.params.projectId;
   let assignedUsers = req.body.assignedUsers;
   
+  // Ha egy felhasználó van kiválasztva, akkor stringként érkezik
   if (typeof assignedUsers === 'string') {
     assignedUsers = [assignedUsers];
   } else if (!assignedUsers) {
@@ -543,6 +606,7 @@ app.post('/admin/projects/:projectId/assign-users', isAdmin, async (req, res) =>
   }
   
   try {
+    // A meglévő hozzárendelések ellenőrzése
     const existingAssignments = await pool.query(
       'SELECT user_id FROM user_projects WHERE project_id = $1',
       [projectId]
@@ -550,8 +614,10 @@ app.post('/admin/projects/:projectId/assign-users', isAdmin, async (req, res) =>
     
     const existingUserIds = existingAssignments.rows.map(row => row.user_id);
     
+    // Az új felhasználók azonosítása (akik még nincsenek hozzáadva)
     const newUsers = assignedUsers.filter(userId => !existingUserIds.includes(parseInt(userId)));
     
+    // Csak az új felhasználókat adjuk hozzá, a meglévőket nem bántjuk
     for (const userId of newUsers) {
       await pool.query(
         'INSERT INTO user_projects (user_id, project_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
@@ -559,9 +625,11 @@ app.post('/admin/projects/:projectId/assign-users', isAdmin, async (req, res) =>
       );
     }
     
+    // A projekt adatok újbóli lekérése a frissített adatokkal
     const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1', [projectId]);
     const project = projectResult.rows[0];
     
+    // Hozzárendelt felhasználók lekérése
     const assignedUsersResult = await pool.query(
       'SELECT users.id, users.username FROM users ' +
       'JOIN user_projects ON users.id = user_projects.user_id ' +
@@ -571,9 +639,11 @@ app.post('/admin/projects/:projectId/assign-users', isAdmin, async (req, res) =>
     
     project.assignedUsers = assignedUsersResult.rows;
     
+    // Összes felhasználó lekérése
     const usersResult = await pool.query('SELECT id, username FROM users');
     const users = usersResult.rows;
     
+    // Oldal renderelése az frissített adatokkal
     res.render('project-details', { 
       project, 
       users,
@@ -586,11 +656,20 @@ app.post('/admin/projects/:projectId/assign-users', isAdmin, async (req, res) =>
   }
 });
 
+//Felhasználó projektek megjelenítéséhez autentikáció
+function isAuthenticated(req, res, next) {
+  if (req.isAuthenticated && req.isAuthenticated()) {
+    return next(); // Folytatjuk a következő middleware-t vagy route kezelőt
+  }
+  res.redirect('/login'); // Ha nincs bejelentkezve, irányítjuk a bejelentkező oldalra
+}
+
 // Felhasználó projektjeinek lekérése adatbázisból
 app.get('/user/projects', isAuthenticated, async (req, res) => {
   const userId = req.user.id;
 
   try {
+    // Lekérjük a felhasználóhoz tartozó projekteket
     const result = await pool.query(
       'SELECT projects.* FROM projects ' +
       'JOIN user_projects ON projects.id = user_projects.project_id ' +
@@ -600,10 +679,12 @@ app.get('/user/projects', isAuthenticated, async (req, res) => {
 
     const userProjects = result.rows;
 
+    // Ha nincs hozzárendelt projekt, értesítjük a felhasználót
     if (userProjects.length === 0) {
       return res.status(404).render('user-projects', { projects: [], message: 'Nincsenek megjeleníthető projektek.' });
     }
 
+    // A projekteket átadjuk az EJS sablonnak
     res.render('user-projects', { projects: userProjects });
   } catch (error) {
     console.error('Error fetching user projects:', error);
@@ -615,9 +696,10 @@ app.get('/user/projects', isAuthenticated, async (req, res) => {
 app.get('/user/projects/:projectId', isAuthenticated, async (req, res) => { 
   const { projectId } = req.params;
   const userId = req.user.id;
-  const isUserAdmin = req.user.is_admin;
+  const isUserAdmin = req.user.is_admin; // Feltételezve, hogy a felhasználó objektum tartalmazza az admin jogosultságot
   
   try { 
+    // Ellenőrizzük, hogy a projekt létezik-e 
     const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1', [projectId]); 
     if (projectResult.rows.length === 0) {
       return res.status(404).render('error', { message: 'Projekt nem található.' });
@@ -625,6 +707,7 @@ app.get('/user/projects/:projectId', isAuthenticated, async (req, res) => {
     
     const project = projectResult.rows[0]; 
     
+    // Ha a felhasználó nem admin, ellenőrizzük, hogy a projekt hozzá van-e rendelve
     if (!isUserAdmin) {
       const assignmentResult = await pool.query( 
         'SELECT * FROM user_projects WHERE user_id = $1 AND project_id = $2', 
@@ -636,18 +719,13 @@ app.get('/user/projects/:projectId', isAuthenticated, async (req, res) => {
       }
     }
     
+    // A projekt adatainak és projectId átadása az EJS sablonnak
     res.render('user-project-details', { project, projectId }); 
   } catch (error) { 
     console.error('Error fetching project details:', error); 
     res.status(500).send('Hiba történt a projekt adatok lekérése során');
   } 
 });
-
-// Ez a blokk biztosítja, hogy a startApplication() csak akkor hívódjon meg,
-// ha a server.js a fő modul
-if (require.main === module) {
-    startApplication();
-}
 
 // Admin: projekt részletek lekérése a hozzárendelt felhasználókkal
 app.get('/admin/projects/:projectId', isAdmin, async (req, res) => {
