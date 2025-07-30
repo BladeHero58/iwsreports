@@ -49,65 +49,78 @@ let driveService; // Ezt is itt érdemes deklarálni globálisan, ha a Google Dr
 // Ez a függvény visszatér egy Promise-szel, amit a server.js várni fog.
 // ************************************************************
 async function initializeGoogleServices() {
+    console.log('DEBUG [INIT]: initializeGoogleServices függvény elindult.');
     try {
         let credentials;
 
         // 1. Megpróbáljuk beolvasni a JSON-t a környezeti változóból (Render.com)
         if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+            console.log('DEBUG [INIT]: GOOGLE_APPLICATION_CREDENTIALS_JSON környezeti változó ellenőrzése...');
             try {
                 credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
-                console.log('✅ Google Cloud hitelesítő adatok betöltve a környezeti változóból.');
+                console.log('✅ DEBUG [INIT]: Google Cloud hitelesítő adatok betöltve a környezeti változóból.');
+                console.log('DEBUG [INIT]: credentials tartalom eleje:', JSON.stringify(credentials).substring(0, 100) + '...');
             } catch (parseError) {
+                console.error(`❌ HIBA [INIT]: A GOOGLE_APPLICATION_CREDENTIALS_JSON környezeti változó tartalma érvénytelen JSON: ${parseError.message}`);
                 throw new Error(`HIBA: A GOOGLE_APPLICATION_CREDENTIALS_JSON környezeti változó tartalma érvénytelen JSON: ${parseError.message}`);
             }
         }
         // 2. Ha az nem létezik, megpróbáljuk a fájl elérési útjáról (lokális .env)
         else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+            console.log('DEBUG [INIT]: GOOGLE_APPLICATION_CREDENTIALS környezeti változó ellenőrzése (lokális fájl)...');
             const keyFilePath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
             const fullKeyPath = path.join(process.cwd(), keyFilePath);
 
             if (fs.existsSync(fullKeyPath)) {
                 credentials = JSON.parse(fs.readFileSync(fullKeyPath, 'utf8'));
-                console.log(`✅ Google Cloud hitelesítő adatok betöltve a fájlból: ${fullKeyPath}`);
+                console.log(`✅ DEBUG [INIT]: Google Cloud hitelesítő adatok betöltve a fájlból: ${fullKeyPath}`);
+                console.log('DEBUG [INIT]: credentials tartalom eleje:', JSON.stringify(credentials).substring(0, 100) + '...');
             } else {
+                console.error(`❌ HIBA [INIT]: A Service Account kulcsfájl nem található: ${fullKeyPath}. Kérlek, ellenőrizd a .env fájlban az útvonalat és a fájl meglétét.`);
                 throw new Error(`HIBA: A Service Account kulcsfájl nem található: ${fullKeyPath}. Kérlek, ellenőrizd a .env fájlban az útvonalat és a fájl meglétét.`);
             }
         } else {
-            // Ha egyik sem érhető el
+            console.error("❌ Kritikus HIBA [INIT]: Sem a GOOGLE_APPLICATION_CREDENTIALS_JSON, sem a GOOGLE_APPLICATION_CREDENTIALS környezeti változó nincs beállítva. A Google Cloud és Drive szolgáltatások nem inicializálhatók.");
             throw new Error("Kritikus HIBA: Sem a GOOGLE_APPLICATION_CREDENTIALS_JSON, sem a GOOGLE_APPLICATION_CREDENTIALS környezeti változó nincs beállítva. A Google Cloud és Drive szolgáltatások nem inicializálhatók.");
         }
 
-        // Most, hogy a credentials objektum elkészült, használjuk a Storage és Drive inicializálásához
-
-        // GCS inicializálás
-        if (!credentials) { // Redundáns ellenőrzés, de nem árt
+        // --- GCS inicializálás ---
+        console.log('DEBUG [INIT]: Google Cloud Storage inicializálás elindult...');
+        if (!credentials) {
+             console.error("❌ HIBA [INIT]: Nincsenek hitelesítő adatok a Google Cloud Storage inicializálásához (unexpected null credentials).");
              throw new Error("HIBA: Nincsenek hitelesítő adatok a Google Cloud Storage inicializálásához.");
         }
         storage = new Storage({ credentials });
+        console.log('DEBUG [INIT]: Storage kliens létrehozva.');
 
         gcsBucketName = process.env.GCS_BUCKET_NAME;
         if (!gcsBucketName) {
+            console.error("❌ HIBA [INIT]: A GCS_BUCKET_NAME környezeti változó nincs beállítva.");
             throw new Error("HIBA: A GCS_BUCKET_NAME környezeti változó nincs beállítva.");
         }
         bucket = storage.bucket(gcsBucketName);
+        console.log(`✅ DEBUG [INIT]: Google Cloud Storage bucket inicializálva: ${gcsBucketName}`);
 
-        console.log(`Google Cloud Storage bucket inicializálva: ${gcsBucketName}`);
-
-        // Google Drive inicializálás
+        // --- Google Drive inicializálás ---
+        console.log('DEBUG [INIT]: Google Drive Service inicializálás elindult...');
         const authClient = new google.auth.GoogleAuth({
-            credentials: credentials, // Ugyanazt a credentials objektumot használjuk
+            credentials: credentials,
             scopes: ['https://www.googleapis.com/auth/drive'],
         });
+        console.log('DEBUG [INIT]: GoogleAuth kliens létrehozva.');
 
-        const auth = await authClient.getClient();
+        console.log('DEBUG [INIT]: Megpróbálom lekérni a Google Auth klienst (authClient.getClient())...');
+        const auth = await authClient.getClient(); // <-- A LEGNAGYOBB VALÓSZÍNŰSÉGGEL ITT FOG ELHASALNI
+        console.log('✅ DEBUG [INIT]: Google Auth kliens sikeresen lekérve.'); // <-- Ha ez megjelenik, akkor jól állunk!
+
         driveService = google.drive({ version: 'v3', auth });
-        console.log('Google Drive Service sikeresen inicializálva.');
+        console.log('✅ DEBUG [INIT]: Google Drive Service sikeresen inicializálva.'); // <-- EZ KELL A VÉGÉN MEGJELENJEN!
 
+        return true; // Sikeres inicializáció jele
     } catch (error) {
-        console.error("Kritikus hiba a Google Cloud Storage/Drive inicializálásakor:", error.message);
-        // Itt nem hívjuk meg a process.exit(1)-et, mert a server.js fogja kezelni,
-        // ha az initializationPromise-t elkapja.
-        throw error; // Fontos, hogy a Promise elutasítását kiváltsuk
+        console.error("❌ Kritikus hiba [INIT]: Google Cloud Storage/Drive inicializálásakor történt hiba:", error.message);
+        console.error("Hiba stack trace [INIT]:", error.stack); // Ez nagyon fontos, részletesebb hibainformációt ad
+        throw error; // Propagálja a hibát a server.js felé
     }
 }
 
