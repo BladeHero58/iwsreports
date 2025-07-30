@@ -1,15 +1,41 @@
+// server.js
+console.log('SERVER.JS DEBUG: Fájl eleje elérve.');
+
 require("dotenv").config();
+console.log('SERVER.JS DEBUG: Dotenv betöltve.');
+
 const express = require('express');
+console.log('SERVER.JS DEBUG: Express betöltve.');
+
 const path = require('path');
+console.log('SERVER.JS DEBUG: Path betöltve.');
+
 const passport = require('passport');
+console.log('SERVER.JS DEBUG: Passport betöltve.');
+
 const LocalStrategy = require('passport-local').Strategy;
+console.log('SERVER.JS DEBUG: LocalStrategy betöltve.');
+
 const session = require('express-session');
+console.log('SERVER.JS DEBUG: Express-session betöltve.');
+
 const bcrypt = require('bcryptjs');
+console.log('SERVER.JS DEBUG: Bcrypt betöltve.');
+
 const fs = require('fs');
+console.log('SERVER.JS DEBUG: FS betöltve.');
+
 const { knex } = require('./db'); // CSAK A KNEX-ET IMPORTÁLJUK ITT! (a pool-t nem használjuk tovább)
+console.log('SERVER.JS DEBUG: Knex betöltve a db.js-ből.');
+
 const { v4: uuidv4 } = require('uuid');
+console.log('SERVER.JS DEBUG: UUID betöltve.');
+
 const bodyParser = require('body-parser');
+console.log('SERVER.JS DEBUG: Body-parser betöltve.');
+
 const jwt = require('jsonwebtoken'); // JWT importálása
+console.log('SERVER.JS DEBUG: JWT betöltve.');
 
 // --- ÚJ DEBUG LOG ---
 console.log('Backend (server.js startup): process.env.JWT_SECRET:', process.env.JWT_SECRET ? 'Loaded (first 10 chars: ' + process.env.JWT_SECRET.substring(0, 10) + '...)' : 'NOT LOADED or EMPTY!');
