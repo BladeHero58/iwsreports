@@ -104,11 +104,9 @@ async function startApplication() {
         }
 
         // Szerver indítása - egyszerű, Render.com kompatibilis módon
-        const server = app.listen(PORT, '0.0.0.0', () => {
-            console.log(`Szerver fut a http://0.0.0.0:${PORT} címen`);
-            console.log("Google Drive Service sikeresen inicializálva.");
-            console.log("Alkalmazás sikeresen elindult!");
-        });
+        app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Szerver fut a http://0.0.0.0:${PORT} címen`);
+});
 
         server.on('error', (error) => {
             console.error("Szerver hiba:", error);
