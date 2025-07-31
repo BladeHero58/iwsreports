@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken'); // <-- EZT ADD HOZZÁ
 // A PDF generálóhoz szükséges könyvtár importálása
 const path = require('path'); // <--- EZ HIÁNYZOTT
 const PdfPrinter = require('pdfmake'); // <--- VALÓSZÍNŰLEG EZ IS HIÁNYZOTT
+const fs = require('fs');
 
 // --- Middleware-ek ---
 const authenticateToken = (req, res, next) => {
