@@ -617,7 +617,7 @@ router.get('/download-report', authenticateToken, authorize(['admin', 'user']), 
                             columns: [
                                 // 1. oszlop: Logó
                                 {
-                                    image: path.join(__dirname, '..', 'public', 'images', 'IWS_cég_logó.jpg'),
+                                    image: path.join(__dirname, '..', 'public', 'images', 'iws-logo.jpg'),
                                     width: 60
                                 },
                                 // 2. oszlop: Dokumentum adatok (több sorban)
