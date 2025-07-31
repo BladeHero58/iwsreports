@@ -1,4 +1,4 @@
-// routes/schedule.js - MÓDOSÍTOTT VERZIÓ
+// routes/schedule.js
 const express = require('express');
 const router = express.Router();
 const { knex } = require('../db');
@@ -136,6 +136,39 @@ async function ensureScheduleNotesTable() {
     }
 }
 
+/**
+ * Ellenőrzi és szükség esetén létrehozza a `weekly_schedules` táblát.
+ * Ez a függvény került most hozzáadásra/kiegészítésre.
+ */
+async function ensureWeeklySchedulesTable() {
+    try {
+        const tableExists = await knex.schema.hasTable('weekly_schedules');
+        
+        if (!tableExists) {
+            console.log('Backend: weekly_schedules tábla nem létezik, létrehozás...');
+            await knex.schema.createTable('weekly_schedules', (table) => {
+                table.increments('id').primary();
+                table.string('employee_name').notNullable();
+                table.string('monday_shift'); // Műszakok szövegesen tárolva
+                table.string('tuesday_shift');
+                table.string('wednesday_shift');
+                table.string('thursday_shift');
+                table.string('friday_shift');
+                table.string('saturday_shift');
+                table.string('sunday_shift');
+                table.timestamp('created_at').defaultTo(knex.fn.now());
+                table.timestamp('updated_at').defaultTo(knex.fn.now());
+            });
+            console.log('Backend: weekly_schedules tábla sikeresen létrehozva.');
+        }
+        return true;
+    } catch (error) {
+        console.error('Backend: Hiba a weekly_schedules tábla ellenőrzésekor/létrehozásakor:', error);
+        throw error;
+    }
+}
+
+
 // --- API Végpontok a Beosztási Időszakhoz (`schedule_period`) ---
 
 /**
@@ -146,7 +179,10 @@ async function ensureScheduleNotesTable() {
 router.get('/period', authenticateToken, authorize(['admin', 'user']), async (req, res) => {
     console.log('Backend (GET /api/schedule/period): Kérés érkezett.');
     try {
-        await ensureSchedulePeriodTable(); // Biztosítjuk a tábla létezését
+        await ensureSchedulePeriodTable(); 
+        await ensureScheduleNotesTable(); // Biztosítjuk a notes tábla létezését is
+        await ensureWeeklySchedulesTable(); // Biztosítjuk a weekly_schedules tábla létezését is
+        
         const period = await knex('schedule_period').first();
         if (!period) {
             return res.status(404).json({ message: 'Nincs beállított beosztási időszak.' });
@@ -176,6 +212,7 @@ router.put('/period', authenticateToken, authorize(['admin']), async (req, res) 
     }
 
     try {
+        await ensureSchedulePeriodTable(); // Biztosítjuk a tábla létezését a művelet előtt
         // Feltételezzük, hogy csak egy rekord van a schedule_period táblában, az ID-je 1.
         // Ha nem, akkor keressük meg az elsőt, vagy használjunk más egyedi azonosítót.
         const [updatedPeriod] = await knex('schedule_period')
@@ -218,6 +255,7 @@ router.get('/weekly', authenticateToken, authorize(['admin', 'user']), async (re
     const { employee_name } = req.query; // Már csak employee_name alapján lehet szűrni
 
     try {
+        await ensureWeeklySchedulesTable(); // Biztosítjuk a tábla létezését
         let query = knex('weekly_schedules')
             .select('*')
             .orderBy('employee_name', 'asc'); // Rendezés employee_name alapján
@@ -260,6 +298,7 @@ router.post('/weekly', authenticateToken, authorize(['admin']), async (req, res)
     }
 
     try {
+        await ensureWeeklySchedulesTable(); // Biztosítjuk a tábla létezését
         const insertData = {
             employee_name,
             monday_shift: monday_shift || null,
@@ -302,6 +341,7 @@ router.put('/weekly/:id', authenticateToken, authorize(['admin']), async (req, r
     } = req.body;
 
     try {
+        await ensureWeeklySchedulesTable(); // Biztosítjuk a tábla létezését
         const existingEntry = await knex('weekly_schedules').where({ id }).first();
         if (!existingEntry) {
             return res.status(404).json({ message: 'Heti beosztás nem található.' });
@@ -341,6 +381,7 @@ router.delete('/weekly/:id', authenticateToken, authorize(['admin']), async (req
     const { id } = req.params;
 
     try {
+        await ensureWeeklySchedulesTable(); // Biztosítjuk a tábla létezését
         const existingEntry = await knex('weekly_schedules').where({ id }).first();
         if (!existingEntry) {
             return res.status(404).json({ message: 'Heti beosztás nem található.' });
@@ -399,6 +440,7 @@ router.put('/notes', authenticateToken, authorize(['admin']), async (req, res) =
     }
 
     try {
+        await ensureScheduleNotesTable(); // Biztosítjuk a tábla létezését
         const existingNotes = await knex('schedule_notes')
             .select('*')
             .orderBy('updated_at', 'desc')
