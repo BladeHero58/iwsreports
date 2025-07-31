@@ -4,7 +4,7 @@
   "description": "jegyzőkönyv készítés az IWS számára.",
   "main": "server.js",
   "scripts": {
-    "start": "node migrate.js && node migrateUsers.js && node server.js",
+    "start": "node migrate.js && node migrateUsers.js && node migrateProjects.js && node server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "postinstall": "npx puppeteer install",
     "migrate": "npx knex migrate:latest --env production"
