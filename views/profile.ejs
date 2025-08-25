@@ -17,7 +17,7 @@
 
 </head>
 <body>
-   <h1>Üdvözöljük, <%= user.username %>!</h1>
+   <h1>Üdvözlünk, <%= user.username %>!</h1>
 <p>Email: <%= user.email %></p>
 <p>Felhasználói név: <%= user.username %></p>
 
@@ -159,13 +159,37 @@
     </form>
 
     <form action="/dashboard" method="GET">
-        <button type="submit" class="logout-btn">Vissza az irányítópultra</button>
+        <button type="button" class="dashboard-btn" id="backToDashboardBtn">Vissza az irányítópultra</button>
     </form>
 </div>
 
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js'></script>
 
     <script>
+//GOMB VISSZA AZ IRÁNYÍTÓPULTRA
+// Alternatív megoldás, ha már rendelkezésre áll a user objektum a szerveroldali renderelésből
+// Ez a megoldás gyorsabb, mert nem kell API hívást tenni
+document.addEventListener('DOMContentLoaded', () => {
+    const backBtn = document.getElementById('backToDashboardBtn');
+
+    if (backBtn) {
+        backBtn.addEventListener('click', () => {
+            // Használjuk a szerveroldali renderelésből származó user objektumot
+            const isAdmin = <%= user.isAdmin || false %>; // Vagy <%= user.role === 'admin' %>
+            
+            console.log('Admin státusz:', isAdmin);
+            
+            if (isAdmin) {
+                console.log('Admin felhasználó, átirányítás admin-dashboard-ra');
+                window.location.href = '/admin-dashboard';
+            } else {
+                console.log('Normál felhasználó, átirányítás dashboard-ra');
+                window.location.href = '/dashboard';
+            }
+        });
+    }
+});
+
         // KÖZVETLEN ELLENŐRZÉS A SCRIPT BETÖLTŐDÉSEKOR
         console.log('Frontend (profile.ejs - early check): localStorage "token" value:', localStorage.getItem('token') ? 'Token megtalálható (első 10 karakter): ' + localStorage.getItem('token').substring(0, 10) + '...' : 'Nincs token');
 

@@ -1,41 +1,18 @@
 // server.js
-console.log('SERVER.JS DEBUG: Fájl eleje elérve.');
-
 require("dotenv").config();
-console.log('SERVER.JS DEBUG: Dotenv betöltve.');
-
 const express = require('express');
-console.log('SERVER.JS DEBUG: Express betöltve.');
-
 const path = require('path');
-console.log('SERVER.JS DEBUG: Path betöltve.');
-
 const passport = require('passport');
-console.log('SERVER.JS DEBUG: Passport betöltve.');
-
 const LocalStrategy = require('passport-local').Strategy;
-console.log('SERVER.JS DEBUG: LocalStrategy betöltve.');
-
 const session = require('express-session');
-console.log('SERVER.JS DEBUG: Express-session betöltve.');
-
 const bcrypt = require('bcryptjs');
-console.log('SERVER.JS DEBUG: Bcrypt betöltve.');
-
 const fs = require('fs');
-console.log('SERVER.JS DEBUG: FS betöltve.');
-
 const { knex } = require('./db'); // CSAK A KNEX-ET IMPORTÁLJUK ITT! (a pool-t nem használjuk tovább)
-console.log('SERVER.JS DEBUG: Knex betöltve a db.js-ből.');
 
 const { v4: uuidv4 } = require('uuid');
-console.log('SERVER.JS DEBUG: UUID betöltve.');
-
 const bodyParser = require('body-parser');
-console.log('SERVER.JS DEBUG: Body-parser betöltve.');
 
 const jwt = require('jsonwebtoken'); // JWT importálása
-console.log('SERVER.JS DEBUG: JWT betöltve.');
 
 // --- ÚJ DEBUG LOG ---
 console.log('Backend (server.js startup): process.env.JWT_SECRET:', process.env.JWT_SECRET ? 'Loaded (first 10 chars: ' + process.env.JWT_SECRET.substring(0, 10) + '...)' : 'NOT LOADED or EMPTY!');
@@ -623,30 +600,31 @@ app.post('/admin/projects/:projectId/assign-users', isAdmin, async (req, res) =>
   try {
     // Kezdjünk egy tranzakciót
     await knex.transaction(async trx => {
-      // A meglévő hozzárendelések törlése ehhez a projekthez
-      // Ezt megtehetjük, ha a sablonban mindig a teljes listát küldjük vissza
-      // VAGY, ahogy az eredeti kód, csak az újakat adjuk hozzá
-      // Most maradunk az eredeti logikánál, és csak az újakat adjuk hozzá.
-      // Ha azt akarod, hogy a BE-n kezeld, melyek kerültek törlésre és melyek hozzáadásra,
-      // akkor előbb le kell kérni a jelenlegi hozzárendeléseket, és összehasonlítani a bejövő listával.
+      // Adatstruktúra elkészítése a beillesztéshez
+      const insertData = assignedUsers.map(userId => ({
+        user_id: userId,
+        project_id: projectId
+      }));
 
-      // Az új felhasználók azonosítása (akik még nincsenek hozzáadva)
+      // Csak a nem duplikált felhasználókat szúrjuk be, a duplikáltakat figyelmen kívül hagyjuk.
+      if (insertData.length > 0) {
+        await trx('user_projects')
+          .insert(insertData)
+          .onConflict(['user_id', 'project_id'])
+          .ignore();
+      }
+
+      // Töröljük azokat a felhasználókat, akik már nincsenek a listában
+      // Először lekérdezzük a jelenlegi hozzárendeléseket
       const existingAssignments = await trx('user_projects')
         .select('user_id')
         .where('project_id', projectId);
 
-      const existingUserIds = existingAssignments.map(row => row.user_id.toString()); // Fontos a stringgé alakítás az összehasonlításhoz
+      const existingUserIds = existingAssignments.map(row => row.user_id.toString());
 
-      const usersToInsert = assignedUsers.filter(userId => !existingUserIds.includes(userId));
-
-      // Csak az új felhasználókat adjuk hozzá
-      if (usersToInsert.length > 0) {
-        const insertData = usersToInsert.map(userId => ({ user_id: userId, project_id: projectId }));
-        await trx('user_projects').insert(insertData).onConflict(['user_id', 'project_id']).ignore();
-      }
-
-      // Ami az eredeti kódból hiányzott, de szükséges lehet: töröljük azokat, amik már nincsenek a listában
+      // Azonosítjuk a törlendő felhasználókat
       const usersToRemove = existingUserIds.filter(userId => !assignedUsers.includes(userId));
+
       if (usersToRemove.length > 0) {
         await trx('user_projects')
           .where('project_id', projectId)
@@ -654,7 +632,6 @@ app.post('/admin/projects/:projectId/assign-users', isAdmin, async (req, res) =>
           .del();
       }
     });
-
 
     // A projekt adatok újbóli lekérése a frissített adatokkal KNEX-szel
     const project = await knex('projects').where({ id: projectId }).first();
