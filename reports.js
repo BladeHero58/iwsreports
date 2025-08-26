@@ -766,22 +766,19 @@ async function rotateImageWithCanvas(base64Image, rotation) {
 }
 
 async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, rowSizes, cellStyles, downloadedImages = {}) {
-    // PDF lapméretek A4-hez (pontban)
     const A4_WIDTH_PT = 595.28;
-    const PAGE_MARGIN_HORIZONTAL = 40; // 40pt bal + 40pt jobb margó
-    const AVAILABLE_CONTENT_WIDTH = A4_WIDTH_PT - (2 * PAGE_MARGIN_HORIZONTAL); // 595.28 - 80 = 515.28 pt
+    const PAGE_MARGIN_HORIZONTAL = 40;
+    const AVAILABLE_CONTENT_WIDTH = A4_WIDTH_PT - (2 * PAGE_MARGIN_HORIZONTAL);
 
-    // columnSizes konvertálása Pdfmake szélességekké (px -> pt)
     const widths = columnSizes.map(size => {
         if (typeof size === 'string' && size.endsWith('px')) {
-            return parseFloat(size) * 0.75; // Alap konverzió
+            return parseFloat(size) * 0.75;
         } else if (size === 'auto' || size === '*') {
             return '*';
         }
         return size;
     });
 
-    // Ellenőrizzük a táblázat teljes szélességét a fix oszlopok alapján
     let fixedWidthSum = 0;
     let autoOrStarCount = 0;
     widths.forEach(width => {
@@ -792,7 +789,6 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
         }
     });
 
-    // Skálázási tényező kiszámítása
     let scaleFactor = 1;
     if (fixedWidthSum > AVAILABLE_CONTENT_WIDTH && autoOrStarCount === 0) {
         scaleFactor = AVAILABLE_CONTENT_WIDTH / fixedWidthSum;
@@ -820,19 +816,15 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
     const lastRowIndex = rowCount - 1;
     const firstOfLastTenRowsIndex = Math.max(0, rowCount - 10);
 
-    // Define the start and end rows for padding exclusion
-    const firstTenRowsEndIndex = 9; // Rows 0-9 (10 rows)
-    const lastNineRowsStartIndex = Math.max(0, rowCount - 9); // Last 9 rows
+    const firstTenRowsEndIndex = 9;
+    const lastNineRowsStartIndex = Math.max(0, rowCount - 9);
 
     const DEFAULT_BORDER_WIDTH = 0.25;
 
-    // Segédtömb a képet tartalmazó cellák azonosítására
-    // Ezt kell azelőtt feltölteni, hogy a layout függvények futnának
     const cellsWithImages = Array(rowCount).fill(null).map(() => Array(colCount).fill(false));
 
+    // Előre kiszámítjuk a sor magasságokat, hogy később könnyebben össze tudjuk adni őket
     for (let r = 0; r < rowCount; r++) {
-        const rowContent = [];
-
         let rowHeight;
         if (Array.isArray(rowSizes) && rowSizes[r] !== undefined && !isNaN(parseFloat(rowSizes[r]))) {
             rowHeight = parseFloat(rowSizes[r]) * 0.75 * scaleFactor;
@@ -840,8 +832,12 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
             rowHeight = 12;
         }
         heights.push(rowHeight);
+    }
 
-        console.log(`--- Processing Row ${r}. Original rowHeight: ${rowSizes[r]}, Scaled rowHeight: ${rowHeight} (scale factor: ${scaleFactor.toFixed(3)}) ---`);
+    for (let r = 0; r < rowCount; r++) {
+        const rowContent = [];
+
+        console.log(`--- Processing Row ${r}. Scaled rowHeight: ${heights[r]} (scale factor: ${scaleFactor.toFixed(3)}) ---`);
 
         for (let c = 0; c < colCount; c++) {
             const mergeInfo = mergeMatrix[r]?.[c];
@@ -871,7 +867,6 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
             const specificCellStyle = cellStyles.find(style => style?.row === r && style?.col === c);
             const className = specificCellStyle?.className || '';
 
-            // **JAVÍTÁS: Alapértelmezett értékek inicializálása a változók használata előtt**
             let currentFillColor = cellContent.fillColor;
             let currentTextColor = cellContent.color;
             let currentBold = cellContent.bold;
@@ -887,11 +882,12 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
             } else if (typeof cellValue === 'object' && cellValue !== null && typeof cellValue.image === 'string' && cellValue.image.startsWith('https://storage.googleapis.com/')) {
                 imageUrlFromCell = cellValue.image;
             }
-
+            
+            // JAVÍTOTT KÉPKEZELÉSI BLOKK
             if (imageUrlFromCell) {
                 const imgSource = downloadedImages[imageUrlFromCell];
                 if (imgSource) {
-                    cellsWithImages[r][c] = true; // Jelöljük, hogy ez a cella képet tartalmaz
+                    cellsWithImages[r][c] = true;
 
                     let rotation = 0;
                     if (specificCellStyle && typeof specificCellStyle.rotation === 'number') {
@@ -900,7 +896,7 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                         rotation = cellValue.rotation;
                     }
                     rotation = ((rotation % 360) + 360) % 360;
-                    
+
                     let finalImageSource = imgSource;
                     if (rotation !== 0) {
                         try {
@@ -912,18 +908,44 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                         }
                     }
 
-                    cellContent.image = finalImageSource;
-                    cellContent.alignment = 'center';
-                    cellContent.margin = [0, 0, 0, 0]; // A képes celláknál itt állítjuk be a margin-t 0-ra
-                    
+                    // JAVÍTOTT dinamikus méretezés az egyesített cellákhoz
                     let cellWidth = (typeof widths[c] === 'number' ? widths[c] : 100);
-                    let cellHeight = (typeof rowHeight === 'number' ? rowHeight : 100);
+                    let cellHeight = heights[r]; // Használjuk a már kiszámított magasságot
 
+                    if (mergeInfo && mergeInfo.isMain) {
+                        console.log(`Egyesített cella [${r}, ${c}]: colspan=${mergeInfo.colspan}, rowspan=${mergeInfo.rowspan}`);
+                        
+                        // Összeadjuk a "colspan" oszlopok szélességét
+                        for (let k = 1; k < mergeInfo.colspan; k++) {
+                            if (c + k < widths.length) {
+                                const additionalWidth = (typeof widths[c + k] === 'number' ? widths[c + k] : 0);
+                                cellWidth += additionalWidth;
+                                console.log(`  +oszlop [${c + k}] szélessége: ${additionalWidth}, összesen: ${cellWidth}`);
+                            }
+                        }
+                        
+                        // JAVÍTÁS: Összeadjuk a "rowspan" sorok magasságát
+                        for (let l = 1; l < mergeInfo.rowspan; l++) {
+                            if (r + l < heights.length) {
+                                const additionalHeight = heights[r + l];
+                                cellHeight += additionalHeight;
+                                console.log(`  +sor [${r + l}] magassága: ${additionalHeight}, összesen: ${cellHeight}`);
+                            }
+                        }
+                        
+                        console.log(`Végső egyesített cella méretek [${r}, ${c}]: ${cellWidth} x ${cellHeight}`);
+                    }
+                    
                     const actualCellBorderWidth = (specificCellStyle && (specificCellStyle.border === false || (Array.isArray(specificCellStyle.border) && specificCellStyle.border.every(b => b === false)))) ? 0 : DEFAULT_BORDER_WIDTH;
 
                     let availableWidthForImage = cellWidth - (actualCellBorderWidth * 2);
                     let availableHeightForImage = cellHeight - (actualCellBorderWidth * 2);
 
+                    console.log(`Kép elhelyezése [${r}, ${c}]: elérhető terület ${availableWidthForImage} x ${availableHeightForImage}`);
+
+                    cellContent.image = finalImageSource;
+                    cellContent.alignment = 'center';
+                    cellContent.margin = [0, 0, 0, 0];
                     cellContent.width = availableWidthForImage;
                     cellContent.height = availableHeightForImage;
                     
@@ -934,7 +956,7 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                     cellContent.margin = [0.5, 0.5, 0.5, 0.5];
                     cellContent.verticalAlignment = 'middle';
                 }
-            } else {
+            } else { // Eredeti szövegkezelés
                 let cellText = escapeHtml(cellValue !== null && cellValue !== undefined ? String(cellValue) : '');
                 
                 const targetRows = [10, Math.max(0, rowCount - 10)];
@@ -956,13 +978,13 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                         const rotatedTextImage = await rotateTextWithCanvas(cellText, 90, textOptions);
                         
                         if (rotatedTextImage) {
-                            cellsWithImages[r][c] = true; // Jelöljük, hogy ez a cella képet tartalmaz (forgatott szövegkép)
+                            cellsWithImages[r][c] = true;
                             cellContent.image = rotatedTextImage;
                             cellContent.alignment = 'center';
-                            cellContent.margin = [0, 0, 0, 0]; // A képes celláknál itt állítjuk be a margin-t 0-ra
+                            cellContent.margin = [0, 0, 0, 0];
 
                             let cellWidth = (typeof widths[c] === 'number' ? widths[c] : 100);
-                            let cellHeight = (typeof rowHeight === 'number' ? rowHeight : 100);
+                            let cellHeight = heights[r];
                             
                             const actualCellBorderWidth = (specificCellStyle && (specificCellStyle.border === false || (Array.isArray(specificCellStyle.border) && specificCellStyle.border.every(b => b === false)))) ? 0 : DEFAULT_BORDER_WIDTH;
                             
@@ -1118,11 +1140,8 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                 currentBorderColor = ['#000', '#000', '#000', '#000'];
             }
 
-            // specificCellStyle felülírása
             if (specificCellStyle) {
-                // A margin beállítás itt továbbra is van, de a layout padding funkció felülírja, ha nem képes celláról van szó.
-                // A képes celláknál a cellContent.margin már 0-ra van állítva fentebb.
-                if (specificCellStyle.margin && !cellsWithImages[r][c]) { // Csak akkor alkalmazza, ha nem képes cella
+                if (specificCellStyle.margin && !cellsWithImages[r][c]) {
                     cellContent.margin = specificCellStyle.margin.map(m => parseFloat(m) * 0.75 * scaleFactor);
                 }
                 if (specificCellStyle.backgroundColor && specificCellStyle.backgroundColor !== 'inherit' && specificCellStyle.backgroundColor !== '') {
@@ -1132,11 +1151,11 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                 console.log(`Row ${r}, Col ${c}: specificCellStyle.color = "${specificCellStyle.color}", isBlackCell = ${isBlackCell}, currentTextColor before = "${currentTextColor}"`);
 
                 const hasExplicitColor = specificCellStyle.color &&
-                                         specificCellStyle.color !== 'inherit' &&
-                                         specificCellStyle.color !== '' &&
-                                         specificCellStyle.color !== 'rgba(0, 0, 0, 0)' &&
-                                         specificCellStyle.color !== 'transparent' &&
-                                         specificCellStyle.color !== 'undefined';
+                                                 specificCellStyle.color !== 'inherit' &&
+                                                 specificCellStyle.color !== '' &&
+                                                 specificCellStyle.color !== 'rgba(0, 0, 0, 0)' &&
+                                                 specificCellStyle.color !== 'transparent' &&
+                                                 specificCellStyle.color !== 'undefined';
 
                 if (r >= 11 && r < firstOfLastTenRowsIndex) {
                     if (!isBlackCell) {
@@ -1175,23 +1194,16 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                 }
             }
 
-            // *** ÚJ PADDING LOGIKA - Az első 10 és utolsó 9 soron kívül minden sorban padding alkalmazása ***
-            // Csak akkor alkalmazzuk a paddinget, ha:
-            // 1. A sor nem az első 10 sorban van (r > 9)
-            // 2. A sor nem az utolsó 9 sorban van (r < lastNineRowsStartIndex)
-            // 3. A cella nem tartalmaz képet (cellsWithImages[r][c] === false)
             if (r > 9 && r < lastNineRowsStartIndex && !cellsWithImages[r][c]) {
-                // Felső és alsó padding hozzáadása (2pt mindkét oldalon)
                 const paddingAmount = 2;
                 cellContent.margin = [
-                    cellContent.margin[0], // bal margin megmarad
-                    cellContent.margin[1] + paddingAmount, // felső margin + padding
-                    cellContent.margin[2], // jobb margin megmarad
-                    cellContent.margin[3] + paddingAmount  // alsó margin + padding
+                    cellContent.margin[0],
+                    cellContent.margin[1] + paddingAmount,
+                    cellContent.margin[2],
+                    cellContent.margin[3] + paddingAmount
                 ];
             }
 
-            // Cellastílusok alkalmazása az eredmény objektumra
             cellContent.fillColor = currentFillColor;
             cellContent.color = currentTextColor;
             cellContent.bold = currentBold;
@@ -1252,8 +1264,7 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
             alignment: 'center',
             verticalAlignment: 'middle'
         },
-        styles: {
-        }
+        styles: {}
     };
 
     return docDefinition;
