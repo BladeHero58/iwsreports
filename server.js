@@ -567,12 +567,12 @@ app.post('/admin/projects/delete', isAdmin, async (req, res) => {
     try {
         // Kezdjünk egy tranzakciót, hogy biztosítsuk az atomicitást
         await knex.transaction(async trx => {
-            // Először töröljük a kapcsolódó bejegyzéseket a 'user_projects' táblából
-            console.log(`Trying to delete entries from user_projects for project ID: ${projectId}`);
-            const deletedUserProjectsCount = await trx('user_projects')
+            // Először töröljük a kapcsolódó bejegyzéseket a 'project_users' táblából
+            console.log(`Trying to delete entries from project_users for project ID: ${projectId}`);
+            const deletedUserProjectsCount = await trx('project_users')  // Itt változott!
                 .where({ project_id: projectId })
                 .del();
-            console.log(`Deleted ${deletedUserProjectsCount} entries from user_projects.`);
+            console.log(`Deleted ${deletedUserProjectsCount} entries from project_users.`);
 
             // Majd töröljük magát a projektet az 'projects' táblából
             console.log(`Trying to delete project with ID: ${projectId}`);
@@ -583,9 +583,6 @@ app.post('/admin/projects/delete', isAdmin, async (req, res) => {
 
             if (deletedProjectCount === 0) {
                 console.log(`Warning: Project with ID ${projectId} not found to delete.`);
-                // Még ha a projekt nem is létezik, a tranzakció így is sikeres lesz.
-                // Ha mégis szeretnéd jelezni ezt a felhasználónak, itt kell hibát dobni.
-                // A külföldi kulcs hiba nem itt keletkezik, hanem a 'user_projects' táblánál.
             }
         });
 
