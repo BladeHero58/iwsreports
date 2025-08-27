@@ -594,7 +594,7 @@ app.get('/test-schema', async (req, res) => {
     }
 });
 
-// Admin: Projekt törlése - JAVÍTOTT VERZIÓ (mindkét táblából töröl)
+// Admin: Projekt törlése - BŐVÍTETT VERZIÓ (minden kapcsolódó tábla)
 app.post('/admin/projects/delete', isAdmin, async (req, res) => {
     const { projectId } = req.body;
 
@@ -604,20 +604,40 @@ app.post('/admin/projects/delete', isAdmin, async (req, res) => {
 
     try {
         await knex.transaction(async trx => {
-            // Töröljük MINDKÉT kapcsolótáblából
+            // 1. Töröljük a user_projects táblából
             console.log(`Trying to delete entries from user_projects for project ID: ${projectId}`);
             const deletedUserProjectsCount = await trx('user_projects')
                 .where({ project_id: projectId })
                 .del();
             console.log(`Deleted ${deletedUserProjectsCount} entries from user_projects.`);
 
+            // 2. Töröljük a project_users táblából
             console.log(`Trying to delete entries from project_users for project ID: ${projectId}`);
             const deletedProjectUsersCount = await trx('project_users')
                 .where({ project_id: projectId })
                 .del();
             console.log(`Deleted ${deletedProjectUsersCount} entries from project_users.`);
 
-            // Most töröljük magát a projektet
+            // 3. ÚJ: Töröljük a project_reports táblából
+            console.log(`Trying to delete entries from project_reports for project ID: ${projectId}`);
+            const deletedProjectReportsCount = await trx('project_reports')
+                .where({ project_id: projectId })
+                .del();
+            console.log(`Deleted ${deletedProjectReportsCount} entries from project_reports.`);
+
+            // 4. Ha van time_entries tábla is, azt is törölni kell
+            try {
+                console.log(`Trying to delete entries from time_entries for project ID: ${projectId}`);
+                const deletedTimeEntriesCount = await trx('time_entries')
+                    .where({ project_id: projectId })
+                    .del();
+                console.log(`Deleted ${deletedTimeEntriesCount} entries from time_entries.`);
+            } catch (timeEntriesError) {
+                // Ha nincs time_entries tábla vagy oszlop, csak logoljuk
+                console.log('No time_entries to delete or table does not exist');
+            }
+
+            // 5. Végül töröljük magát a projektet
             console.log(`Trying to delete project with ID: ${projectId}`);
             const deletedProjectCount = await trx('projects')
                 .where({ id: projectId })
@@ -633,7 +653,7 @@ app.post('/admin/projects/delete', isAdmin, async (req, res) => {
 
         res.render('projects', {
             projects: updatedProjects,
-            message: 'A projekt és a hozzárendelt felhasználók sikeresen törlésre kerültek.'
+            message: 'A projekt és az összes kapcsolódó adat sikeresen törlésre került.'
         });
     } catch (error) {
         console.error('Error deleting project:', error);
