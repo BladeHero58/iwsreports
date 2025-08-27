@@ -1059,10 +1059,21 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                 }
             }
 
+            // JAVÍTOTT dinamikus sorok színezése - váltakozó fehér és szürke
             if (r >= 11 && r < firstOfLastTenRowsIndex) {
                 const hasExplicitBgColor = specificCellStyle?.backgroundColor && specificCellStyle.backgroundColor !== 'inherit' && specificCellStyle.backgroundColor !== '';
-                if (!isBlackCell && !hasExplicitBgColor) {
-                    currentFillColor = (r - 11) % 2 === 0 ? '#D7D7D7' : 'white';
+                const hasCellImage = cellsWithImages[r][c];
+                
+                if (!isBlackCell && !hasExplicitBgColor && !hasCellImage) {
+                    // A dinamikus sorok indexe (0-tól kezdve a dinamikus részen belül)
+                    const dynamicRowIndex = r - 11;
+                    // Páros indexű dinamikus sorok (0, 2, 4...) fehérek, páratlanok (1, 3, 5...) szürkék
+                    currentFillColor = (dynamicRowIndex % 2 === 0) ? 'white' : '#D7D7D7';
+                    console.log(`Dinamikus sor ${r} (index: ${dynamicRowIndex}): ${currentFillColor}`);
+                } else if (hasCellImage) {
+                    // Képes cellák mindig fehér hátteret kapnak a jobb láthatóság érdekében
+                    currentFillColor = 'white';
+                    console.log(`Képes cella [${r}, ${c}]: fehér háttér`);
                 }
                 if (!isBlackCell) {
                     currentTextColor = 'black';

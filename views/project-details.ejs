@@ -334,20 +334,20 @@ function displayEditableTable(data, mergeCells, colWidths, rowHeights) {
     ];
 
     const riskOptions = [
-        { value: 'Alacsony', color: '#ffff00' },
-        { value: 'Közepes', color: '#ed7d31' },
-        { value: 'Magas', color: '#ff0000' },
-        { value: '-', color: 'white' }
-    ];
+    { value: 'Alacsony', color: '#ffff00' },
+    { value: 'Közepes', color: '#ed7d31' },
+    { value: 'Magas', color: '#ff0000' },
+    { value: '-', color: 'white' } // Ez a sor most már "white", de a kódban dinamikusan felülírjuk
+];
 
-    const statusOptions = [
-        { value: 'Nyitott', color: '#ff0000' },
-        { value: 'Lezárt', color: '#92d050' },
-        { value: 'Folyamatban', color: '#ffff00' },
-        { value: 'Nem teljesített', color: 'grey' },
-        { value: 'Felszólítás után teljesítve', color: '#ffd966' },
-        { value: 'NA', color: 'white' }
-    ];
+const statusOptions = [
+    { value: 'Nyitott', color: '#ff0000' },
+    { value: 'Lezárt', color: '#92d050' },
+    { value: 'Folyamatban', color: '#ffff00' },
+    { value: 'Nem teljesített', color: 'grey' },
+    { value: 'Felszólítás után teljesítve', color: '#ffd966' },
+    { value: 'NA', color: 'white' } // Hasonlóan, ezt is dinamikusan felülírjuk
+];
 
 // Egyedi renderer a színes cellákhoz
 function colorRenderer(instance, td, row, col, prop, value, cellProperties) {
@@ -380,7 +380,18 @@ function colorRenderer(instance, td, row, col, prop, value, cellProperties) {
         return;
     }
 
+    // --- MÓDOSÍTOTT KÓD ---
     if (col === 7) {
+        // Ha az érték '-', akkor dinamikusan állítjuk be a színt
+        if (value === '-') {
+            const rowColor = getRowColor(row, instance);
+            td.style.backgroundColor = rowColor;
+            td.style.color = 'black'; // A szöveg színe maradjon fekete
+            instance.setCellMeta(row, col, 'backgroundColor', rowColor);
+            instance.setCellMeta(row, col, 'color', 'black');
+            return;
+        }
+
         const riskOption = riskOptions.find(option => option.value === value);
         if (riskOption) {
             td.style.backgroundColor = riskOption.color;
@@ -391,7 +402,18 @@ function colorRenderer(instance, td, row, col, prop, value, cellProperties) {
         }
     }
 
+    // --- MÓDOSÍTOTT KÓD ---
     if (col === 10) {
+        // Ha az érték 'NA', akkor dinamikusan állítjuk be a színt
+        if (value === 'NA') {
+            const rowColor = getRowColor(row, instance);
+            td.style.backgroundColor = rowColor;
+            td.style.color = 'black'; // A szöveg színe maradjon fekete
+            instance.setCellMeta(row, col, 'backgroundColor', rowColor);
+            instance.setCellMeta(row, col, 'color', 'black');
+            return;
+        }
+        
         const statusOption = statusOptions.find(option => option.value === value);
         if (statusOption) {
             td.style.backgroundColor = statusOption.color;
@@ -489,9 +511,8 @@ function getInitialRowColor(row, hotInstance) {
     
     return ''; // Alapértelmezett érték
 }
-   
-
-  // Define saveRowColor (módosítva, hogy figyelembe vegye az első 11 sort)
+    
+// Define saveRowColor (módosítva, hogy figyelembe vegye az első 11 sort)
 function saveRowColor(row, color) {
     const rowColors = JSON.parse(localStorage.getItem('rowColors')) || {};
     
