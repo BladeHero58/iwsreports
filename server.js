@@ -557,33 +557,40 @@ app.post('/admin/projects/:projectId/remove-user/:userId', isAdmin, async (req, 
 
 // Admin: Projekt törlése - KNEX-re alakítva
 app.post('/admin/projects/delete', isAdmin, async (req, res) => {
-  const { projectId } = req.body;
+    const { projectId } = req.body;
 
-  try {
-    // Kezdjünk egy tranzakciót, hogy biztosítsuk az atomicitást
-    await knex.transaction(async trx => {
-      // Felhasználói projektek törlése a 'user_projects' táblából
-      await trx('user_projects').where({ project_id: projectId }).del();
+    try {
+        // Kezdjünk egy tranzakciót, hogy biztosítsuk az atomicitást
+        await knex.transaction(async trx => {
+            // Először töröljük a kapcsolódó bejegyzéseket a 'user_projects' táblából
+            console.log(`Deleting entries from user_projects for project ID: ${projectId}`);
+            await trx('user_projects').where({ project_id: projectId }).del();
+            console.log('Successfully deleted related user_projects entries.');
 
-      // Projekt törlése az 'projects' táblából
-      const deletedProjectCount = await trx('projects').where({ id: projectId }).del();
+            // Majd töröljük magát a projektet az 'projects' táblából
+            console.log(`Deleting project with ID: ${projectId}`);
+            const deletedProjectCount = await trx('projects').where({ id: projectId }).del();
 
-      if (deletedProjectCount === 0) {
-        throw new Error('Projekt nem található a törléshez.');
-      }
-    });
+            if (deletedProjectCount === 0) {
+                console.log('Project not found to delete.');
+                // Fontos: a hiba dobása a tranzakción belül van, így a rollback is megtörténik
+                throw new Error('Projekt nem található a törléshez.');
+            }
+            console.log('Successfully deleted the project.');
+        });
 
-    // A frissített projektek betöltése és megjelenítése KNEX-szel
-    const updatedProjects = await knex('projects').select('*');
+        // A frissített projektek betöltése és megjelenítése KNEX-szel
+        const updatedProjects = await knex('projects').select('*');
 
-    res.render('projects', {
-      projects: updatedProjects,
-      message: 'A projekt sikeresen törlésre került.'
-    });
-  } catch (error) {
-    console.error('Error deleting project:', error);
-    res.status(500).send(`Hiba történt a projekt törlése során: ${error.message}`);
-  }
+        res.render('projects', {
+            projects: updatedProjects,
+            message: 'A projekt sikeresen törlésre került.'
+        });
+    } catch (error) {
+        console.error('Error deleting project:', error);
+        // A kliensnek küldött hibaüzenet
+        res.status(500).send(`Hiba történt a projekt törlése során: ${error.message}`);
+    }
 });
 
 // Felhasználók hozzárendelése egy projekthez - KNEX-re alakítva
@@ -834,24 +841,6 @@ app.get('/logout', (req, res) => {
     res.redirect('/login');
   });
 });
-
-// Ez a rész már nem szükséges vagy áthelyezendő a startApplication-be,
-// ha a projekteket dinamikusan kérjük le.
-// A projectsFilePath nem kell, ha nincs projects.json
-// const projectsFilePath = './projects.json';
-// let projectsAll = []; // Nem használjuk, ha Knex-ből kérjük le az adatokat
-
-// Induláskor töltsd be a projekteket - Ezt most már nem így csináljuk,
-// hanem a route-okban, amikor szükség van rájuk.
-// async function loadProjects() {
-//   try {
-//     const result = await knex('projects').select('*'); // KNEX-re alakítva
-//     projectsAll.push(...result);
-//   } catch (err) {
-//     console.error('Hiba a projektek betöltésekor:', err);
-//   }
-// }
-// loadProjects(); // Ezt a hívást is törölni kell!
 
 // Middleware az adminisztrációs jogosultság ellenőrzésére - KNEX-re alakítva
 async function isAdmin(req, res, next) {
