@@ -555,26 +555,23 @@ app.post('/admin/projects/:projectId/remove-user/:userId', isAdmin, async (req, 
   }
 });
 
-// Admin: Projekt törlése - KNEX-re alakítva
+// Admin: Projekt törlése - JAVÍTOTT VERZIÓ
 app.post('/admin/projects/delete', isAdmin, async (req, res) => {
     const { projectId } = req.body;
 
-    // Ellenőrizzük, hogy a projectId létezik
     if (!projectId) {
         return res.status(400).send("Hiányzik a projectId a kérésből.");
     }
 
     try {
-        // Kezdjünk egy tranzakciót, hogy biztosítsuk az atomicitást
         await knex.transaction(async trx => {
-            // Először töröljük a kapcsolódó bejegyzéseket a 'project_users' táblából
-            console.log(`Trying to delete entries from project_users for project ID: ${projectId}`);
-            const deletedUserProjectsCount = await trx('project_users')  // Itt változott!
+            // JAVÍTVA: project_users helyett user_projects
+            console.log(`Trying to delete entries from user_projects for project ID: ${projectId}`);
+            const deletedUserProjectsCount = await trx('user_projects')  // <-- JAVÍTVA!
                 .where({ project_id: projectId })
                 .del();
-            console.log(`Deleted ${deletedUserProjectsCount} entries from project_users.`);
+            console.log(`Deleted ${deletedUserProjectsCount} entries from user_projects.`);
 
-            // Majd töröljük magát a projektet az 'projects' táblából
             console.log(`Trying to delete project with ID: ${projectId}`);
             const deletedProjectCount = await trx('projects')
                 .where({ id: projectId })
@@ -586,7 +583,6 @@ app.post('/admin/projects/delete', isAdmin, async (req, res) => {
             }
         });
 
-        // A frissített projektek betöltése és megjelenítése KNEX-szel
         const updatedProjects = await knex('projects').select('*');
 
         res.render('projects', {
