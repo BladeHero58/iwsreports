@@ -594,7 +594,7 @@ app.get('/test-schema', async (req, res) => {
     }
 });
 
-// Admin: Projekt törlése - JAVÍTOTT VERZIÓ
+// Admin: Projekt törlése - JAVÍTOTT VERZIÓ (mindkét táblából töröl)
 app.post('/admin/projects/delete', isAdmin, async (req, res) => {
     const { projectId } = req.body;
 
@@ -604,13 +604,20 @@ app.post('/admin/projects/delete', isAdmin, async (req, res) => {
 
     try {
         await knex.transaction(async trx => {
-            // A foreign key constraint alapján project_users a helyes táblanév
-            console.log(`Trying to delete entries from project_users for project ID: ${projectId}`);
-            const deletedUserProjectsCount = await trx('project_users')
+            // Töröljük MINDKÉT kapcsolótáblából
+            console.log(`Trying to delete entries from user_projects for project ID: ${projectId}`);
+            const deletedUserProjectsCount = await trx('user_projects')
                 .where({ project_id: projectId })
                 .del();
-            console.log(`Deleted ${deletedUserProjectsCount} entries from project_users.`);
+            console.log(`Deleted ${deletedUserProjectsCount} entries from user_projects.`);
 
+            console.log(`Trying to delete entries from project_users for project ID: ${projectId}`);
+            const deletedProjectUsersCount = await trx('project_users')
+                .where({ project_id: projectId })
+                .del();
+            console.log(`Deleted ${deletedProjectUsersCount} entries from project_users.`);
+
+            // Most töröljük magát a projektet
             console.log(`Trying to delete project with ID: ${projectId}`);
             const deletedProjectCount = await trx('projects')
                 .where({ id: projectId })
