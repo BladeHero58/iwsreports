@@ -559,24 +559,34 @@ app.post('/admin/projects/:projectId/remove-user/:userId', isAdmin, async (req, 
 app.post('/admin/projects/delete', isAdmin, async (req, res) => {
     const { projectId } = req.body;
 
+    // Ellenőrizzük, hogy a projectId létezik
+    if (!projectId) {
+        return res.status(400).send("Hiányzik a projectId a kérésből.");
+    }
+
     try {
         // Kezdjünk egy tranzakciót, hogy biztosítsuk az atomicitást
         await knex.transaction(async trx => {
             // Először töröljük a kapcsolódó bejegyzéseket a 'user_projects' táblából
-            console.log(`Deleting entries from user_projects for project ID: ${projectId}`);
-            await trx('user_projects').where({ project_id: projectId }).del();
-            console.log('Successfully deleted related user_projects entries.');
+            console.log(`Trying to delete entries from user_projects for project ID: ${projectId}`);
+            const deletedUserProjectsCount = await trx('user_projects')
+                .where({ project_id: projectId })
+                .del();
+            console.log(`Deleted ${deletedUserProjectsCount} entries from user_projects.`);
 
             // Majd töröljük magát a projektet az 'projects' táblából
-            console.log(`Deleting project with ID: ${projectId}`);
-            const deletedProjectCount = await trx('projects').where({ id: projectId }).del();
+            console.log(`Trying to delete project with ID: ${projectId}`);
+            const deletedProjectCount = await trx('projects')
+                .where({ id: projectId })
+                .del();
+            console.log(`Deleted ${deletedProjectCount} projects.`);
 
             if (deletedProjectCount === 0) {
-                console.log('Project not found to delete.');
-                // Fontos: a hiba dobása a tranzakción belül van, így a rollback is megtörténik
-                throw new Error('Projekt nem található a törléshez.');
+                console.log(`Warning: Project with ID ${projectId} not found to delete.`);
+                // Még ha a projekt nem is létezik, a tranzakció így is sikeres lesz.
+                // Ha mégis szeretnéd jelezni ezt a felhasználónak, itt kell hibát dobni.
+                // A külföldi kulcs hiba nem itt keletkezik, hanem a 'user_projects' táblánál.
             }
-            console.log('Successfully deleted the project.');
         });
 
         // A frissített projektek betöltése és megjelenítése KNEX-szel
@@ -584,11 +594,10 @@ app.post('/admin/projects/delete', isAdmin, async (req, res) => {
 
         res.render('projects', {
             projects: updatedProjects,
-            message: 'A projekt sikeresen törlésre került.'
+            message: 'A projekt és a hozzárendelt felhasználók sikeresen törlésre kerültek.'
         });
     } catch (error) {
         console.error('Error deleting project:', error);
-        // A kliensnek küldött hibaüzenet
         res.status(500).send(`Hiba történt a projekt törlése során: ${error.message}`);
     }
 });
