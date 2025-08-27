@@ -555,6 +555,45 @@ app.post('/admin/projects/:projectId/remove-user/:userId', isAdmin, async (req, 
   }
 });
 
+// Tesztelő kód - add hozzá ideiglenesen valamelyik route-hoz
+app.get('/test-schema', async (req, res) => {
+    try {
+        // PostgreSQL-ben ellenőrizd a táblákat
+        const tables = await knex.raw(`
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name LIKE '%project%'
+        `);
+        
+        console.log('Tables:', tables.rows);
+        
+        // Ellenőrizd a foreign key-eket
+        const constraints = await knex.raw(`
+            SELECT 
+                tc.constraint_name,
+                tc.table_name,
+                kcu.column_name,
+                ccu.table_name AS foreign_table_name,
+                ccu.column_name AS foreign_column_name
+            FROM information_schema.table_constraints AS tc
+            JOIN information_schema.key_column_usage AS kcu
+                ON tc.constraint_name = kcu.constraint_name
+            JOIN information_schema.constraint_column_usage AS ccu
+                ON ccu.constraint_name = tc.constraint_name
+            WHERE tc.constraint_type = 'FOREIGN KEY' 
+            AND tc.table_name LIKE '%project%'
+        `);
+        
+        console.log('Foreign keys:', constraints.rows);
+        res.json({ tables: tables.rows, constraints: constraints.rows });
+        
+    } catch (error) {
+        console.error('Schema check error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Admin: Projekt törlése - JAVÍTOTT VERZIÓ
 app.post('/admin/projects/delete', isAdmin, async (req, res) => {
     const { projectId } = req.body;
@@ -565,12 +604,12 @@ app.post('/admin/projects/delete', isAdmin, async (req, res) => {
 
     try {
         await knex.transaction(async trx => {
-            // JAVÍTVA: project_users helyett user_projects
-            console.log(`Trying to delete entries from user_projects for project ID: ${projectId}`);
-            const deletedUserProjectsCount = await trx('user_projects')  // <-- JAVÍTVA!
+            // A foreign key constraint alapján project_users a helyes táblanév
+            console.log(`Trying to delete entries from project_users for project ID: ${projectId}`);
+            const deletedUserProjectsCount = await trx('project_users')
                 .where({ project_id: projectId })
                 .del();
-            console.log(`Deleted ${deletedUserProjectsCount} entries from user_projects.`);
+            console.log(`Deleted ${deletedUserProjectsCount} entries from project_users.`);
 
             console.log(`Trying to delete project with ID: ${projectId}`);
             const deletedProjectCount = await trx('projects')
