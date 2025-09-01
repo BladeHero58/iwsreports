@@ -624,28 +624,6 @@ console.log("A data objektum a Handsontable inicializálása előtt:", data);
   }
 },
                 "remove_row": {name: "Sor eltávolítása"},
-               "colorize_row": {
-    name: "Sor színezése",
-    callback: function(key, selection) {
-        const row = selection[0].start.row;
-        const cols = this.countCols();
-        const color = '#D7D7D7'; // Rögzített szín
-
-        if (row >= 0 && row < this.countRows() && !(row < 7 || row === 10)) {
-            for (let col = 0; col < cols; col++) {
-                this.setCellMeta(row, col, 'renderer', colorRenderer);
-                this.setCellMeta(row, col, 'color', color);
-            }
-
-            this.render();
-            
-            // Frissítsük a localStorage-ot is
-            const rowColors = JSON.parse(localStorage.getItem('rowColors')) || {};
-            rowColors[row] = color;
-            localStorage.setItem('rowColors', JSON.stringify(rowColors));
-        }
-    }
-},
                 "upload_image": {
     name: "Kép feltöltése",
     callback: function () {

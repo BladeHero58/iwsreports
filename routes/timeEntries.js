@@ -105,16 +105,16 @@ router.post('/', authenticateToken, authorize(['admin', 'user']), async (req, re
     let calculated_hours_worked; // Ezt használjuk a belső számításra/beállításra
 
     // Óraszám, start_time és end_time kezelése a típus alapján
-    if (['leave', 'sick_leave', 'custom'].includes(entry_type)) {
-        calculated_hours_worked = 8; // Automatikusan 8 óra szabadságra/táppénzre/egyedi bejegyzésre
+    if (['leave', 'sick_leave'].includes(entry_type)) {
+        calculated_hours_worked = 8; // Automatikusan 8 óra szabadságra/táppénzre
         // Ezeknél a típusoknál nincs értelme konkrét érkezési/távozási időnek, így nullára állítjuk.
         start_time = null;
         end_time = null;
         console.log(`Backend (POST /api/time-entries): Típus ${entry_type}, óraszám beállítva 8-ra, start_time/end_time null.`);
-    } else { // 'work' típus
+    } else if (['work', 'custom'].includes(entry_type)) { // 'work' és 'custom' típus ugyanúgy kezelődik
         if (!start_time || !end_time) {
-            console.log('Backend (POST /api/time-entries): Munka típushoz érkezési és távozási időpont szükséges.');
-            return res.status(400).json({ message: 'Munka típusú bejegyzéshez érkezési és távozási időpont szükséges.' });
+            console.log('Backend (POST /api/time-entries): Munka/egyedi típushoz érkezési és távozási időpont szükséges.');
+            return res.status(400).json({ message: 'Munka/egyedi típusú bejegyzéshez érkezési és távozási időpont szükséges.' });
         }
 
         const arrival = new Date(start_time);
@@ -147,19 +147,26 @@ router.post('/', authenticateToken, authorize(['admin', 'user']), async (req, re
         
         calculated_hours_worked = Math.max(0, parseFloat((totalHours - lunchBreakHours).toFixed(2))); // Levonás és minimum 0 óra
         
-        console.log(`Backend (POST /api/time-entries): Típus munka, érkezés: ${start_time}, távozás: ${end_time}`);
+        console.log(`Backend (POST /api/time-entries): Típus ${entry_type}, érkezés: ${start_time}, távozás: ${end_time}`);
         console.log(`Backend (POST /api/time-entries): Nyers munkaidő: ${totalHours} óra, ebédszünet levonás: ${lunchBreakHours} óra`);
         console.log(`Backend (POST /api/time-entries): VÉGSŐ számított óraszám (ebédszünettel): ${calculated_hours_worked} óra`);
     }
 
-    // Projekt ID kezelése a bejegyzés típusa alapján
-    if (['leave', 'sick_leave', 'custom'].includes(entry_type)) {
+// Projekt ID kezelése a bejegyzés típusa alapján
+if (['leave', 'sick_leave'].includes(entry_type)) {
+    project_id = null;
+    console.log('Backend (POST /api/time-entries): Típus szabadság/táppénz, project_id null.');
+} else if (entry_type === 'work' && !project_id) {
+    // Csak munka típusnál kötelező a projekt
+    console.log('Backend (POST /api/time-entries): Munka típushoz projekt ID szükséges.');
+    return res.status(400).json({ message: 'Munka típusú bejegyzéshez projekt ID szükséges.' });
+} else if (entry_type === 'custom') {
+    // Egyedi típusnál a projekt opcionális, ha nincs megadva, null-ra állítjuk
+    if (!project_id) {
         project_id = null;
-        console.log('Backend (POST /api/time-entries): Típus nem munka, project_id null.');
-    } else if (entry_type === 'work' && !project_id) {
-        console.log('Backend (POST /api/time-entries): Munka típushoz projekt ID szükséges.');
-        return res.status(400).json({ message: 'Munka típusú bejegyzéshez projekt ID szükséges.' });
     }
+    console.log(`Backend (POST /api/time-entries): Egyedi típus, project_id: ${project_id || 'null'}`);
+}
 
     const insertData = {
         user_id: userId, // <-- ITT HASZNÁLJUK A BIZTONSÁGOS ID-T
@@ -234,6 +241,17 @@ router.get('/', authenticateToken, authorize(['admin', 'user']), async (req, res
                     formattedEntry.entry_type_display = 'Munkaóra'; // Vagy tetszőlegesen "Munka"
                 } else {
                     formattedEntry.entry_type_display = 'Munkaóra';
+                }
+            } else if (entry.entry_type === 'custom') {
+                // Egyedi bejegyzések is formázódnak, ha van start és end time
+                if (entry.start_time && entry.end_time) {
+                    const startDate = new Date(entry.start_time);
+                    const endDate = new Date(entry.end_time);
+                    formattedEntry.start_time_display = startDate.toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
+                    formattedEntry.end_time_display = endDate.toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
+                    formattedEntry.entry_type_display = 'Egyedi';
+                } else {
+                    formattedEntry.entry_type_display = 'Egyedi';
                 }
             } else {
                 formattedEntry.entry_type_display = entry.entry_type; // Egyéb típusok maradhatnak
@@ -323,17 +341,17 @@ router.put('/:id', authenticateToken, authorize(['admin', 'user']), async (req, 
 
     let calculated_hours_worked; // Változó a számított óraszám tárolására
     // Óraszám, Start_time és End_time kezelése a típus alapján
-    if (['leave', 'sick_leave', 'custom'].includes(entry_type)) {
+    if (['leave', 'sick_leave'].includes(entry_type)) {
         calculated_hours_worked = 8; // Automatikusan 8 óra
         updateData.project_id = null; // Ezeknél a típusoknál nincs projekt
         updateData.start_time = null; // Töröljük a start_time-ot
         updateData.end_time = null; // Töröljük az end_time-ot
         console.log(`PUT /api/time-entries/${id}: Típus ${entry_type}, óraszám 8, project_id null, start_time/end_time null.`);
-    } else { // 'work' típus
+    } else if (['work', 'custom'].includes(entry_type)) { // 'work' és 'custom' típus ugyanúgy kezelődik
         // Ha valamelyik időpont hiányzik, hiba
         if (!start_time || !end_time) {
-            console.log(`PUT /api/time-entries/${id}: Munka típushoz érkezési és távozási időpont szükséges.`);
-            return res.status(400).json({ message: 'Munka típusú bejegyzéshez érkezési és távozási időpont szükséges.' });
+            console.log(`PUT /api/time-entries/${id}: Munka/egyedi típushoz érkezési és távozási időpont szükséges.`);
+            return res.status(400).json({ message: 'Munka/egyedi típusú bejegyzéshez érkezési és távozási időpont szükséges.' });
         }
 
         const arrival = new Date(start_time);
@@ -370,18 +388,18 @@ router.put('/:id', authenticateToken, authorize(['admin', 'user']), async (req, 
         updateData.end_time = departure.toISOString();
 
         if (project_id === undefined || project_id === null) {
-            console.log(`PUT /api/time-entries/${id}: Munka típushoz projekt ID szükséges.`);
-            return res.status(400).json({ message: 'Munka típusú bejegyzéshez projekt ID szükséges.' });
+            console.log(`PUT /api/time-entries/${id}: Munka/egyedi típushoz projekt ID szükséges.`);
+            return res.status(400).json({ message: 'Munka/egyedi típusú bejegyzéshez projekt ID szükséges.' });
         }
         updateData.project_id = project_id;
         
-        console.log(`PUT /api/time-entries/${id}: Típus munka, project_id: ${updateData.project_id}`);
+        console.log(`PUT /api/time-entries/${id}: Típus ${entry_type}, project_id: ${updateData.project_id}`);
         console.log(`PUT /api/time-entries/${id}: Nyers munkaidő: ${totalHours} óra, ebédszünet levonás: ${lunchBreakHours} óra`);
         console.log(`PUT /api/time-entries/${id}: VÉGSŐ számított óraszám (ebédszünettel): ${calculated_hours_worked} óra`);
     }
     
     // Frissítjük a hours_worked-öt, ha a payload tartalmazza, VAGY ha a logika alapján számoltuk.
-    // Fontos: a frontend által küldött hours_worked-et felülírjuk, ha az nem munka típus, vagy ha munka típusnál időpontokból számolunk.
+    // Fontos: a frontend által küldött hours_worked-et felülírjuk, ha az nem munka/egyedi típus, vagy ha munka/egyedi típusnál időpontokból számolunk.
     updateData.hours_worked = calculated_hours_worked; // <-- ITT ÁLLÍTJUK BE MINDIG A SZÁMÍTOTT ÉRTÉKET
 
     console.log(`PUT /api/time-entries/${id}: Adatok Knex-nek küldve:`, updateData);
@@ -543,7 +561,7 @@ router.get('/download-report', authenticateToken, authorize(['admin', 'user']), 
                 let timeText = '';
                 let hoursText = '';
                 
-                if (entry.entry_type === 'work' && entry.start_time && entry.end_time) {
+                if ((entry.entry_type === 'work' || entry.entry_type === 'custom') && entry.start_time && entry.end_time) {
                     const startTime = new Date(entry.start_time);
                     const endTime = new Date(entry.end_time);
                     const startHour = startTime.toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
@@ -557,17 +575,6 @@ router.get('/download-report', authenticateToken, authorize(['admin', 'user']), 
                 } else if (entry.entry_type === 'sick_leave') {
                     timeText = ''; // Üres érkezési/távozási időpont
                     hoursText = 'Táppénz'; // A munkaidő oszlopba kerül
-                } else if (entry.entry_type === 'custom') {
-                    // Egyéb típus ugyanúgy kezeljük mint a munkanapot
-                    if (entry.start_time && entry.end_time) {
-                        const startTime = new Date(entry.start_time);
-                        const endTime = new Date(entry.end_time);
-                        const startHour = startTime.toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
-                        const endHour = endTime.toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
-                        timeText = `${startHour} - ${endHour}`;
-                    }
-                    // Az óraszám már tartalmazza az ebédszünet levonását
-                    hoursText = entry.hours_worked ? entry.hours_worked.toString() : '';
                 }
                 
                 rowContent.push(

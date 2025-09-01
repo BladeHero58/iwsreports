@@ -551,41 +551,54 @@ async function fetchTimeEntriesForCalendar(fetchInfo, successCallback, failureCa
 
             // --- Óraszám és Projekt mezők kezelése a típus alapján ---
             function toggleProjectAndHoursFields(entryType, projectId = null) {
-                if (entryType === 'work') {
-                    modalProjectSelectionDiv.classList.remove('hidden');
-                    modalProjectIdSelect.setAttribute('required', 'required');
-                    
-                    startTimeContainer.classList.remove('hidden');
-                    endTimeContainer.classList.remove('hidden');
-                    modalStartTimeInput.setAttribute('required', 'required');
-                    modalEndTimeInput.setAttribute('required', 'required');
-                    
-                    modalHoursWorkedInput.removeAttribute('disabled'); // Engedélyezzük, de readonly
-                    modalHoursWorkedInput.removeAttribute('required'); // Nem a felhasználó tölti ki
-                } else {
-                    modalProjectSelectionDiv.classList.add('hidden');
-                    modalProjectIdSelect.removeAttribute('required');
-                    modalProjectIdSelect.value = '';
+    if (entryType === 'work') {
+        modalProjectSelectionDiv.classList.remove('hidden');
+        modalProjectIdSelect.setAttribute('required', 'required');
+        
+        startTimeContainer.classList.remove('hidden');
+        endTimeContainer.classList.remove('hidden');
+        modalStartTimeInput.setAttribute('required', 'required');
+        modalEndTimeInput.setAttribute('required', 'required');
+        
+        modalHoursWorkedInput.removeAttribute('disabled'); // Engedélyezzük, de readonly
+        modalHoursWorkedInput.removeAttribute('required'); // Nem a felhasználó tölti ki
+    } else if (entryType === 'custom') {
+        // Egyedi típusnál is megjelenítjük az időpont mezőket, de projekt nem kötelező
+        modalProjectSelectionDiv.classList.remove('hidden');
+        modalProjectIdSelect.removeAttribute('required'); // Projekt nem kötelező egyedi típusnál
+        
+        startTimeContainer.classList.remove('hidden');
+        endTimeContainer.classList.remove('hidden');
+        modalStartTimeInput.setAttribute('required', 'required');
+        modalEndTimeInput.setAttribute('required', 'required');
+        
+        modalHoursWorkedInput.removeAttribute('disabled'); // Engedélyezzük, de readonly
+        modalHoursWorkedInput.removeAttribute('required'); // Nem a felhasználó tölti ki
+    } else {
+        // Szabadság és táppénz esetén
+        modalProjectSelectionDiv.classList.add('hidden');
+        modalProjectIdSelect.removeAttribute('required');
+        modalProjectIdSelect.value = '';
 
-                    startTimeContainer.classList.add('hidden');
-                    endTimeContainer.classList.add('hidden');
-                    modalStartTimeInput.removeAttribute('required');
-                    modalEndTimeInput.removeAttribute('required');
-                    modalStartTimeInput.value = ''; // Töröljük az értéket
-                    modalEndTimeInput.value = '';   // Töröljük az értéket
+        startTimeContainer.classList.add('hidden');
+        endTimeContainer.classList.add('hidden');
+        modalStartTimeInput.removeAttribute('required');
+        modalEndTimeInput.removeAttribute('required');
+        modalStartTimeInput.value = ''; // Töröljük az értéket
+        modalEndTimeInput.value = '';   // Töröljük az értéket
 
-                    // Nem munka típus esetén az óraszám mindig 8 legyen, és letiltva
-                    modalHoursWorkedInput.value = 8;
-                    modalHoursWorkedInput.setAttribute('disabled', 'true');
-                }
+        // Nem munka/egyedi típus esetén az óraszám mindig 8 legyen, és letiltva
+        modalHoursWorkedInput.value = 8;
+        modalHoursWorkedInput.setAttribute('disabled', 'true');
+    }
 
-                if (projectId !== null) {
-                    modalProjectIdSelect.value = projectId;
-                }
-                
-                // Mindig futtassuk az óraszám számítását, ha munka típusról van szó, vagy állítsuk alapértékre
-                calculateHoursWorked();
-            }
+    if (projectId !== null) {
+        modalProjectIdSelect.value = projectId;
+    }
+    
+    // Mindig futtassuk az óraszám számítását, ha munka/egyedi típusról van szó, vagy állítsuk alapértékre
+    calculateHoursWorked();
+}
 
             // Eseménykezelők a modal űrlaphoz ---
             modalEntryTypeSelect.addEventListener('change', (e) => {
@@ -598,77 +611,77 @@ async function fetchTimeEntriesForCalendar(fetchInfo, successCallback, failureCa
             modalEndTimeInput.addEventListener('change', calculateHoursWorked);
 
             timeEntryForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                console.log('Frontend (profile.ejs): Űrlap elküldve.');
+    e.preventDefault();
+    console.log('Frontend (profile.ejs): Űrlap elküldve.');
 
-                const formData = new FormData(timeEntryForm);
-                const data = Object.fromEntries(formData.entries());
-                console.log('Frontend (profile.ejs): RAW űrlap adatok:', data);
+    const formData = new FormData(timeEntryForm);
+    const data = Object.fromEntries(formData.entries());
+    console.log('Frontend (profile.ejs): RAW űrlap adatok:', data);
 
-                const entryId = data.id; // Kinyerjük az ID-t a FormData-ból
-                const method = entryId ? 'PUT' : 'POST';
-                const url = entryId ? `/api/time-entries/${entryId}` : '/api/time-entries';
+    const entryId = data.id; // Kinyerjük az ID-t a FormData-ból
+    const method = entryId ? 'PUT' : 'POST';
+    const url = entryId ? `/api/time-entries/${entryId}` : '/api/time-entries';
 
-                // Az hours_worked értékét a calculateHoursWorked állítja be
-                // Ha nem munka típus, akkor a toggleProjectAndHoursFields állítja 8-ra és disable-eli
-                // Így a data.hours_worked már helyes lesz
-                data.hours_worked = parseFloat(modalHoursWorkedInput.value); // Biztos, ami biztos
+    // Az hours_worked értékét a calculateHoursWorked állítja be
+    // Ha nem munka/egyedi típus, akkor a toggleProjectAndHoursFields állítja 8-ra és disable-eli
+    // Így a data.hours_worked már helyes lesz
+    data.hours_worked = parseFloat(modalHoursWorkedInput.value); // Biztos, ami biztos
 
-                // start_time és end_time csak akkor menjen el, ha munka típusú és láthatóak a mezők
-                if (data.entry_type === 'work' && !startTimeContainer.classList.contains('hidden')) {
-                    // Az input mező már YYYY-MM-DDTHH:mm formátumot ad, ez megfelelő
-                    data.start_time = modalStartTimeInput.value;
-                    data.end_time = modalEndTimeInput.value;
-                } else {
-                    // Nem munka típusnál vagy ha rejtettek a mezők, ne küldjünk start/end időt
-                    // Vagy küldjünk null-t, ha a backend ezt várja
-                    data.start_time = null;
-                    data.end_time = null;
-                }
+    // start_time és end_time csak akkor menjen el, ha munka vagy egyedi típusú és láthatóak a mezők
+    if ((data.entry_type === 'work' || data.entry_type === 'custom') && !startTimeContainer.classList.contains('hidden')) {
+        // Az input mező már YYYY-MM-DDTHH:mm formátumot ad, ez megfelelő
+        data.start_time = modalStartTimeInput.value;
+        data.end_time = modalEndTimeInput.value;
+    } else {
+        // Nem munka/egyedi típusnál vagy ha rejtettek a mezők, ne küldjünk start/end időt
+        // Vagy küldjünk null-t, ha a backend ezt várja
+        data.start_time = null;
+        data.end_time = null;
+    }
 
-                // Töröljük a project_id-t, ha nem munka típus
-                if (data.entry_type !== 'work') {
-                    delete data.project_id;
-                }
-                // Ha munka típus, de nincs projekt kiválasztva
-                if (data.entry_type === 'work' && !data.project_id) {
-                    showMessage('Kérjük, válasszon projektet munka típus esetén.', 'error');
-                    return;
-                }
+    // Töröljük a project_id-t, ha nem munka típus (egyedi típusnál megtartjuk, mert ott opcionális)
+    if (data.entry_type !== 'work' && data.entry_type !== 'custom') {
+        delete data.project_id;
+    }
+    // Ha munka típus, de nincs projekt kiválasztva
+    if (data.entry_type === 'work' && !data.project_id) {
+        showMessage('Kérjük, válasszon projektet munka típus esetén.', 'error');
+        return;
+    }
+    // Egyedi típusnál a projekt opcionális, így nem ellenőrizzük
 
+    const token = getToken();
+    if (!token) {
+        showMessage('Nincs hitelesítve. Kérjük, jelentkezzen be.', 'error');
+        return;
+    }
 
-                const token = getToken();
-                if (!token) {
-                    showMessage('Nincs hitelesítve. Kérjük, jelentkezzen be.', 'error');
-                    return;
-                }
+    try {
+        console.log(`Frontend (profile.ejs): Küldés: ${method} ${url} - Adatok:`, data);
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data)
+        });
 
-                try {
-                    console.log(`Frontend (profile.ejs): Küldés: ${method} ${url} - Adatok:`, data);
-                    const response = await fetch(url, {
-                        method: method,
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify(data)
-                    });
+        const result = await response.json();
+        console.log('Frontend (profile.ejs): Backend válasz:', result);
 
-                    const result = await response.json();
-                    console.log('Frontend (profile.ejs): Backend válasz:', result);
-
-                    if (response.ok) {
-                        showMessage(result.message || 'Időbejegyzés sikeresen mentve!', 'success');
-                        calendar.refetchEvents(); // Naptár frissítése
-                        hideModal();
-                    } else {
-                        showMessage(result.message || 'Hiba történt a mentés során.', 'error');
-                    }
-                } catch (error) {
-                    console.error('Frontend (profile.ejs): Hiba a hálózati kérés során:', error);
-                    showMessage('Hiba történt a hálózati kérés során.', 'error');
-                }
-            });
+        if (response.ok) {
+            showMessage(result.message || 'Időbejegyzés sikeresen mentve!', 'success');
+            calendar.refetchEvents(); // Naptár frissítése
+            hideModal();
+        } else {
+            showMessage(result.message || 'Hiba történt a mentés során.', 'error');
+        }
+    } catch (error) {
+        console.error('Frontend (profile.ejs): Hiba a hálózati kérés során:', error);
+        showMessage('Hiba történt a hálózati kérés során.', 'error');
+    }
+});
 
             // --- FullCalendar inicializálás ---
             var calendarEl = document.getElementById('calendar');
