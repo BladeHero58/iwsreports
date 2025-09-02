@@ -424,6 +424,7 @@ router.put('/:id', authenticateToken, authorize(['admin', 'user']), async (req, 
 router.delete('/:id', authenticateToken, authorize(['admin', 'user']), async (req, res) => {
     const { id } = req.params;
     console.log(`Backend (DELETE /api/time-entries/${id}): Kérés érkezett.`);
+    console.log('Backend (DELETE /api/time-entries): Tokenből kinyert felhasználó:', req.user); // <-- EZT A SORT ADD HOZZÁ
 
     try {
         const existingEntry = await knex('time_entries').where({ id }).first();
