@@ -419,7 +419,6 @@ router.put('/:id', authenticateToken, authorize(['admin', 'user']), async (req, 
     }
 });
 
-
 // DELETE /api/time-entries/:id - Időbejegyzés törlése
 router.delete('/:id', authenticateToken, authorize(['admin', 'user']), async (req, res) => {
     const { id } = req.params;
@@ -439,8 +438,9 @@ router.delete('/:id', authenticateToken, authorize(['admin', 'user']), async (re
         // A logolás segít a hibakeresésben
         console.log('Adatbázisban lévő bejegyzés felhasználói ID-ja:', existingEntry.user_id);
 
-        // Az adminok is csak a saját bejegyzéseiket törölhetik
-        if (existingEntry.user_id !== req.user.id) {
+        // Javítás: Az ID-k összehasonlítása előtt alakítsuk át a req.user.id-t számmá,
+        // hogy a szigorú egyenlőségjel (===) is megfelelően működjön.
+        if (existingEntry.user_id !== parseInt(req.user.id, 10)) {
             console.log(`Backend (DELETE /api/time-entries/${id}): Jogosultsági hiba: felhasználó más bejegyzését próbálja törölni.`);
             return res.status(403).json({ message: 'Nincs jogosultságod más felhasználó időbejegyzését törölni.' });
         }
