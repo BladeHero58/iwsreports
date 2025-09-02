@@ -437,13 +437,22 @@ router.delete('/:id', authenticateToken, authorize(['admin', 'user']), async (re
         
         // A logolás segít a hibakeresésben
         console.log('Adatbázisban lévő bejegyzés felhasználói ID-ja:', existingEntry.user_id);
+        console.log('req.user.id típusa:', typeof req.user.id);
+        console.log('existingEntry.user_id típusa:', typeof existingEntry.user_id);
 
-        // Javítás: Az ID-k összehasonlítása előtt alakítsuk át a req.user.id-t számmá,
-        // hogy a szigorú egyenlőségjel (===) is megfelelően működjön.
-        if (existingEntry.user_id !== parseInt(req.user.id, 10)) {
+        // Javítás: Mindkét ID-t számmá konvertáljuk az összehasonlításhoz
+        const tokenUserId = Number(req.user.id);
+        const dbUserId = Number(existingEntry.user_id);
+        
+        console.log('Konvertált token user ID:', tokenUserId);
+        console.log('Konvertált DB user ID:', dbUserId);
+
+        if (dbUserId !== tokenUserId) {
             console.log(`Backend (DELETE /api/time-entries/${id}): Jogosultsági hiba: felhasználó más bejegyzését próbálja törölni.`);
             return res.status(403).json({ message: 'Nincs jogosultságod más felhasználó időbejegyzését törölni.' });
         }
+
+        console.log(`Backend (DELETE /api/time-entries/${id}): Jogosultság rendben, törlés folytatása.`);
 
         const deletedCount = await knex('time_entries').where({ id }).del();
 
@@ -460,7 +469,6 @@ router.delete('/:id', authenticateToken, authorize(['admin', 'user']), async (re
         res.status(500).json({ message: 'Szerverhiba történt az időbejegyzés törlésekor.', error: error.message });
     }
 });
-
 
 // --------------------------------------------------------------------------
  //  Új PDF generáló végpont
