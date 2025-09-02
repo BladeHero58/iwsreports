@@ -424,7 +424,10 @@ router.put('/:id', authenticateToken, authorize(['admin', 'user']), async (req, 
 router.delete('/:id', authenticateToken, authorize(['admin', 'user']), async (req, res) => {
     const { id } = req.params;
     console.log(`Backend (DELETE /api/time-entries/${id}): Kérés érkezett.`);
-    console.log('Backend (DELETE /api/time-entries): Tokenből kinyert felhasználó:', req.user); // <-- EZT A SORT ADD HOZZÁ
+    
+    // A logolás segít a hibakeresésben
+    console.log('Tokenből kinyert felhasználó ID:', req.user ? req.user.id : 'Nincs felhasználói ID a tokenben');
+    console.log('Kérés szerinti bejegyzés ID:', id);
 
     try {
         const existingEntry = await knex('time_entries').where({ id }).first();
@@ -432,6 +435,10 @@ router.delete('/:id', authenticateToken, authorize(['admin', 'user']), async (re
             console.log(`Backend (DELETE /api/time-entries/${id}): Időbejegyzés nem található.`);
             return res.status(404).json({ message: 'Időbejegyzés nem található.' });
         }
+        
+        // A logolás segít a hibakeresésben
+        console.log('Adatbázisban lévő bejegyzés felhasználói ID-ja:', existingEntry.user_id);
+
         // Az adminok is csak a saját bejegyzéseiket törölhetik
         if (existingEntry.user_id !== req.user.id) {
             console.log(`Backend (DELETE /api/time-entries/${id}): Jogosultsági hiba: felhasználó más bejegyzését próbálja törölni.`);
