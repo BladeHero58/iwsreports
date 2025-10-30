@@ -171,7 +171,7 @@ async function uploadBufferToDrive(buffer, fileName, parentFolderId, mimeType) {
     }
 }
 
-// Képtömörítő funkció (ezt a funkciót nem használja közvetlenül az /upload endpoint, de benne hagytam)
+// Képtömörítő funkció (ezt a funkciót nem használja közvetlenül az /upload endpoint, de benne hagyom)
 async function compressImage(inputPath, outputPath) {
     try {
         if (!fs.existsSync(inputPath)) {
@@ -183,6 +183,7 @@ async function compressImage(inputPath, outputPath) {
             fs.mkdirSync(outputDir, { recursive: true });
         }
 
+        // Javaslat: Ezt a funkciót is optimalizálhatnád a jobb méretcsökkentés érdekében
         await sharp(inputPath)
             .resize({
                 width: 1024,
@@ -191,7 +192,7 @@ async function compressImage(inputPath, outputPath) {
                 withoutEnlargement: true
             })
             .toFormat('jpeg', {
-                quality: 80,
+                quality: 75, // KISSÉ AGRESSZÍVEBB TÖMÖRÍTÉS (80 helyett 75)
                 mozjpeg: true
             })
             .toFile(outputPath);
@@ -220,23 +221,45 @@ router.post('/upload', upload.single('image'), async (req, res) => {
             return res.status(400).json({ success: false, message: 'Project ID hiányzik' });
         }
 
+        // 🎨 OPTIMALIZÁLT KÉP FELDOLGOZÁS START
         const compressedBuffer = await sharp(req.file.buffer)
-            .resize(800)
+            .resize({
+                width: 800, // Maximális szélesség 800px (PDF-hez elegendő)
+                fit: 'inside',
+                withoutEnlargement: true
+            })
+            .toFormat('jpeg', {
+                quality: 75, // JÓ KOMPROMISSZUM A MINŐSÉG ÉS MÉRET KÖZÖTT
+                mozjpeg: true // EXTRA TÖMÖRÍTÉS
+            })
             .toBuffer();
-
-        const outputFilename = `compressed_${Date.now()}_${req.file.originalname}`;
+        // 🎨 OPTIMALIZÁLT KÉP FELDOLGOZÁS VÉGE
+        
+        // Mivel JPEG-re konvertáltunk, a kiterjesztés és a Content Type is JPEG.
+        const outputFilename = `compressed_${Date.now()}_${path.parse(req.file.originalname).name}.jpeg`;
         const filePathInGCS = `project-${projectId}/${outputFilename}`;
+        const newContentType = 'image/jpeg';
+
 
         const file = bucket.file(filePathInGCS);
         await file.save(compressedBuffer, {
-            metadata: { contentType: req.file.mimetype },
+            // Mivel kényszerítettük JPEG-re, frissítjük a Content Type-ot is
+            metadata: { contentType: newContentType }, 
             resumable: false,
         });
 
+        // 🖼️ Base64 konverzió a PDFMake számára
+        // Ezt az adatot érdemes visszaküldeni a kliensnek, ha ott történik a PDF generálás.
+        const base64Image = compressedBuffer.toString('base64');
+        const pdfMakeImageString = `data:image/jpeg;base64,${base64Image}`;
+        
+        
         const publicUrl = `https://storage.googleapis.com/${gcsBucketName}/${filePathInGCS}`;
         res.json({
             success: true,
             url: publicUrl,
+            // Visszaküldjük a Base64 stringet is, ha a kliensnek erre van szüksége
+            base64: pdfMakeImageString, 
             metadata: await sharp(compressedBuffer).metadata()
         });
 
