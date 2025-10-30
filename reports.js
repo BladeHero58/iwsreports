@@ -790,7 +790,7 @@ async function rotateImageWithCanvas(base64Image, rotation) {
 
 async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, rowSizes, cellStyles, downloadedImages = {}) {
     const A4_WIDTH_PT = 595.28;
-    const PAGE_MARGIN_HORIZONTAL = 40;
+    const PAGE_MARGIN_HORIZONTAL = 20;
     const AVAILABLE_CONTENT_WIDTH = A4_WIDTH_PT - (2 * PAGE_MARGIN_HORIZONTAL);
 
     const widths = columnSizes.map(size => {
@@ -854,6 +854,14 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
         } else {
             rowHeight = 12;
         }
+        
+        // 25%-kal megnöveljük a középső (dinamikus) sorok magasságát
+        // Kihagyjuk az első 11 sort (0-10) és az utolsó 10 sort
+        if (r >= 11 && r < rowCount - 10) {
+            rowHeight = rowHeight * 1.5;
+            console.log(`Középső sor ${r} magassága megnövelve 25%-kal: ${rowHeight}pt`);
+        }
+        
         heights.push(rowHeight);
     }
 
@@ -1137,7 +1145,7 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                         cellContent.text.decoration = 'underline';
                         cellContent.text.fontSize = 7;
                     } else if (typeof cellContent.text === 'string') {
-                        cellContent.text = { text: cellContent.text, decoration: 'underline', fontSize: 7 };
+                        cellContent.text = { text: cellContent.text, decoration: 'underline', fontSize: 34 * 0.75 * scaleFactor };
                     } else {
                         cellContent.text = { text: escapeHtml(cellValue !== null && cellValue !== undefined ? String(cellValue) : ''), decoration: 'underline', fontSize: 10 };
                     }
