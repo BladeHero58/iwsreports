@@ -763,57 +763,74 @@ console.log("A data objektum a Handsontable inicializálása előtt:", data);
         rowHeights: Array.isArray(rowHeights) && rowHeights.length > 0 ? rowHeights : undefined,
         // Oszlopok konfigurációja
         columns: [
-            { type: 'text' }, // 0-5 oszlop - szöveg típusúak maradnak
-            { type: 'text' },
-            { type: 'text' },
-            { type: 'text' },
-            { type: 'text' },
-            {
-                type: 'dropdown', // 6. oszlop - dropdown típus
-                source: function(query, process) { // Forrás dinamikus beállítása
-                    if (hot.getSelectedLast()[0] >= 7 && hot.getSelectedLast()[0] !== 10) { // Csak a beszúrt sorokra
-                        process(typeOptions);
-                    } else {
-                        process([]); // Egyéb sorokra üres lista
-                    }
-                }
-            },
-            {
-                type: 'dropdown', // 7. oszlop - dropdown típus
-                source: function(query, process) { // Forrás dinamikus beállítása
-                    if (hot.getSelectedLast()[0] >= 7 && hot.getSelectedLast()[0] !== 10) { // Csak a beszúrt sorokra
-                        process(categoryOptions);
-                    } else {
-                        process([]); // Egyéb sorokra üres lista
-                    }
-                }
-            },
-            {
-                type: 'dropdown', // 8. oszlop - dropdown típus
-                source: function(query, process) { // Forrás dinamikus beállítása
-                    if (hot.getSelectedLast()[0] >= 7 && hot.getSelectedLast()[0] !== 10) { // Csak a beszúrt sorokra
-                        process(riskOptions.map(option => option.value)); // Fontos: csak az értékeket adjuk át a forráshoz, nem a teljes objektumot
-                    } else {
-                        process([]); // Egyéb sorokra üres lista
-                    }
-                },
-                renderer: colorRenderer // Alkalmazzuk a colorRenderer-t a 8. oszlopra
-            },
-            { type: 'text' },
-            { type: 'text' },
-            {
-                type: 'dropdown', // 11. oszlop - dropdown típus
-                source: function(query, process) { // Forrás dinamikus beállítása
-                    if (hot.getSelectedLast()[0] >= 7 && hot.getSelectedLast()[0] !== 10) { // Csak a beszúrt sorokra
-                        process(statusOptions.map(option => option.value));
-                    } else {
-                        process([]); // Egyéb sorokra üres lista
-                    }
-                },
-                renderer: colorRenderer // Alkalmazzuk a colorRenderer-t a 11. oszlopra is
-            },
-            { type: 'text' }
-        ],
+    { type: 'text' }, // 0-5 oszlop - szöveg típusúak maradnak
+    { type: 'text' },
+    { type: 'text' },
+    { type: 'text' },
+    { type: 'text' },
+    {
+        type: 'dropdown', // 5. oszlop - dropdown típus
+        source: function(query, process) {
+            const selectedRow = hot.getSelectedLast()[0];
+            const rowCount = hot.countRows();
+            const lastTenRowsStart = rowCount - 10;
+            
+            // Csak a dinamikus sorokra (11-től az utolsó 10 sor előttig)
+            if (selectedRow >= 11 && selectedRow < lastTenRowsStart) {
+                process(typeOptions);
+            } else {
+                process([]);
+            }
+        }
+    },
+    {
+        type: 'dropdown', // 6. oszlop - dropdown típus
+        source: function(query, process) {
+            const selectedRow = hot.getSelectedLast()[0];
+            const rowCount = hot.countRows();
+            const lastTenRowsStart = rowCount - 10;
+            
+            if (selectedRow >= 11 && selectedRow < lastTenRowsStart) {
+                process(categoryOptions);
+            } else {
+                process([]);
+            }
+        }
+    },
+    {
+        type: 'dropdown', // 7. oszlop - dropdown típus
+        source: function(query, process) {
+            const selectedRow = hot.getSelectedLast()[0];
+            const rowCount = hot.countRows();
+            const lastTenRowsStart = rowCount - 10;
+            
+            if (selectedRow >= 11 && selectedRow < lastTenRowsStart) {
+                process(riskOptions.map(option => option.value));
+            } else {
+                process([]);
+            }
+        },
+        renderer: colorRenderer
+    },
+    { type: 'text' },
+    { type: 'text' },
+    {
+        type: 'dropdown', // 10. oszlop - dropdown típus
+        source: function(query, process) {
+            const selectedRow = hot.getSelectedLast()[0];
+            const rowCount = hot.countRows();
+            const lastTenRowsStart = rowCount - 10;
+            
+            if (selectedRow >= 11 && selectedRow < lastTenRowsStart) {
+                process(statusOptions.map(option => option.value));
+            } else {
+                process([]);
+            }
+        },
+        renderer: colorRenderer
+    },
+    { type: 'text' }
+],
         beforeChange: function(changes, source) {
   if (source === 'insert_row_above' || source === 'insert_row_below') {
     const rowHeights = this.getSettings().rowHeights || [];
@@ -1036,7 +1053,7 @@ document.getElementById('generateReportBtn').addEventListener('click', () => {
     data[6][1] = "Építkezés jellege:";
     data[8][3] = "Észrevételek, megfigyelések, megjegyzések";
     data[11][0] = "1";
-    data[16][3] = "Pecsét helye";
+    data[18][3] = "Pecsét helye";
 
     data[10] = [
         "Sorszám", "Megfigyelés", "Megoldás/ Javaslat/ Megjegyzés",
@@ -1073,7 +1090,7 @@ document.getElementById('generateReportBtn').addEventListener('click', () => {
         { row: 14, col: 1, rowspan: 1, colspan: 2 },
         { row: 15, col: 1, rowspan: 1, colspan: 2 },
         { row: 16, col: 1, rowspan: 1, colspan: 2 },
-        { row: 16, col: 3, rowspan: 2, colspan: 2 },
+        { row: 18, col: 3, rowspan: 3, colspan: 2 },
         { row: 17, col: 1, rowspan: 1, colspan: 2 },
         { row: 18, col: 1, rowspan: 1, colspan: 2 },
         { row: 19, col: 1, rowspan: 1, colspan: 2 },

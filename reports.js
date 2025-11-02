@@ -788,6 +788,7 @@ async function rotateImageWithCanvas(base64Image, rotation) {
     }
 }
 
+
 async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, rowSizes, cellStyles, downloadedImages = {}) {
     const A4_WIDTH_PT = 595.28;
     const PAGE_MARGIN_HORIZONTAL = 20;
@@ -1236,13 +1237,34 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                 }
             }
 
-            if (r > 9 && r < lastNineRowsStartIndex && !cellsWithImages[r][c]) {
-                const paddingAmount = 2;
+            // Padding logika (képek nélkül)
+            const tenthRowFromEnd = Math.max(0, rowCount - 10);
+            
+            if (!cellsWithImages[r][c]) {
+                const cellHeight = heights[r];
+                let verticalPadding;
+                
+                // 10% padding a dinamikus sorokra
+                if (r >= 11 && r < firstOfLastTenRowsIndex) {
+                    verticalPadding = cellHeight * 0.1;
+                    console.log(`Dinamikus sor ${r} padding: ${verticalPadding}pt (10% of ${cellHeight}pt)`);
+                }
+                // 10% padding az utolsó sortól számított 10. sorra
+                else if (r === tenthRowFromEnd) {
+                    verticalPadding = cellHeight * 0.1;
+                    console.log(`Utolsó előtti 10. sor ${r} padding: ${verticalPadding}pt (10% of ${cellHeight}pt)`);
+                }
+                // 5% padding minden más cellára (alapértelmezett)
+                else {
+                    verticalPadding = cellHeight * 0.05;
+                    console.log(`Alapértelmezett sor ${r} padding: ${verticalPadding}pt (5% of ${cellHeight}pt)`);
+                }
+                
                 cellContent.margin = [
                     cellContent.margin[0],
-                    cellContent.margin[1] + paddingAmount,
+                    cellContent.margin[1] + verticalPadding,
                     cellContent.margin[2],
-                    cellContent.margin[3] + paddingAmount
+                    cellContent.margin[3] + verticalPadding
                 ];
             }
 
