@@ -158,9 +158,9 @@
         <button type="submit" id="pwButton" class="btn">Jelszó módosítása</button>
     </form>
 
-    <form action="/dashboard" method="GET">
-        <button type="button" class="logout-btn" id="backToDashboardBtn">Vissza az irányítópultra</button>
-    </form>
+    <form action="<%= user.is_admin ? '/admin-dashboard' : '/dashboard' %>" method="GET">
+    <button type="submit" class="logout-btn" id="backToDashboardBtn">Vissza az irányítópultra</button>
+</form>
 </div>
 
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js'></script>
@@ -991,7 +991,7 @@ calendar.render();
                     if (isAdmin) {
                         const actionsCell = row.insertCell();
                         actionsCell.classList.add('action-buttons');
-                        const editBtn = document.createElement('button');
+                        const editBtn = document.createElement('action-buttons');
                         editBtn.textContent = 'Szerkesztés';
                         editBtn.onclick = () => enableRowEditing(row, schedule);
                         actionsCell.appendChild(editBtn);

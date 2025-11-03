@@ -5,60 +5,207 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Adminisztrátor - Felhasználók</title>
   <link rel="stylesheet" href="/css/pages/admin-users-style.css">
+  <style>
+    
+    body {
+    background-color: rgba(0, 0, 0, 0.05); /* Enyhén sötét (fekete) réteg 5%-os áttetszőséggel */
+    background-blend-mode: multiply; /* A háttérkép és a szín sötét keverése */
+  }
+
+      .btn {
+        margin-bottom: 3%;
+      }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+
+    .table-container {
+      overflow-x: auto;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead {
+      background: #f8f9fa;
+    }
+
+    th {
+      padding: 15px;
+      text-align: left;
+      font-weight: 600;
+      color: #495057;
+      border-bottom: 2px solid #dee2e6;
+      font-size: 14px;
+    }
+
+    td {
+      padding: 15px;
+      border-bottom: 1px solid #e9ecef;
+      color: #212529;
+      vertical-align: middle;
+    }
+
+    tbody tr:hover {
+      background: #f8f9fa;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .badge-success {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .badge-secondary {
+      background: #e2e3e5;
+      color: #383d41;
+    }
+
+    .project-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .project-list li {
+      padding: 3px 0;
+      color: #495057;
+      font-size: 14px;
+    }
+
+    .project-list li:before {
+      content: "• ";
+      font-weight: bold;
+      margin-right: 8px;
+    }
+
+    .no-projects {
+      color: #6c757d;
+      font-style: italic;
+      font-size: 14px;
+    }
+
+    .no-data {
+      text-align: center;
+      padding: 40px;
+      color: #6c757d;
+      font-size: 16px;
+      background: white;
+      border-radius: 8px;
+    }
+
+    .action-cell {
+      text-align: center;
+    }
+
+    @media (max-width: 768px) {
+      .header {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      th, td {
+        padding: 10px;
+        font-size: 13px;
+      }
+    }
+  </style>
 </head>
 <body>
-    <h1>Adminisztrátor - Felhasználók</h1>
+  <div class="container">
+    <div class="header">
+      <h1>Adminisztrátor - Felhasználók</h1>
+     
+    </div>
 
-  <form action="/admin/users/add" method="get">
-    <button type="submit" class="btn">Új felhasználó hozzáadása</button>
-</form>
+    <div>
+       <form action="/admin/users/add" method="get">
+        <button type="submit" class="btn">Új felhasználó hozzáadása</button>
+      </form>
+    </div>
 
-<section>
-  <h2>Felhasználók listája</h2>
+   <section>
   <% if (users && users.length > 0) { %>
-    <table>
-      <thead>
-        <tr>
-          <th>Műveletek</th>
-          <th>Felhasználónév</th>
-          <th>Admin jogosultság</th>
-          <th>Felhasználóhoz rendelt projektek</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% users.forEach(user => { %>
+    <div class="table-container">
+      <table>
+        <thead>
           <tr>
-            <td class="action-buttons">
-              <form action="/admin/users/delete/<%= user.id %>" method="POST" onsubmit="return confirm('Biztosan törölni szeretné a(z) <%= user.username %> felhasználót?');">
-                <button type="submit" class="btn-blue">Törlés</button>
-              </form>
-            </td>
-            <td><%= user.username %></td>
-            <td><%= user.is_admin ? 'Igen' : 'Nem' %></td>
-            <td>
-              <% if (user.projects && user.projects.length > 0) { %>
-                <ul>
-                  <% user.projects.forEach(project => { %>
-                    <li><%= project.name %></li>
-                  <% }) %>
-                </ul>
-              <% } else { %>
-                Nincs projekt
-              <% } %>
-            </td>
-           
+            <th style="text-align: center;">Felhasználónév</th>
+            <th style="text-align: center;">Admin jogosultság</th>
+            <th style="text-align: center;">Felhasználóhoz rendelt projektek</th>
+            <th style="text-align: center;">Műveletek</th>
           </tr>
-        <% }) %>
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          <% users.forEach(user => { %>
+            <tr>
+              <td style="text-align: center;">
+                <strong><%= user.username %></strong>
+              </td>
+              <td style="text-align: center;">
+                <% if (user.is_admin) { %>
+                  <span class="badge badge-success">Igen</span>
+                <% } else { %>
+                  <span class="badge badge-secondary">Nem</span>
+                <% } %>
+              </td>
+              <td style="text-align: center;">
+                <% if (user.projects && user.projects.length > 0) { %>
+                  <ul class="project-list" style="text-align: left; display: inline-block;">
+                    <% user.projects.forEach(project => { %>
+                      <li><%= project.name %></li>
+                    <% }) %>
+                  </ul>
+                <% } else { %>
+                  <span class="no-projects">Nincs projekt</span>
+                <% } %>
+              </td>
+              <td class="action-cell">
+                <form action="/admin/users/delete/<%= user.id %>" method="POST" 
+                      onsubmit="return confirm('Biztosan törölni szeretné a(z) <%= user.username %> felhasználót?');" 
+                      style="display: inline;">
+                  <button type="submit" class="btn-blue">Törlés</button>
+                </form>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
   <% } else { %>
-    <p>Nincsenek felhasználók.</p>
+    <div class="no-data">
+      <p>Nincsenek felhasználók.</p>
+    </div>
   <% } %>
 </section>
 
-  <form action="/admin-dashboard" method="GET">
-    <button type="submit" class="logout-btn">Vissza az irányítópultra</button>
-</form>
-
+    <form action="/admin-dashboard" method="GET" style="margin-top: 20px;">
+      <button type="submit" class="logout-btn">Vissza az irányítópultra</button>
+    </form>
+  </div>
 </body>
 </html>

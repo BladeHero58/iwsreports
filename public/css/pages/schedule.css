@@ -96,20 +96,12 @@ button {
 }
 
 button:hover {
-  background-color: #0056b3;
+  background-color: #5c0099;
 }
 
 button:disabled {
   background-color: #6c757d;
   cursor: not-allowed;
-}
-
-.btn-danger {
-  background-color: #dc3545;
-}
-
-.btn-danger:hover {
-  background-color: #c82333;
 }
 
 form {
@@ -158,8 +150,16 @@ form button:hover {
 }
 
 .action-buttons button {
-  background-color: #28a745; /* Edit */
-  margin-right: 5px;
+    background-color: #f6ee48;/* Edit */
+  color: #202020;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 50px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  margin: 5px;
+  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
 }
 
 .action-buttons button.delete-btn {
@@ -167,7 +167,17 @@ form button:hover {
 }
 
 .action-buttons button:hover {
-  opacity: 0.9;
+    background-color: #5c0099;
+  color: white;
+  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.btn-danger {
+    background-color: #5c0099;
+}
+
+.btn-danger:hover {
+  background-color: #000000;
 }
 
 hr {
