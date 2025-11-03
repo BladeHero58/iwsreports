@@ -11,94 +11,108 @@
      <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
      <style>
-        #hot-container {
-          max-width: 794px;
-          margin: 0 auto;
-          overflow-x: auto;
-        }
-    
-        .handsontable {
-          font-size: 15px;
-          line-height: 1.2;
-        }
-    
-        @media print {
-          #hot-container {
-            max-width: 100% !important;
-            overflow: visible !important;
-          }
-    
-          .handsontable {
-            font-size: 8px !important;
-          }
-    
-          htCore td {
-            padding: 2px !important;
-          }
-        }
+    #hot-container {
+      max-width: 794px;
+      margin: 0 auto;
+      overflow-x: auto;
+    }
 
-        .black-cell {
-    background-color: black !important;
-    color: yellow !important;
-    border-color: yellow !important;
-    font-weight: bold !important;
-    font-size: 16px !important;
-}
-.yellow-row {
-    background-color: yellow !important;
-}
+    .handsontable {
+      font-size: 15px;
+      line-height: 1.2;
+    }
 
-.white-row {
-    background-color: white !important;
-}
+    @media print {
+      #hot-container {
+        max-width: 100% !important;
+        overflow: visible !important;
+      }
 
-.htCenter {
-    text-align: center; /* For horizontal centering */
-    vertical-align: middle; /* For vertical centering */
-  }
+      .handsontable {
+        font-size: 8px !important;
+      }
 
-  /* Új stílusok az első sorhoz */
-  .first-row-style {
-        text-align: center !important; /* Vízszintes középre igazítás */
-        font-size: 22px !important; /* 22px betűméret */
-        background-color: #ffffff !important; /* Például szürke háttér */
-        color: black !important; /* Például fekete szöveg */
+      htCore td {
+        padding: 2px !important;
+      }
+    }
+
+    .black-cell {
+        background-color: black !important;
+        color: yellow !important;
+        border-color: yellow !important;
         font-weight: bold !important;
-        text-align: center !important; /* Vízszintes középre igazítás */
-        vertical-align: middle !important; /* Függőleges középre igazítás */
+        font-size: 16px !important;
+    }
+
+    /* Fekete cellák szerkesztési állapotban */
+    .handsontable td.black-cell.area {
+        background-color: black !important;
+    }
+
+    /* Fekete cellák kijelölve */
+    .handsontable td.black-cell.current {
+        background-color: black !important;
+    }
+
+    /* Fekete cellák highlight állapotban */
+    .handsontable td.black-cell.highlight {
+        background-color: black !important;
+    }
+
+    /* Fekete cellák szerkesztési módban */
+    .handsontable tbody tr td.black-cell.htInvalid {
+        background-color: black !important;
+    }
+
+    .yellow-row {
+        background-color: yellow !important;
+    }
+
+    .white-row {
+        background-color: white !important;
+    }
+
+    .htCenter {
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .first-row-style {
+        text-align: center !important;
+        font-size: 22px !important;
+        background-color: #ffffff !important;
+        color: black !important;
+        font-weight: bold !important;
+        vertical-align: middle !important;
         text-decoration: underline !important;
     }
 
-    /* Új stílusok a 11. sorhoz */
     .eleventh-row-style {
-        text-align: center !important; /* Vízszintes középre igazítás */
-        vertical-align: middle !important; /* Függőleges középre igazítás */
+        text-align: center !important;
+        vertical-align: middle !important;
     }
 
-    /* ÚJ stílusok az utolsó sorhoz */
     .last-row-style {
-        font-weight: bold !important; /* Félkövér szöveg */
-        background-color: lightgrey !important; /* Világosszürke háttér */
+        font-weight: bold !important;
+        background-color: lightgrey !important;
         font-size: 18px !important;
-        text-align: center !important; /* Vízszintes középre igazítás */
+        text-align: center !important;
     }
 
-    /* Specifikusabb szabály a beszúrt sorokra */
-.handsontable tr.beszurt-sor { /* vagy valamilyen más egyedi osztály */
-    height: 70px !important; /* vagy a kívánt magasság */
-}
+    .handsontable tr.beszurt-sor {
+        height: 70px !important;
+    }
 
-.vertical-text {
-    writing-mode: vertical-lr; /* Balról jobbra, függőlegesen */
-    /* vagy */
-    /* writing-mode: vertical-rl; /* Jobbról balra, függőlegesen */
-}
+    .vertical-text {
+        writing-mode: vertical-lr;
+    }
 
-.cell-centered {
-    text-align: center !important;
-    vertical-align: middle !important;
-}
-      </style>
+    .cell-centered {
+        text-align: center !important;
+        vertical-align: middle !important;
+    }
+</style>
 
     <title>Projekt részletei</title>
 
