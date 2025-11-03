@@ -159,7 +159,7 @@
     </form>
 
     <form action="/dashboard" method="GET">
-        <button type="button" class="dashboard-btn" id="backToDashboardBtn">Vissza az irányítópultra</button>
+        <button type="button" class="logout-btn" id="backToDashboardBtn">Vissza az irányítópultra</button>
     </form>
 </div>
 
@@ -683,189 +683,194 @@ async function fetchTimeEntriesForCalendar(fetchInfo, successCallback, failureCa
     }
 });
 
-            // --- FullCalendar inicializálás ---
-            var calendarEl = document.getElementById('calendar');
-            var calendar = new FullCalendar.Calendar(calendarEl, {
-                initialView: 'dayGridMonth', // Alapértelmezett hónap nézet
-                locale: 'hu', // Magyar nyelv beállítása
-                weekends: true, // Hétvégék megjelenítése
-                editable: true, // Lehetővé teszi az események húzását és átméretezését
-                selectable: true, // Lehetővé teszi a dátumok kijelölését
-                dayMaxEvents: true, // Több esemény esetén "további" link
-                headerToolbar: {
-                    left: 'prev,next today',
-                    center: 'title',
-                    // ÚJ: Időalapú nézetek hozzáadása
-                    right: 'dayGridMonth,timeGridWeek,timeGridDay' 
+         // --- FullCalendar inicializálás ---
+var calendarEl = document.getElementById('calendar');
+var calendar = new FullCalendar.Calendar(calendarEl, {
+    initialView: 'dayGridMonth', // Alapértelmezett hónap nézet
+    locale: 'hu', // Magyar nyelv beállítása
+    firstDay: 1, // Hétfővel kezdődik a hét (0 = vasárnap, 1 = hétfő)
+    weekends: true, // Hétvégék megjelenítése
+    editable: true, // Lehetővé teszi az események húzását és átméretezését
+    selectable: true, // Lehetővé teszi a dátumok kijelölését
+    dayMaxEvents: true, // Több esemény esetén "további" link
+    headerToolbar: {
+        left: 'prev,next today',
+        center: 'title',
+        right: 'dayGridMonth,timeGridWeek,timeGridDay'
+    },
+    // Magyar nyelvű gombok
+    buttonText: {
+        today: 'Ma',
+        month: 'Hónap',
+        week: 'Hét',
+        day: 'Nap',
+        list: 'Lista'
+    },
+    // Dinamikusan tölti be az eseményeket
+    events: fetchTimeEntriesForCalendar, 
+    
+    // Eseményre kattintás kezelése (szerkesztés)
+    eventClick: function(info) {
+        console.log('Frontend (profile.ejs): Eseményre kattintva:', info.event);
+        showModal('edit', info.event);
+    },
+    // Dátumra kattintás kezelése (új bejegyzés)
+    dateClick: function(info) {
+        console.log('Frontend (profile.ejs): Dátumra kattintva:', info.dateStr);
+        showModal('add', null, info.date);
+    },
+    // Esemény áthúzásának kezelése (dátum módosítás)
+    eventDrop: async function(info) {
+        console.log('Frontend (profile.ejs): Esemény áthúzva:', info.event);
+        const token = getToken();
+        if (!token) {
+            showMessage('Nincs hitelesítve. Kérjük, jelentkezzen be.', 'error');
+            info.revert(); // Visszaállítja az eseményt az eredeti helyére
+            return;
+        }
+
+        const newDate = info.event.start.toISOString().slice(0, 10); // Csak a dátum
+        let newStartTime = info.event.extendedProps.actualStartTime;
+        let newEndTime = info.event.extendedProps.actualEndTime;
+
+        // Ha az esemény munka típusú és idővel rendelkezik, frissítsük az időpontokat is
+        if (info.event.extendedProps.entryType === 'work' && info.event.start) {
+            const originalStartDate = new Date(info.event.extendedProps.actualStartTime);
+            const originalEndDate = new Date(info.event.extendedProps.actualEndTime);
+
+            // Kiszámoljuk az időtartamot (különbséget) órában
+            const diffHours = (originalEndDate.getTime() - originalStartDate.getTime()) / (1000 * 60 * 60);
+
+            // Új kezdő időpont (az új dátum és az eredeti idő alapján)
+            const newStart = new Date(newDate + 'T' + originalStartDate.toTimeString().slice(0, 8));
+            const newEnd = new Date(newStart.getTime() + diffHours * 60 * 60 * 1000); // Új befejező időpont
+
+            newStartTime = newStart.toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm
+            newEndTime = newEnd.toISOString().slice(0, 16);     // YYYY-MM-DDTHH:mm
+        }
+
+        const dataToUpdate = {
+            entry_date: newDate,
+            entry_type: info.event.extendedProps.entryType,
+            project_id: info.event.extendedProps.projectId,
+            hours_worked: info.event.extendedProps.hoursWorked,
+            notes: info.event.extendedProps.notes,
+            start_time: newStartTime, // Küldjük el a frissített időpontokat
+            end_time: newEndTime
+        };
+        
+        try {
+            const response = await fetch(`/api/time-entries/${info.event.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
                 },
-                // Dinamikusan tölti be az eseményeket
-                events: fetchTimeEntriesForCalendar, 
-                
-                // Eseményre kattintás kezelése (szerkesztés)
-                eventClick: function(info) {
-                    console.log('Frontend (profile.ejs): Eseményre kattintva:', info.event);
-                    showModal('edit', info.event);
-                },
-                // Dátumra kattintás kezelése (új bejegyzés)
-                dateClick: function(info) {
-                    console.log('Frontend (profile.ejs): Dátumra kattintva:', info.dateStr);
-                    showModal('add', null, info.date);
-                },
-                // Esemény áthúzásának kezelése (dátum módosítás)
-                eventDrop: async function(info) {
-                    console.log('Frontend (profile.ejs): Esemény áthúzva:', info.event);
-                    const token = getToken();
-                    if (!token) {
-                        showMessage('Nincs hitelesítve. Kérjük, jelentkezzen be.', 'error');
-                        info.revert(); // Visszaállítja az eseményt az eredeti helyére
-                        return;
-                    }
-
-                    const newDate = info.event.start.toISOString().slice(0, 10); // Csak a dátum
-                    let newStartTime = info.event.extendedProps.actualStartTime;
-                    let newEndTime = info.event.extendedProps.actualEndTime;
-
-                    // Ha az esemény munka típusú és idővel rendelkezik, frissítsük az időpontokat is
-                    if (info.event.extendedProps.entryType === 'work' && info.event.start) {
-                        const originalStartDate = new Date(info.event.extendedProps.actualStartTime);
-                        const originalEndDate = new Date(info.event.extendedProps.actualEndTime);
-
-                        // Kiszámoljuk az időtartamot (különbséget) órában
-                        const diffHours = (originalEndDate.getTime() - originalStartDate.getTime()) / (1000 * 60 * 60);
-
-                        // Új kezdő időpont (az új dátum és az eredeti idő alapján)
-                        const newStart = new Date(newDate + 'T' + originalStartDate.toTimeString().slice(0, 8));
-                        const newEnd = new Date(newStart.getTime() + diffHours * 60 * 60 * 1000); // Új befejező időpont
-
-                        newStartTime = newStart.toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm
-                        newEndTime = newEnd.toISOString().slice(0, 16);     // YYYY-MM-DDTHH:mm
-                    }
-
-
-                    const dataToUpdate = {
-                        entry_date: newDate,
-                        entry_type: info.event.extendedProps.entryType,
-                        project_id: info.event.extendedProps.projectId,
-                        hours_worked: info.event.extendedProps.hoursWorked,
-                        notes: info.event.extendedProps.notes,
-                        start_time: newStartTime, // Küldjük el a frissített időpontokat
-                        end_time: newEndTime
-                    };
-                    
-                    try {
-                        const response = await fetch(`/api/time-entries/${info.event.id}`, {
-                            method: 'PUT',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${token}`
-                            },
-                            body: JSON.stringify(dataToUpdate)
-                        });
-
-                        const result = await response.json();
-                        if (!response.ok) {
-                            showMessage(result.message || 'Hiba az időbejegyzés frissítése során.', 'error');
-                            info.revert(); // Visszaállítja az eseményt
-                        } else {
-                            showMessage(result.message || 'Időbejegyzés sikeresen frissítve!', 'success');
-                            // A naptár automatikusan frissül, ha nem volt revert
-                            // Frissítjük az extendedProps-ot is, hogy a showModal() helyesen működjön legközelebb
-                            info.event.setExtendedProp('entry_date', newDate);
-                            info.event.setExtendedProp('actualStartTime', newStartTime);
-                            info.event.setExtendedProp('actualEndTime', newEndTime);
-                        }
-                    } catch (error) {
-                        console.error('Frontend (profile.ejs): Hiba az áthúzásos frissítés hálózati kérés során:', error);
-                        showMessage('Hiba történt az időbejegyzés áthelyezésekor.', 'error');
-                        info.revert(); // Visszaállítja az eseményt
-                    }
-                },
-                 // Esemény átméretezésének kezelése
-                eventResize: async function(info) {
-                    console.log('Frontend (profile.ejs): Esemény átméretezve:', info.event);
-                    const token = getToken();
-                    if (!token) {
-                        showMessage('Nincs hitelesítve. Kérjük, jelentkezzen be.', 'error');
-                        info.revert();
-                        return;
-                    }
-
-                    const newStartTime = info.event.start ? info.event.start.toISOString().slice(0, 16) : null;
-                    const newEndTime = info.event.end ? info.event.end.toISOString().slice(0, 16) : null;
-
-                    // Új óraszám kiszámítása az átméretezett időpontok alapján
-                    let newHoursWorked = 0;
-                    if (newStartTime && newEndTime) {
-                        const start = new Date(newStartTime);
-                        const end = new Date(newEndTime);
-                        let diffMillis = end.getTime() - start.getTime();
-                        newHoursWorked = diffMillis / (1000 * 60 * 60);
-                        
-                        // Levonjuk az ebédszünetet, ha munka típus
-                        if (info.event.extendedProps.entryType === 'work' && newHoursWorked > 0) {
-                            newHoursWorked -= 0.5;
-                        }
-                        if (newHoursWorked < 0) newHoursWorked = 0;
-                    } else if (info.event.extendedProps.entryType !== 'work') {
-                        // Ha egész napos és nem munka, marad 8 óra
-                        newHoursWorked = 8; 
-                    }
-
-
-                    const dataToUpdate = {
-                        entry_date: info.event.start.toISOString().slice(0, 10), // A dátum, nem az idő
-                        entry_type: info.event.extendedProps.entryType,
-                        project_id: info.event.extendedProps.projectId,
-                        hours_worked: newHoursWorked.toFixed(2), // Frissített óraszám
-                        notes: info.event.extendedProps.notes,
-                        start_time: newStartTime, // Frissített start_time
-                        end_time: newEndTime      // Frissített end_time
-                    };
-
-                    try {
-                        const response = await fetch(`/api/time-entries/${info.event.id}`, {
-                            method: 'PUT',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${token}`
-                            },
-                            body: JSON.stringify(dataToUpdate)
-                        });
-
-                        const result = await response.json();
-                        if (!response.ok) {
-                            showMessage(result.message || 'Hiba az időbejegyzés átméretezése során.', 'error');
-                            info.revert();
-                        } else {
-                            showMessage(result.message || 'Időbejegyzés sikeresen frissítve!', 'success');
-                            // Frissítjük az extendedProps-ot is
-                            info.event.setExtendedProp('hoursWorked', newHoursWorked.toFixed(2));
-                            info.event.setExtendedProp('actualStartTime', newStartTime);
-                            info.event.setExtendedProp('actualEndTime', newEndTime);
-
-                             // Frissítsük az esemény címét is a módosított órákkal és időpontokkal
-                            let updatedTitle = '';
-                            const project = allProjects.find(p => String(p.id) === String(info.event.extendedProps.projectId));
-                            const projectName = project ? project.name : (info.event.extendedProps.originalProjectName || 'Ismeretlen Projekt');
-
-                            if (info.event.extendedProps.entryType === 'work' && newStartTime && newEndTime) {
-                                const startDisplay = new Date(newStartTime).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
-                                const endDisplay = new Date(newEndTime).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
-                                updatedTitle = `${startDisplay}-${endDisplay} ${newHoursWorked.toFixed(2)} óra - ${projectName}`;
-                            } else {
-                                updatedTitle = `${newHoursWorked.toFixed(2)} óra - ${info.event.extendedProps.notes || info.event.extendedProps.entryType}`;
-                            }
-                            info.event.setProp('title', updatedTitle);
-
-                        }
-                    } catch (error) {
-                        console.error('Frontend (profile.ejs): Hiba az átméretezés hálózati kérés során:', error);
-                        showMessage('Hiba történt az időbejegyzés átméretezésekor.', 'error');
-                        info.revert();
-                    }
-                }
+                body: JSON.stringify(dataToUpdate)
             });
-            calendar.render();
+
+            const result = await response.json();
+            if (!response.ok) {
+                showMessage(result.message || 'Hiba az időbejegyzés frissítése során.', 'error');
+                info.revert(); // Visszaállítja az eseményt
+            } else {
+                showMessage(result.message || 'Időbejegyzés sikeresen frissítve!', 'success');
+                // A naptár automatikusan frissül, ha nem volt revert
+                // Frissítjük az extendedProps-ot is, hogy a showModal() helyesen működjön legközelebb
+                info.event.setExtendedProp('entry_date', newDate);
+                info.event.setExtendedProp('actualStartTime', newStartTime);
+                info.event.setExtendedProp('actualEndTime', newEndTime);
+            }
+        } catch (error) {
+            console.error('Frontend (profile.ejs): Hiba az áthúzásos frissítés hálózati kérés során:', error);
+            showMessage('Hiba történt az időbejegyzés áthelyezésekor.', 'error');
+            info.revert(); // Visszaállítja az eseményt
+        }
+    },
+    // Esemény átméretezésének kezelése
+    eventResize: async function(info) {
+        console.log('Frontend (profile.ejs): Esemény átméretezve:', info.event);
+        const token = getToken();
+        if (!token) {
+            showMessage('Nincs hitelesítve. Kérjük, jelentkezzen be.', 'error');
+            info.revert();
+            return;
+        }
+
+        const newStartTime = info.event.start ? info.event.start.toISOString().slice(0, 16) : null;
+        const newEndTime = info.event.end ? info.event.end.toISOString().slice(0, 16) : null;
+
+        // Új óraszám kiszámítása az átméretezett időpontok alapján
+        let newHoursWorked = 0;
+        if (newStartTime && newEndTime) {
+            const start = new Date(newStartTime);
+            const end = new Date(newEndTime);
+            let diffMillis = end.getTime() - start.getTime();
+            newHoursWorked = diffMillis / (1000 * 60 * 60);
+            
+            // Levonjuk az ebédszünetet, ha munka típus
+            if (info.event.extendedProps.entryType === 'work' && newHoursWorked > 0) {
+                newHoursWorked -= 0.5;
+            }
+            if (newHoursWorked < 0) newHoursWorked = 0;
+        } else if (info.event.extendedProps.entryType !== 'work') {
+            // Ha egész napos és nem munka, marad 8 óra
+            newHoursWorked = 8; 
+        }
+
+        const dataToUpdate = {
+            entry_date: info.event.start.toISOString().slice(0, 10), // A dátum, nem az idő
+            entry_type: info.event.extendedProps.entryType,
+            project_id: info.event.extendedProps.projectId,
+            hours_worked: newHoursWorked.toFixed(2), // Frissített óraszám
+            notes: info.event.extendedProps.notes,
+            start_time: newStartTime, // Frissített start_time
+            end_time: newEndTime      // Frissített end_time
+        };
+
+        try {
+            const response = await fetch(`/api/time-entries/${info.event.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(dataToUpdate)
+            });
+
+            const result = await response.json();
+            if (!response.ok) {
+                showMessage(result.message || 'Hiba az időbejegyzés átméretezése során.', 'error');
+                info.revert();
+            } else {
+                showMessage(result.message || 'Időbejegyzés sikeresen frissítve!', 'success');
+                // Frissítjük az extendedProps-ot is
+                info.event.setExtendedProp('hoursWorked', newHoursWorked.toFixed(2));
+                info.event.setExtendedProp('actualStartTime', newStartTime);
+                info.event.setExtendedProp('actualEndTime', newEndTime);
+
+                // Frissítsük az esemény címét is a módosított órákkal és időpontokkal
+                let updatedTitle = '';
+                const project = allProjects.find(p => String(p.id) === String(info.event.extendedProps.projectId));
+                const projectName = project ? project.name : (info.event.extendedProps.originalProjectName || 'Ismeretlen Projekt');
+
+                if (info.event.extendedProps.entryType === 'work' && newStartTime && newEndTime) {
+                    const startDisplay = new Date(newStartTime).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
+                    const endDisplay = new Date(newEndTime).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
+                    updatedTitle = `${startDisplay}-${endDisplay} ${newHoursWorked.toFixed(2)} óra - ${projectName}`;
+                } else {
+                    updatedTitle = `${newHoursWorked.toFixed(2)} óra - ${info.event.extendedProps.notes || info.event.extendedProps.entryType}`;
+                }
+                info.event.setProp('title', updatedTitle);
+            }
+        } catch (error) {
+            console.error('Frontend (profile.ejs): Hiba az átméretezés hálózati kérés során:', error);
+            showMessage('Hiba történt az időbejegyzés átméretezésekor.', 'error');
+            info.revert();
+        }
+    }
+});
+calendar.render();
 
             // Projektek betöltése, majd naptár események frissítése
             await fetchProjects();
