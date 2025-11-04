@@ -788,7 +788,7 @@ async function rotateImageWithCanvas(base64Image, rotation) {
     }
 }
 
-
+//PDF Generálása!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, rowSizes, cellStyles, downloadedImages = {}) {
     const A4_WIDTH_PT = 595.28;
     const PAGE_MARGIN_HORIZONTAL = 20;
@@ -856,10 +856,10 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
             rowHeight = 12;
         }
         
-        // 25%-kal megnöveljük a középső (dinamikus) sorok magasságát
+        // 60%-kal megnöveljük a középső (dinamikus) sorok magasságát
         // Kihagyjuk az első 11 sort (0-10) és az utolsó 10 sort
         if (r >= 11 && r < rowCount - 10) {
-            rowHeight = rowHeight * 1.5;
+            rowHeight = rowHeight * 1.6;
             console.log(`Középső sor ${r} magassága megnövelve 25%-kal: ${rowHeight}pt`);
         }
         
