@@ -856,10 +856,10 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
             rowHeight = 12;
         }
         
-        // 60%-kal megnöveljük a középső (dinamikus) sorok magasságát
+        // 50%-kal megnöveljük a középső (dinamikus) sorok magasságát
         // Kihagyjuk az első 11 sort (0-10) és az utolsó 10 sort
         if (r >= 11 && r < rowCount - 10) {
-            rowHeight = rowHeight * 1.6;
+            rowHeight = rowHeight * 1.5;
             console.log(`Középső sor ${r} magassága megnövelve 25%-kal: ${rowHeight}pt`);
         }
         
