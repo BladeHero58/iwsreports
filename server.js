@@ -49,9 +49,11 @@ app.use(
     secret: process.env.SESSION_SECRET || require('crypto').randomBytes(64).toString('hex'), // Használjunk környezeti változót a titokhoz!
     resave: false,
     saveUninitialized: false,
-    cookie: { maxAge: 24 * 60 * 60 * 1000 } // Példa: 24 óra
+    rolling: true, // Új kérés esetén frissíti a cookie lejárati idejét.
+    cookie: { maxAge: 30 * 60 * 1000 } // Fél óra (30 perc) = 1,800,000 ms
   })
 );
+
 app.use(passport.initialize());
 app.use(passport.session());
 
