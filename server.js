@@ -50,7 +50,7 @@ app.use(
     resave: false,
     saveUninitialized: false,
     rolling: true, // Új kérés esetén frissíti a cookie lejárati idejét.
-    cookie: { maxAge: 30 * 60 * 1000 } // Fél óra (30 perc) = 1,800,000 ms
+    cookie: { maxAge: 120 * 60 * 1000 } // Fél óra (30 perc) = 1,800,000 ms
   })
 );
 
