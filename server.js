@@ -35,6 +35,15 @@ app.use(bodyParser.urlencoded({limit: '50mb', extended: true}));
 app.use(express.json({limit: '50mb'}));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Favicon beállítása (PNG formátumhoz)
+app.use((req, res, next) => {
+  if (req.url === '/favicon.ico') {
+    res.redirect(301, '/images/favicon.png');
+  } else {
+    next();
+  }
+});
+
 // statikus fájlkiszolgálás
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
