@@ -34,7 +34,6 @@
         <% projects.forEach(project => { %>
             <li>
                 <strong><%= project.name %></strong><br>
-                Leírás: <%= project.description %><br>
                 Állapot: <%= project.status %><br>
 
                 <form action="/admin/projects/<%= project.id %>" method="get">

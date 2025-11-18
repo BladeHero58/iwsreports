@@ -13,7 +13,7 @@
        <!-- Undo - Redo CSS-->
      <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
-          <style>
+ <style>
     #hot-container {
       max-width: 794px;
       margin: 0 auto;
@@ -115,6 +115,15 @@
         text-align: center !important;
         vertical-align: middle !important;
     }
+
+    .project-description {
+        display: block;
+        max-width: 1200px;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        white-space: normal;
+        margin-top: 10px;
+    }
 </style>
 
     <title>Projekt részletei</title>
@@ -124,9 +133,11 @@
 
 </head>
 <body>
-    <h1><%= project.name %> - Részletek</h1>
-    <p><strong>Leírás:</strong> <%= project.description %></p>
+    <h2><%= project.name %></h2>
+    <p><strong>Leírás:</strong></p>
+    <div class="project-description"><%= project.description %></div>
     <p><strong>Állapot:</strong> <%= project.status %></p>
+    <p><strong>Projekt ID:</strong> <%= project.id %></p>
 
     <section>
         <!-- Szerkesztés gomb -->
