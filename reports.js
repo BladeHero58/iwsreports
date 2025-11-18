@@ -1100,7 +1100,7 @@ async function generatePdfmakeReport(jsonData, originalMergeCells, columnSizes, 
                     // A dinamikus sorok indexe (0-tól kezdve a dinamikus részen belül)
                     const dynamicRowIndex = r - 11;
                     // Páros indexű dinamikus sorok (0, 2, 4...) fehérek, páratlanok (1, 3, 5...) szürkék
-                    currentFillColor = (dynamicRowIndex % 2 === 0) ? 'white' : '#D7D7D7';
+                    currentFillColor = (dynamicRowIndex % 2 === 0) ? 'white' : '#fff2cc';
                     console.log(`Dinamikus sor ${r} (index: ${dynamicRowIndex}): ${currentFillColor}`);
                 } else if (hasCellImage) {
                     // Képes cellák mindig fehér hátteret kapnak a jobb láthatóság érdekében

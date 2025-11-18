@@ -153,9 +153,9 @@
     <button id="loadReportBtn" type="submit" class="btn">Legutóbbi jegyzőkönyv</button>
     <button id="saveReportBtn" type="submit" class="btn">Jegyzőkönyv mentése</button>
 
-    <a href="/reports/fine-list" target="_blank">
-        <button type="submit" class="btn">Szankciós lista</button>
-    </a>
+<button type="button" class="btn" onclick="window.open('/reports/fine-list', '_blank')">
+    Szankciós lista
+</button>
 
     <button id="undo" class="btn-blue" style="font-size:10px">
         <i class="material-icons">undo</i>
@@ -479,7 +479,7 @@ function colorRenderer(instance, td, row, col, prop, value, cellProperties) {
     if (row >= 11 && row < tenthRowFromBottom) {
         // Az eltolás biztosítja, hogy az első dinamikus sor fehér legyen
         const isEven = (row - 11) % 2 === 0;
-        const backgroundColor = isEven ? 'white' : '#D7D7D7';
+        const backgroundColor = isEven ? 'white' : '#fff2cc';
         td.style.backgroundColor = backgroundColor;
         td.style.color = 'black';
         
@@ -516,7 +516,7 @@ function getRowColor(row, hotInstance) {
     
     // Beszúrt dinamikus sorok - az első FEHÉR legyen, nem szürke
     const isEven = (row - 11) % 2 === 0;
-    return isEven ? 'white' : '#D7D7D7';
+    return isEven ? 'white' : '#fff2cc';
 }
 
 // A getInitialRowColor függvényt is módosítjuk
@@ -529,7 +529,7 @@ function getInitialRowColor(row, hotInstance) {
     // A 11. sortól az utolsó 10 sor kezdetéig alkalmazzuk a váltakozó színeket
     if (row >= 11 && row < tenthRowFromBottom) {
         const isEven = (row - 11) % 2 === 0;
-        return isEven ? 'white' : '#D7D7D7';
+        return isEven ? 'white' : '#fff2cc';
     }
     
     return ''; // Alapértelmezett érték
@@ -570,7 +570,7 @@ function loadRowColors(hotInstance) {
         } else if (row >= 11 && row < lastTenRowsStart) {
             // Módosított sor a váltakozó színezéshez - az első dinamikus sor FEHÉR
             const isEven = (row - 11) % 2 === 0;
-            const color = isEven ? 'white' : '#D7D7D7';
+            const color = isEven ? 'white' : '#fff2cc';
             
             for (let col = 0; col < cols; col++) {
                 hotInstance.setCellMeta(row, col, 'renderer', colorRenderer);
