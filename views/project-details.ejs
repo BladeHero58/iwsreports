@@ -151,6 +151,7 @@
 
     <!-- Rejtett input mező a projectId-hoz -->
     <input type="hidden" id="projectId" value="<%= project.id %>">
+    <input type="hidden" id="projectType" value="IWS Solutions">
      
     <!-- Gombok -->
     <button id="generateReportBtn" type="submit" class="btn">Új jegyzőkönyv generálása</button>
@@ -1217,6 +1218,11 @@ document.getElementById('loadReportBtn').addEventListener('click', () => {
 // Jegyzőkönyv mentése
 document.getElementById('saveReportBtn').addEventListener('click', async () => {
     const projectId = document.getElementById('projectId').value;
+    
+    // 🛑 ÚJ: Kinyerjük a projekttípust a DOM-ból. 
+    // Feltételezve, hogy az EJS sablon tartalmazza: <input type="hidden" id="projectType" value="IWS Solutions">
+    const projectTypeElement = document.getElementById('projectType');
+    const projectType = projectTypeElement ? projectTypeElement.value : 'IWS Solutions'; 
 
     if (!hot) {
         alert('Nincs betöltött jegyzőkönyv a mentéshez!');
@@ -1230,7 +1236,7 @@ document.getElementById('saveReportBtn').addEventListener('click', async () => {
     }
 
     // Alapadatok összegyűjtése
-    const data = hot.getData(); // **Ez a `data` már GCS URL-eket fog tartalmazni, ha képek vannak**
+    const data = hot.getData(); 
     const mergePlugin = hot.getPlugin('mergeCells');
     const currentMergeCells = mergePlugin
         ? mergePlugin.mergedCellsCollection.mergedCells
@@ -1302,8 +1308,10 @@ document.getElementById('saveReportBtn').addEventListener('click', async () => {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                data: data, // **Ez a `data` már GCS URL-eket fog tartalmazni, ha képek vannak**
+                data: data, 
                 projectId: projectId,
+                // 🛑 JAVÍTÁS: HOZZÁADVA A projectType MEZŐT A BACKEND SZÁMÁRA 🛑
+                projectType: projectType, 
                 mergeCells: currentMergeCells,
                 columnSizes: columnSizes,
                 rowSizes: rowSizes,
@@ -1314,7 +1322,6 @@ document.getElementById('saveReportBtn').addEventListener('click', async () => {
         const result = await response.json();
 
         if (result.success) {
-            // Itt már nem kapunk fájl útvonalat, hanem egy sikeres mentési üzenetet és a reportId-t
             alert(result.message || 'Jelentés sikeresen mentve!');
             console.log("Frontend: Jelentés mentése sikeres. Report ID:", result.reportId);
         } else {

@@ -686,19 +686,22 @@ app.post('/admin/projects/delete', isAdmin, async (req, res) => {
     }
 });
 
-// Felhasználók hozzárendelése egy projekthez - KNEX-re alakítva
+// Felhasználók hozzárendelése egy projekthez - JAVÍTOTT VERZIÓ
 app.post('/admin/projects/:projectId/assign-users', isAdmin, async (req, res) => {
   const projectId = req.params.projectId;
   let assignedUsers = req.body.assignedUsers;
 
+  // Ha nincs kiválasztva senki, ne csináljunk semmit
+  if (!assignedUsers || (Array.isArray(assignedUsers) && assignedUsers.length === 0)) {
+    return res.redirect(`/admin/projects/${projectId}`);
+  }
+
+  // String-ből array-t csinálunk
   if (typeof assignedUsers === 'string') {
     assignedUsers = [assignedUsers];
-  } else if (!assignedUsers) {
-    assignedUsers = [];
   }
 
   try {
-    // Kezdjünk egy tranzakciót
     await knex.transaction(async trx => {
       // Adatstruktúra elkészítése a beillesztéshez
       const insertData = assignedUsers.map(userId => ({
@@ -706,54 +709,19 @@ app.post('/admin/projects/:projectId/assign-users', isAdmin, async (req, res) =>
         project_id: projectId
       }));
 
-      // Csak a nem duplikált felhasználókat szúrjuk be, a duplikáltakat figyelmen kívül hagyjuk.
+      // ⭐ VÁLTOZÁS: Csak HOZZÁADJUK az új felhasználókat, NEM TÖRÖLJÜK a régieket!
       if (insertData.length > 0) {
         await trx('user_projects')
           .insert(insertData)
           .onConflict(['user_id', 'project_id'])
-          .ignore();
+          .ignore(); // Ha már létezik, akkor ignoráljuk (duplikáció elkerülése)
       }
 
-      // Töröljük azokat a felhasználókat, akik már nincsenek a listában
-      // Először lekérdezzük a jelenlegi hozzárendeléseket
-      const existingAssignments = await trx('user_projects')
-        .select('user_id')
-        .where('project_id', projectId);
-
-      const existingUserIds = existingAssignments.map(row => row.user_id.toString());
-
-      // Azonosítjuk a törlendő felhasználókat
-      const usersToRemove = existingUserIds.filter(userId => !assignedUsers.includes(userId));
-
-      if (usersToRemove.length > 0) {
-        await trx('user_projects')
-          .where('project_id', projectId)
-          .whereIn('user_id', usersToRemove)
-          .del();
-      }
+      // ⭐ TÖRLÉS LOGIKÁT KIVETTÜK - már NEM töröljük a felhasználókat automatikusan
     });
 
-    // A projekt adatok újbóli lekérése a frissített adatokkal KNEX-szel
-    const project = await knex('projects').where({ id: projectId }).first();
-    if (!project) {
-      return res.status(404).render('error', { message: 'Projekt nem található a frissítés után.' });
-    }
-
-    // Hozzárendelt felhasználók lekérése KNEX-szel
-    project.assignedUsers = await knex('users')
-      .select('users.id', 'users.username')
-      .join('user_projects', 'users.id', 'user_projects.user_id')
-      .where('user_projects.project_id', projectId);
-
-    // Összes felhasználó lekérése KNEX-szel
-    const users = await knex('users').select('id', 'username');
-
-    // Oldal renderelése az frissített adatokkal
-    res.render('project-details', {
-      project,
-      users,
-      message: 'Felhasználók sikeresen hozzárendelve/frissítve a projekthez.'
-    });
+    // Redirect a GET route-ra
+    res.redirect(`/admin/projects/${projectId}`);
 
   } catch (error) {
     console.error('Error assigning users to project:', error);
