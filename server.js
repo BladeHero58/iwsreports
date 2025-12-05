@@ -24,6 +24,10 @@ const PORT = process.env.PORT || 3000;
 
 // !!! FONTOS: Most a reports.js már az inicializálási Promise-t is exportálja
 const { router: reportsRouter, initializationPromise } = require('./reports'); // Betöltjük a reports.js fájlt
+//Importáljuk az MVM-specifikus routert
+const mvmReportsRouter = require('./mvm-reports');
+
+
 
 // Importáljuk az óranyilvántartó routert
 const timeEntriesRouter = require('./routes/timeEntries');
@@ -291,7 +295,15 @@ app.get('/admin/projects/add', isAdmin, (req, res) => {
 
 // Admin: Új projekt hozzáadása POST - KNEX-re alakítva
 app.post('/admin/projects/add', isAdmin, async (req, res) => {
-  const { name, description, status } = req.body;
+  // 1. BEOLVASSUK az új 'projectType' mezőt a body-ból
+  const { name, description, status, projectType } = req.body;
+
+  // 2. Érvényesség ellenőrzés (opcionális, de ajánlott)
+  const allowedTypes = ['IWS Solutions', 'MVM Xpert'];
+  if (!allowedTypes.includes(projectType)) {
+      console.error('Érvénytelen projekttípus próbálkozás:', projectType);
+      return res.status(400).json({ message: 'Érvénytelen projekttípus lett kiválasztva. Kérjük, válasszon az engedélyezett típusok közül.' });
+  }
 
   try {
     // Egyedi azonosító generálása
@@ -304,17 +316,18 @@ app.post('/admin/projects/add', isAdmin, async (req, res) => {
     }
 
     // Adatbázisba mentés KNEX-szel
+    // 3. HOZZÁADJUK az új 'project_type' mezőt a beszúráshoz
     const [newProject] = await knex('projects').insert({
       name: name,
       description: description,
       status: status,
-      external_id: externalId
+      external_id: externalId,
+      project_type: projectType // Ezt mentjük el
     }).returning(['id', 'name']); // Visszaadja az id-t és a nevet
 
     console.log('Új projekt hozzáadva:', newProject);
 
     // A project_reports rekord létrehozása az új projekthez KNEX-szel
-    // FIGYELEM: A user_id=1 nem biztos, hogy létezik vagy helyes! Dinamikusan kellene beállítani.
     await knex('project_reports').insert({
       user_id: req.user.id || 1, // Használd a bejelentkezett felhasználó ID-ját, ha elérhető
       created_at: knex.fn.now(), // Knex-specifikus dátum/idő függvény
@@ -405,6 +418,7 @@ async function startApplication() {
 
     // Most, hogy minden inicializálva van, csatoljuk a reports routert
     app.use('/reports', reportsRouter);
+    app.use('/', mvmReportsRouter);
 
     // Itt lekérjük az adminokat és projekteket.
     // Ezt a részt kivettük a globális scope-ból, most csak deklarációk
@@ -781,64 +795,167 @@ app.get('/user/projects', isAuthenticated, async (req, res) => {
 
 // Felhasználó: projekt adatok megjelenítése adatbázisból - KNEX-re alakítva
 app.get('/user/projects/:projectId', isAuthenticated, async (req, res) => {
-  const { projectId } = req.params;
-  const userId = req.user.id;
-  const isUserAdmin = req.user.isAdmin; // Feltételezve, hogy a felhasználó objektum tartalmazza az admin jogosultságot
+  const { projectId } = req.params;
+  const userId = req.user.id;
+  const isUserAdmin = req.user.isAdmin;
 
-  try {
-    // Ellenőrizzük, hogy a projekt létezik-e KNEX-szel
-    const project = await knex('projects').where({ id: projectId }).first();
-    if (!project) {
-      return res.status(404).render('error', { message: 'Projekt nem található.' });
-    }
+  try {
+    // 1. Projekt lekérdezése (ez tartalmazza a project_type-ot!)
+    const project = await knex('projects').where({ id: projectId }).first();
+    if (!project) {
+      return res.status(404).render('error', { message: 'Projekt nem található.' });
+    }
 
-    // Ha a felhasználó nem admin, ellenőrizzük, hogy a projekt hozzá van-e rendelve KNEX-szel
-    if (!isUserAdmin) {
-      const assignment = await knex('user_projects')
-        .where({ user_id: userId, project_id: projectId })
-        .first();
+    // 2. Jogosultság ellenőrzés (a meglévő logika)
+    if (!isUserAdmin) {
+      const assignment = await knex('user_projects')
+        .where({ user_id: userId, project_id: projectId })
+        .first();
 
-      if (!assignment) {
-        return res.status(403).render('error', { message: 'Nincs jogosultsága a projekt megtekintéséhez.' });
-      }
-    }
+      if (!assignment) {
+        return res.status(403).render('error', { message: 'Nincs jogosultsága a projekt megtekintéséhez.' });
+      }
+    }
 
-    // A projekt adatainak és projectId átadása az EJS sablonnak
-    res.render('user-project-details', { project, projectId });
-  } catch (error) {
-    console.error('Error fetching project details:', error);
-    res.status(500).send('Hiba történt a projekt adatok lekérése során');
-  }
+    // 3. 🚦 TÍPUS ALAPÚ SABLONVÁLASZTÁS 🚦
+    
+    // Meghatározzuk a sablon nevét
+    let templateName;
+    
+    if (project.project_type === 'MVM Xpert') {
+      // Ha MVM Xpert, egy új, dedikált sablont használunk
+      templateName = 'mvm-user-project-details'; // Pl. mvm-project-details.ejs
+    } else {
+      // Alapértelmezett (IWS Solutions)
+      templateName = 'user-project-details'; // A meglévő user-project-details.ejs
+    }
+
+    // A projekt adatainak és projectId átadása a KIVÁLASZTOTT EJS sablonnak
+    res.render(templateName, { project, projectId });
+    
+  } catch (error) {
+    console.error('Error fetching project details:', error);
+    res.status(500).send('Hiba történt a projekt adatok lekérése során');
+  }
 });
 
 // Admin: projekt részletek lekérése a hozzárendelt felhasználókkal - KNEX-re alakítva
 app.get('/admin/projects/:projectId', isAdmin, async (req, res) => {
-  const { projectId } = req.params;
+  const { projectId } = req.params;
 
-  try {
-    // Projekt alapadatainak lekérése KNEX-szel
-    const project = await knex('projects').where({ id: projectId }).first();
+  try {
+    // 1. Projekt alapadatainak lekérése KNEX-szel (beleértve a project_type-ot)
+    const project = await knex('projects').where({ id: projectId }).first();
 
-    if (!project) {
-      return res.status(404).render('error', { message: 'Projekt nem található.' });
+    if (!project) {
+      return res.status(404).render('error', { message: 'Projekt nem található.' });
+    }
+
+    // 2. Hozzárendelt felhasználók lekérése KNEX-szel (ugyanaz a logika)
+    project.assignedUsers = await knex('users')
+      .select('users.id', 'users.username')
+      .join('user_projects', 'users.id', 'user_projects.user_id')
+      .where('user_projects.project_id', projectId);
+
+    // 3. Összes felhasználó lekérése a kiválasztó mezőhöz KNEX-szel
+    const users = await knex('users').select('id', 'username');
+
+    // 4. 🚦 TÍPUS ALAPÚ SABLONVÁLASZTÁS 🚦
+    
+    let templateName;
+    
+    if (project.project_type === 'MVM Xpert') {
+      // Ha MVM Xpert, egy új, dedikált admin sablont használunk
+      templateName = 'mvm-admin-project-details'; // Pl. mvm-admin-project-details.ejs
+    } else {
+      // Alapértelmezett (IWS Solutions) - a meglévő sablon
+      templateName = 'project-details'; // A meglévő project-details.ejs
     }
 
-    // Hozzárendelt felhasználók lekérése KNEX-szel
-    project.assignedUsers = await knex('users')
-      .select('users.id', 'users.username')
-      .join('user_projects', 'users.id', 'user_projects.user_id')
-      .where('user_projects.project_id', projectId);
+    // Projekt adatok, hozzárendelt felhasználók és összes felhasználó átadása a KIVÁLASZTOTT sablonnak
+    res.render(templateName, { project, users });
 
-    // Összes felhasználó lekérése a kiválasztó mezőhöz KNEX-szel
-    const users = await knex('users').select('id', 'username');
+  } catch (error) {
+    console.error('Error fetching project details:', error);
+    res.status(500).render('error', { message: 'Hiba történt a projekt adatok lekérése során' });
+  }
+});
 
-    // Projekt adatok, hozzárendelt felhasználók és összes felhasználó átadása a sablonnak
-    res.render('project-details', { project, users });
+// MVM Xpert Jegyzőkönyv Készítéshez - Típus Alapú Irányítás
+app.get('/projects/:projectId/new-report', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+    const category = req.query.category; // Kategória ID az URL-ből
 
-  } catch (error) {
-    console.error('Error fetching project details:', error);
-    res.status(500).render('error', { message: 'Hiba történt a projekt adatok lekérése során' });
-  }
+    try {
+        // 1. Projektdatok lekérése, beleértve a project_type-ot
+        const project = await knex('projects')
+            .where('id', projectId)
+            .first();
+
+        if (!project) {
+            return res.status(404).render('error', { message: 'Projekt nem található.' });
+        }
+        
+        // 2. Szükséges Jogosultság Ellenőrzés (ha nem admin, hozzá van-e rendelve?)
+        if (!req.user.isAdmin) {
+             const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+             if (!assignment) {
+                 return res.status(403).render('error', { message: 'Nincs jogosultsága ehhez a projekthez.' });
+             }
+        }
+
+        // 3. Típus Alapú Sablonválasztás
+        if (project.project_type === 'MVM Xpert') {
+            // Ha van kategória paraméter, akkor kategória-specifikus oldal
+            if (category) {
+                // Kategória specifikus sablon betöltése
+                const categoryTemplates = {
+                    '1': 'mvm-documentation',
+                    '2': 'mvm-personal-conditions',
+                    '3': 'mvm-work-environment',
+                    '4': 'mvm-machinery',
+                    '5': 'mvm-electrical-safety',
+                    '6': 'mvm-personal-protective-equipment',
+                    '7': 'mvm-first-aid',
+                    '8': 'mvm-hazardous-materials',
+                    '9': 'mvm-omissions',
+                    '10': 'mvm-other'
+                };
+
+                const templateName = categoryTemplates[category];
+                
+                if (!templateName) {
+                    return res.status(404).render('error', { message: 'Érvénytelen kategória.' });
+                }
+
+                return res.render(templateName, { 
+                    project: project,
+                    user: req.user,
+                    category: category
+                });
+            }
+            
+            // Ha nincs kategória, akkor az MVM kategória választó oldal
+            res.render('mvm_xpert_report_form', { 
+                project: project,
+                user: req.user
+            }); 
+        } else {
+            // Alapértelmezett (IWS Solutions) jegyzőkönyv sablon
+            res.render('iws_solutions_report_form', { 
+                project: project,
+                user: req.user
+            });
+        }
+        
+    } catch (error) {
+        console.error('Hiba a jegyzőkönyv űrlap betöltésekor:', error);
+        res.status(500).render('error', { message: 'Hiba történt az űrlap lekérése közben.' });
+    }
 });
 
 // Jelszó frissítése - KNEX-re alakítva

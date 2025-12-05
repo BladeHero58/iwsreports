@@ -1,0 +1,2317 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1. Dokumentáció - <%= project.name %></title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #ffffff;
+            background-image: url("./images/IWS.jpg");
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            margin-left: 0;
+        }
+
+        h1, h2, h3, h4, h5, h6, p, li, a, button {
+            font-family: "Montserrat", sans-serif;
+        }
+
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background-color: #5c0099;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            font-size: 14px;
+            color: white;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 1000;
+            transition: all 0.3s;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3); /* Árnyék hozzáadása */
+        }
+
+        .back-button:hover {
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3); /* Árnyék hozzáadása */
+            background-color: #202020;
+            color: white;
+        }
+
+        .container {
+            max-width: 700px;
+            margin: 80px auto 40px;
+            padding: 0 15px;
+        }
+
+        .project-info {
+            background: white;
+            padding: 20px 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .project-info h3 {
+            color: #5c0099;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+
+        .header {
+            background: white;
+            padding: 30px 15px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .form-section {
+            background: white;
+            padding: 25px 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="date"],
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #f6ee48;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .signature-container {
+            margin-top: 15px;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            background: #fafafa;
+            position: relative;
+        }
+
+        .signature-preview {
+            width: 100%;
+            height: 150px;
+            background: white;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .signature-preview:hover {
+            background: #f5f5f5;
+            border-color: #0056b3;
+        }
+
+        .signature-preview img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .signature-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .add-button {
+            background-color: #f6ee48;
+            color: #202020;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-family: "Montserrat", sans-serif;
+            font-weight: 400;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin: 5px;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+            flex: 1;
+        }
+
+        .add-button:hover {
+            background-color: #5c0099;
+            color: white;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .clear-signature {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+
+        .clear-signature:hover {
+            background: #c82333;
+        }
+
+        .add-button-secondary {
+            background-color: #f6ee48;
+            color: #202020;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            margin-top: 10px;
+            transition: background 0.3s;
+            width: 100%;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+            max-width: 300px;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .add-button-secondary:hover {
+            background-color: #5c0099;
+            color: white;
+        }
+
+        .witness-group {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            position: relative;
+            background: #fafafa;
+        }
+
+        .remove-witness-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.3s;
+        }
+
+        .remove-witness-btn:hover {
+            background: #c82333;
+        }
+
+        .checklist-item {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid #5c0099;
+        }
+
+        .checklist-header {
+            font-size: 15px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .checklist-description {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .radio-options {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .radio-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .radio-option input[type="radio"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .radio-option label {
+            font-size: 14px;
+            cursor: pointer;
+            margin: 0;
+        }
+
+        .radio-option.success label {
+            color: #28a745;
+        }
+
+        .radio-option.danger label {
+            color: #dc3545;
+        }
+
+        .radio-option.warning label {
+            color: #7d6008;
+        }
+
+        .notes-textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            min-height: 60px;
+            font-family: inherit;
+        }
+
+        .price-section {
+            background: #fffbea;
+            padding: 25px 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #605f5c;
+        }
+
+        .price-section h3 {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .price-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: white;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
+        .price-item input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .price-item label {
+            flex: 1;
+            margin: 0 15px;
+            cursor: pointer;
+        }
+
+        .price-item .price {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .image-preview-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .image-preview-item {
+            position: relative;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            background: white;
+            aspect-ratio: 1;
+        }
+
+        .image-preview-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .image-remove-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        .image-remove-btn:hover {
+            background: #c82333;
+        }
+
+        input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            background: #fafafa;
+            font-size: 14px;
+        }
+
+        input[type="file"]:hover {
+            border-color: #5c0099;
+            background: #f0f8ff;
+        }
+
+        .total-price {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: white;
+            border-radius: 4px;
+            margin-top: 15px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .submit-section {
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        .submit-button {
+            flex: 1;
+            background-color: #f6ee48;
+            color: #202020;
+            border: none;
+            padding: 16px;
+            border-radius: 50px;
+            font-family: "Montserrat", sans-serif;
+            font-weight: 400;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            font-size: 16px;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .submit-button:hover {
+            background-color: #5c0099;
+            color: white;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .preview-button {
+            flex: 1;
+            background: #5c0099;
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+
+        .preview-button:hover {
+            background: #004494;
+        }
+
+        /* Modal stílusok */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            overflow: auto;
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            color: #333;
+            font-size: 20px;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #999;
+            transition: color 0.3s;
+        }
+
+        .close-modal:hover {
+            color: #333;
+        }
+
+        #signatureCanvas {
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            cursor: crosshair;
+            touch-action: none;
+            width: 100%;
+            background: white;
+        }
+
+        .canvas-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .canvas-controls button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-clear {
+            background: #5c0099;
+            color: white;
+        }
+
+        .btn-clear:hover {
+            background: #202020;
+        }
+
+        .btn-save {
+            background: #f6ee48;
+            color: #202020;
+        }
+
+        .btn-save:hover {
+            background: #5c0099;
+        }
+
+        /* Tablet nézet */
+        @media (max-width: 768px) {
+            .back-button {
+                top: 10px;
+                left: 10px;
+                padding: 10px 15px;
+                font-size: 13px;
+            }
+
+            .container {
+                margin: 70px 10px 30px;
+                padding: 0 10px;
+                max-width: 100%;
+            }
+
+            .project-info,
+            .header,
+            .form-section,
+            .price-section {
+                padding: 15px;
+                margin-bottom: 15px;
+            }
+
+            .header h1 {
+                font-size: 20px;
+            }
+
+            .section-title {
+                font-size: 15px;
+            }
+
+            .form-section {
+                padding: 20px;
+            }
+
+            .two-column {
+                grid-template-columns: 1fr;
+            }
+
+            .radio-options {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .submit-section {
+                flex-direction: column;
+            }
+
+            .modal-content {
+                width: 95%;
+                margin: 10% auto;
+                padding: 20px;
+            }
+
+            .signature-preview {
+                height: 120px;
+            }
+
+            .witness-group {
+                padding: 12px;
+            }
+
+            .add-button-secondary {
+                font-size: 12px;
+                padding: 8px 16px;
+                max-width: 250px;
+            }
+
+            .signature-buttons {
+                flex-direction: column;
+            }
+
+            .signature-buttons .add-button,
+            .signature-buttons .clear-signature {
+                width: 100%;
+                margin: 5px 0;
+            }
+        }
+
+        /* Mobil nézet */
+        @media (max-width: 480px) {
+            .back-button {
+                top: 10px;
+                left: 10px;
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+
+            .container {
+                margin: 60px 5px 20px;
+                padding: 0 5px;
+            }
+
+            .project-info,
+            .header,
+            .form-section,
+            .price-section {
+                padding: 12px;
+                margin-bottom: 12px;
+                border-radius: 6px;
+            }
+
+            .header h1 {
+                font-size: 18px;
+                margin-bottom: 8px;
+            }
+
+            .header p {
+                font-size: 12px;
+            }
+
+            .section-title {
+                font-size: 14px;
+                margin-bottom: 15px;
+            }
+
+            .form-group label {
+                font-size: 13px;
+                margin-bottom: 6px;
+            }
+
+            .form-group input[type="text"],
+            .form-group input[type="date"],
+            .form-group textarea,
+            .form-group select {
+                padding: 10px;
+                font-size: 13px;
+            }
+
+            .add-button {
+                padding: 8px 16px;
+                font-size: 12px;
+                margin: 3px;
+            }
+
+            .add-button-secondary {
+                font-size: 11px;
+                padding: 8px 14px;
+                max-width: 220px;
+            }
+
+            .checklist-item {
+                padding: 15px;
+                margin-bottom: 12px;
+            }
+
+            .checklist-header {
+                font-size: 13px;
+            }
+
+            .checklist-description {
+                font-size: 11px;
+            }
+
+            .radio-option label {
+                font-size: 13px;
+            }
+
+            .notes-textarea {
+                font-size: 12px;
+                min-height: 70px;
+                padding: 8px;
+            }
+
+            .price-section h3 {
+                font-size: 14px;
+                margin-bottom: 12px;
+            }
+
+            .price-item {
+                padding: 10px;
+                font-size: 11px;
+                gap: 8px;
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .price-item label {
+                margin: 0;
+                font-size: 11px;
+            }
+
+            .price-item .price {
+                font-size: 12px;
+            }
+
+            .total-price {
+                padding: 12px;
+                font-size: 14px;
+            }
+
+            .submit-button,
+            .preview-button {
+                padding: 12px;
+                font-size: 14px;
+            }
+
+            .modal-content {
+                width: 95%;
+                margin: 5% auto;
+                padding: 15px;
+            }
+
+            .modal-header h2 {
+                font-size: 16px;
+            }
+
+            #signatureCanvas {
+                height: 200px;
+            }
+
+            .witness-group {
+                padding: 10px;
+                margin-bottom: 12px;
+            }
+
+            .remove-witness-btn {
+                width: 26px;
+                height: 26px;
+                font-size: 14px;
+            }
+
+            .signature-preview {
+                height: 100px;
+                font-size: 12px;
+            }
+
+            .image-preview-container {
+                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+                gap: 8px;
+            }
+        }
+
+        /* Nagyon kis képernyők (pl. iPhone SE) */
+        @media (max-width: 375px) {
+            .container {
+                margin: 55px 3px 15px;
+            }
+
+            .header h1 {
+                font-size: 16px;
+            }
+
+            .add-button-secondary {
+                font-size: 10px;
+                padding: 7px 12px;
+                max-width: 200px;
+            }
+
+            .price-item {
+                font-size: 10px;
+            }
+
+            .price-item .price {
+                font-size: 11px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <a href="/projects/<%= project.id %>/new-report" class="back-button">
+        <i class="fas fa-arrow-left"></i> Vissza a kategóriákhoz
+    </a>
+
+    <div class="container">
+
+        <!-- Projekt információk -->
+        <div class="project-info">
+            <h3><i class="fas fa-project-diagram"></i> Projekt részletek</h3>
+            
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="projectName"><strong>Projekt neve:</strong></label>
+                <input type="text" id="projectName" name="projectName" value="<%= project.name %>" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="serialNumber"><strong>Sorszám:</strong></label>
+                <input type="text" id="serialNumber" name="serialNumber" placeholder="Pl. IWS/BCS/20251201" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="inspectorPerson"><strong>Ellenőrző személy:</strong></label>
+                <input type="text" id="inspectorPerson" name="inspectorPerson" value="<%= user.name %>" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="inspectionDate"><strong>Dátum:</strong></label>
+                <input type="date" id="inspectionDate" name="inspectionDate" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+            </div>
+
+            <p style="font-size: 13px; color: #999; margin-top: 10px;">
+                <em>Projekt típus: <%= project.project_type %></em>
+            </p>
+        </div>
+
+        <!-- Header -->
+        <div class="header">
+            <h1>1. Dokumentáció</h1>
+            <p>Munkaterületért felelős beazonosítása, engedélyek, tervdokumentációk ellenőrzése</p>
+        </div>
+
+        <form id="documentationForm" method="POST" action="/projects/<%= project.id %>/reports/documentation">
+
+            <!-- Munkaterület kiválasztása -->
+            <div class="form-section">
+                <div class="section-title">Munkaterület kiválasztása</div>
+                <div class="form-group">
+                    <label for="workArea">Munkaterület neve</label>
+                    <select id="workArea" name="workArea">
+                        <option value="">Válasszon munkaterületet...</option>
+                        <option value="terület_1">Munkaterület 1</option>
+                        <option value="terület_2">Munkaterület 2</option>
+                        <option value="terület_3">Munkaterület 3</option>
+                        <option value="egyéb">Egyéb</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Ellenőrzés résztvevői -->
+            <div class="form-section">
+                <div class="section-title">Ellenőrzés résztvevői</div>
+                
+                <!-- Ellenőrzést végző -->
+                <div class="form-group">
+                    <label>Ellenőrzést végző</label>
+                    <div class="two-column">
+                        <input type="text" name="inspector_name" placeholder="Név">
+                        <input type="text" name="inspector_position" placeholder="Beosztás">
+                    </div>
+                    
+                    <div class="signature-container">
+                        <div class="signature-preview" id="inspectorPreview" onclick="openSignatureModal('inspector')">
+                            <span><i class="fas fa-pen"></i> Kattintson ide az aláírás hozzáadásához</span>
+                        </div>
+                        <div class="signature-buttons">
+                            <button type="button" class="add-button" onclick="openSignatureModal('inspector')">
+                                <i class="fas fa-signature"></i> Aláírás hozzáadása
+                            </button>
+                            <button type="button" class="clear-signature" onclick="clearSignature('inspector')" style="display: none;" id="inspectorClear">
+                                <i class="fas fa-times"></i> Törlés
+                            </button>
+                        </div>
+                    </div>
+                    <input type="hidden" name="inspector_signature" id="inspectorSignature">
+                </div>
+
+                <!-- Munkaterületért felelős -->
+                <div class="form-group">
+                    <label>Munkaterületért felelős</label>
+                    <div class="two-column">
+                        <input type="text" name="responsible_name" placeholder="Munkaterületért felelős neve">
+                        <input type="text" name="responsible_position" placeholder="Beosztás">
+                    </div>
+                    
+                    <div class="signature-container">
+                        <div class="signature-preview" id="responsiblePreview" onclick="openSignatureModal('responsible')">
+                            <span><i class="fas fa-pen"></i> Kattintson ide az aláírás hozzáadásához</span>
+                        </div>
+                        <div class="signature-buttons">
+                            <button type="button" class="add-button" onclick="openSignatureModal('responsible')">
+                                <i class="fas fa-signature"></i> Aláírás hozzáadása
+                            </button>
+                            <button type="button" class="clear-signature" onclick="clearSignature('responsible')" style="display: none;" id="responsibleClear">
+                                <i class="fas fa-times"></i> Törlés
+                            </button>
+                        </div>
+                    </div>
+                    <input type="hidden" name="responsible_signature" id="responsibleSignature">
+                </div>
+
+                <!-- Tanúk konténer -->
+                <div id="witnessesContainer">
+                    <div class="witness-group" data-witness-index="0">
+                        <label>Tanú</label>
+                        <div class="two-column">
+                            <input type="text" name="witness_name_0" placeholder="Név">
+                            <input type="text" name="witness_position_0" placeholder="Beosztás">
+                        </div>
+                        
+                        <div class="signature-container">
+                            <div class="signature-preview" id="witnessPreview_0" onclick="openSignatureModal('witness_0')">
+                                <span><i class="fas fa-pen"></i> Kattintson ide az aláírás hozzáadásához</span>
+                            </div>
+                            <div class="signature-buttons">
+                                <button type="button" class="add-button" onclick="openSignatureModal('witness_0')">
+                                    <i class="fas fa-signature"></i> Aláírás hozzáadása
+                                </button>
+                                <button type="button" class="clear-signature" onclick="clearSignature('witness_0')" style="display: none;" id="witness_0Clear">
+                                    <i class="fas fa-times"></i> Törlés
+                                </button>
+                            </div>
+                        </div>
+                        <input type="hidden" name="witness_signature_0" id="witness_0Signature">
+                    </div>
+                </div>
+
+                <button type="button" class="add-button-secondary" onclick="addWitness()">
+                    <i class="fas fa-user-plus"></i> További tanú hozzáadása
+                </button>
+
+                <!-- Alvállalkozói lánc -->
+                <div class="form-group">
+                    <label>Alvállalkozói lánc</label>
+                    <div class="two-column">
+                        <input type="text" name="subcontractor_name" placeholder="Alvállalkozó cég neve">
+                        <input type="text" name="subcontractor_representative" placeholder="Felelős személy neve">
+                    </div>
+                    
+                    <div class="signature-container">
+                        <div class="signature-preview" id="subcontractorPreview" onclick="openSignatureModal('subcontractor')">
+                            <span><i class="fas fa-pen"></i> Kattintson ide az aláírás hozzáadásához</span>
+                        </div>
+                        <div class="signature-buttons">
+                            <button type="button" class="add-button" onclick="openSignatureModal('subcontractor')">
+                                <i class="fas fa-signature"></i> Aláírás hozzáadása
+                            </button>
+                            <button type="button" class="clear-signature" onclick="clearSignature('subcontractor')" style="display: none;" id="subcontractorClear">
+                                <i class="fas fa-times"></i> Törlés
+                            </button>
+                        </div>
+                    </div>
+                    <input type="hidden" name="subcontractor_signature" id="subcontractorSignature">
+                </div>
+            </div>
+
+            <!-- 1.1 Munkaterületért felelős beazonosítása -->
+            <div class="checklist-item">
+                <div class="checklist-header">1.1 Munkaterületért felelős beazonosítása</div>
+                <div class="checklist-description">Átadás átvétel jegyzőkönyv fellelhetősége, munkaengedély, stb.</div>
+                
+                <div class="radio-options">
+                    <div class="radio-option success">
+                        <input type="radio" id="item_1_1_m" name="item_1_1" value="megfelelő">
+                        <label for="item_1_1_m">Megfelelt</label>
+                    </div>
+                    <div class="radio-option danger">
+                        <input type="radio" id="item_1_1_nm" name="item_1_1" value="nem_megfelelő">
+                        <label for="item_1_1_nm">Nem megfelelt</label>
+                    </div>
+                    <div class="radio-option warning">
+                        <input type="radio" id="item_1_2_nv" name="item_1_2" value="nem_vizsgált">
+                        <label for="item_1_2_nv">Nem vonatkozik / Nem vizsgált</label>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 15px;">
+                    <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
+                    <input type="file" id="photos_1_2" accept="image/*" multiple onchange="handleImageUpload(event, '1_2')" style="margin-bottom: 10px;">
+                    <div id="preview_1_2" class="image-preview-container"></div>
+                </div>
+
+                <textarea class="notes-textarea" name="notes_1_2" placeholder="Megjegyzés..."></textarea>
+            </div>
+
+            <!-- 1.2 Egyéb dokumentációk -->
+            <div class="checklist-item">
+                <div class="checklist-header">1.2 Egyéb dokumentációk</div>
+                <div class="checklist-description">Építési napló, hulladék nyilvántartólap stb.</div>
+                
+                <div class="radio-options">
+                    <div class="radio-option success">
+                        <input type="radio" id="item_1_2_m" name="item_1_2" value="megfelelő">
+                        <label for="item_1_2_m">Megfelelt</label>
+                    </div>
+                    <div class="radio-option danger">
+                        <input type="radio" id="item_1_2_nm" name="item_1_2" value="nem_megfelelő">
+                        <label for="item_1_2_nm">Nem megfelelt</label>
+                    </div>
+                    <div class="radio-option warning">
+                        <input type="radio" id="item_1_2_nv" name="item_1_2" value="nem_vizsgált">
+                        <label for="item_1_2_nv">Nem vonatkozik / Nem vizsgált</label>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 15px;">
+                    <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
+                    <input type="file" id="photos_1_2" accept="image/*" multiple onchange="handleImageUpload(event, '1_2')" style="margin-bottom: 10px;">
+                    <div id="preview_1_2" class="image-preview-container"></div>
+                </div>
+
+                <textarea class="notes-textarea" name="notes_1_2" placeholder="Megjegyzés..."></textarea>
+            </div>
+
+            <!-- 1.3 Szükséges engedélyek -->
+            <div class="checklist-item">
+                <div class="checklist-header">1.3 Szükséges engedélyek</div>
+                <div class="checklist-description">Tűzgyújtási, beszállási, feszültség ment., emelési terv, nincs lefolytatva az eljárás, a benne foglalaltak nem teljesülnek stb.</div>
+                
+                <div class="radio-options">
+                    <div class="radio-option success">
+                        <input type="radio" id="item_1_3_m" name="item_1_3" value="megfelelő">
+                        <label for="item_1_3_m">Megfelelt</label>
+                    </div>
+                    <div class="radio-option danger">
+                        <input type="radio" id="item_1_3_nm" name="item_1_3" value="nem_megfelelő">
+                        <label for="item_1_3_nm">Nem megfelelt</label>
+                    </div>
+                    <div class="radio-option warning">
+                        <input type="radio" id="item_1_3_nv" name="item_1_3" value="nem_vizsgált">
+                        <label for="item_1_3_nv">Nem vonatkozik / Nem vizsgált</label>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 15px;">
+                    <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
+                    <input type="file" id="photos_1_3" accept="image/*" multiple onchange="handleImageUpload(event, '1_3')" style="margin-bottom: 10px;">
+                    <div id="preview_1_3" class="image-preview-container"></div>
+                </div>
+
+                <textarea class="notes-textarea" name="notes_1_3" placeholder="Megjegyzés..."></textarea>
+            </div>
+
+            <!-- 1.4 Szükséges tervdokumentációk -->
+            <div class="checklist-item">
+                <div class="checklist-header">1.4 Szükséges tervdokumentációk, jegyzőkönyvek</div>
+                <div class="checklist-description">BET; EBK terv; organizációs terv stb.</div>
+                
+                <div class="radio-options">
+                    <div class="radio-option success">
+                        <input type="radio" id="item_1_4_m" name="item_1_4" value="megfelelő">
+                        <label for="item_1_4_m">Megfelelt</label>
+                    </div>
+                    <div class="radio-option danger">
+                        <input type="radio" id="item_1_4_nm" name="item_1_4" value="nem_megfelelő">
+                        <label for="item_1_4_nm">Nem megfelelt</label>
+                    </div>
+                    <div class="radio-option warning">
+                        <input type="radio" id="item_1_4_nv" name="item_1_4" value="nem_vizsgált">
+                        <label for="item_1_4_nv">Nem vonatkozik / Nem vizsgált</label>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 15px;">
+                    <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
+                    <input type="file" id="photos_1_4" accept="image/*" multiple onchange="handleImageUpload(event, '1_4')" style="margin-bottom: 10px;">
+                    <div id="preview_1_4" class="image-preview-container"></div>
+                </div>
+
+                <textarea class="notes-textarea" name="notes_1_4" placeholder="Megjegyzés..."></textarea>
+            </div>
+
+            <!-- Szankciós lista -->
+            <div class="price-section">
+                <h3>Szankciós lista - Dokumentáció kategória vonatkozó pontjai</h3>
+                
+                <div class="price-item">
+                    <input type="checkbox" id="price_1" name="sanction_1" value="100000">
+                    <label for="price_1">1 MVM XPert munka-, tűz-, vagy környezetvédelmi szabályainak megsértése</label>
+                    <span class="price">100,000 Ft</span>
+                </div>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_2" name="sanction_2" value="50000">
+                    <label for="price_2">6 Munkabiztonságot jelentősen befolyásoló eszközök, jelzések, biztonsági berendezések mellőzése, kiiktatása</label>
+                    <span class="price">50,000 Ft</span>
+                </div>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_3" name="sanction_3" value="50000">
+                    <label for="price_3">9 Veszélyes munkaeszköz üzembehelyezésének és időszakos biztonsági felülvizsgálat elvégzésének hiánya</label>
+                    <span class="price">50,000 Ft</span>
+                </div>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_4" name="sanction_4" value="30000">
+                    <label for="price_4">10 A munkavégzéshez használt időszakos felülvizsgálatra kötelezett gépek, berendezések, munkaeszközök nem azonosíthatók</label>
+                    <span class="price">30,000 Ft</span>
+                </div>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_5" name="sanction_5" value="50000">
+                    <label for="price_5">15 Egyéb jogosulatlan munkavégzés (pl: gépkezelői jogosultságok)</label>
+                    <span class="price">50,000 Ft</span>
+                </div>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_6" name="sanction_6" value="100000">
+                    <label for="price_6">16 Időszakos biztonsági és egyéb jogszabályban meghatározott felülvizsgálatok hiánya</label>
+                    <span class="price">100,000 Ft</span>
+                </div>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_7" name="sanction_7" value="100000">
+                    <label for="price_7">26 Írásos engedélyhez kötött tevékenység végzése engedély nélkül</label>
+                    <span class="price">100,000 Ft</span>
+                </div>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_8" name="sanction_8" value="100000">
+                    <label for="price_8">27 Emelési terv köteles tevékenység engedély nélküli végzése</label>
+                    <span class="price">100,000 Ft</span>
+                </div>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_9" name="sanction_9" value="100000">
+                    <label for="price_9">39 Megrendelő felé jelentendő EBK esemény jelentésének elmulasztása</label>
+                    <span class="price">100,000 Ft</span>
+                </div>
+
+                <div class="total-price">
+                    <span>Összesített bírság:</span>
+                    <span id="totalPrice">0 Ft</span>
+                </div>
+            </div>
+
+            <!-- Submit gombok -->
+            <div class="submit-section">
+                <button type="button" class="submit-button" onclick="exportToPDF()">
+                    <i class="fas fa-file-pdf"></i> PDF exportálása
+                </button>
+                <button type="submit" class="preview-button">
+                    <i class="fas fa-save"></i> Ellenőrzés mentése
+                </button>
+            </div>
+
+        </form>
+
+    </div>
+
+    <!-- Aláírás Modal -->
+    <div id="signatureModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-signature"></i> Aláírás hozzáadása</h2>
+                <button class="close-modal" onclick="closeSignatureModal()">&times;</button>
+            </div>
+            <canvas id="signatureCanvas" width="540" height="300"></canvas>
+            <div class="canvas-controls">
+                <button class="btn-clear" onclick="clearCanvas()">
+                    <i class="fas fa-eraser"></i> Törlés
+                </button>
+                <button class="btn-save" onclick="saveSignature()">
+                    <i class="fas fa-check"></i> Mentés
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Globális változók
+        let canvas, ctx;
+        let isDrawing = false;
+        let currentSignatureType = '';
+        const signatures = {
+            inspector: null,
+            responsible: null,
+            subcontractor: null
+        };
+
+        // Képek tárolása pontok szerint
+        const uploadedImages = {
+            '1_1': [],
+            '1_2': [],
+            '1_3': [],
+            '1_4': []
+        };
+
+        // Tanúk számláló
+        let witnessCounter = 1;
+
+        // Inicializálás
+        document.addEventListener('DOMContentLoaded', async function() {
+    canvas = document.getElementById('signatureCanvas');
+    ctx = canvas.getContext('2d');
+    
+    // Canvas beállítások
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Egér események
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('mouseout', stopDrawing);
+
+    // Érintés események (mobilra)
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd, { passive: false }); // ⭐ touchend, NEM stopDrawing!
+
+    // Aktuális dátum beállítása alapértelmezettnek
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('inspectionDate').value = today;
+
+    // Mentett adatok betöltése 
+    try {
+        const response = await fetch('/projects/<%= project.id %>/reports/documentation');
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            console.log('Mentett adatok betöltve:', result.data);
+            loadSavedData(result.data);
+        } else {
+            console.log('Nincs mentett adat ehhez a projekthez/kategóriához');
+        }
+    } catch (error) {
+        console.error('Hiba a mentett adatok betöltésekor:', error);
+    }
+});
+
+        // Tanú hozzáadása
+        function addWitness() {
+            const container = document.getElementById('witnessesContainer');
+            const witnessIndex = witnessCounter++;
+            
+            const witnessGroup = document.createElement('div');
+            witnessGroup.className = 'witness-group';
+            witnessGroup.setAttribute('data-witness-index', witnessIndex);
+            
+            witnessGroup.innerHTML = `
+                <button type="button" class="remove-witness-btn" onclick="removeWitness(${witnessIndex})">×</button>
+                <label>Tanú ${witnessIndex + 1}</label>
+                <div class="two-column">
+                    <input type="text" name="witness_name_${witnessIndex}" placeholder="Név">
+                    <input type="text" name="witness_position_${witnessIndex}" placeholder="Beosztás">
+                </div>
+                
+                <div class="signature-container">
+                    <div class="signature-preview" id="witnessPreview_${witnessIndex}" onclick="openSignatureModal('witness_${witnessIndex}')">
+                        <span><i class="fas fa-pen"></i> Kattintson ide az aláírás hozzáadásához</span>
+                    </div>
+                    <div class="signature-buttons">
+                        <button type="button" class="add-button" onclick="openSignatureModal('witness_${witnessIndex}')">
+                            <i class="fas fa-signature"></i> Aláírás hozzáadása
+                        </button>
+                        <button type="button" class="clear-signature" onclick="clearSignature('witness_${witnessIndex}')" style="display: none;" id="witness_${witnessIndex}Clear">
+                            <i class="fas fa-times"></i> Törlés
+                        </button>
+                    </div>
+                </div>
+                <input type="hidden" name="witness_signature_${witnessIndex}" id="witness_${witnessIndex}Signature">
+            `;
+            
+            container.appendChild(witnessGroup);
+            
+            // Aláírás inicializálása
+            signatures[`witness_${witnessIndex}`] = null;
+        }
+
+        // Tanú eltávolítása
+        function removeWitness(index) {
+            const witnessGroup = document.querySelector(`.witness-group[data-witness-index="${index}"]`);
+            if (witnessGroup) {
+                delete signatures[`witness_${index}`];
+                witnessGroup.remove();
+            }
+        }
+
+        // Aláírás modal megnyitása
+        function openSignatureModal(type) {
+            currentSignatureType = type;
+            document.getElementById('signatureModal').style.display = 'block';
+            clearCanvas();
+        }
+
+        // Modal bezárása
+        function closeSignatureModal() {
+            document.getElementById('signatureModal').style.display = 'none';
+            currentSignatureType = '';
+        }
+
+        // Rajzolás kezdése
+function startDrawing(e) {
+    isDrawing = true;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    ctx.beginPath();
+    ctx.moveTo(
+        (e.clientX - rect.left) * scaleX,
+        (e.clientY - rect.top) * scaleY
+    );
+}
+
+        // Rajzolás
+function draw(e) {
+    if (!isDrawing) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    ctx.lineTo(
+        (e.clientX - rect.left) * scaleX,
+        (e.clientY - rect.top) * scaleY
+    );
+    ctx.stroke();
+}
+
+        // Rajzolás befejezése
+        function stopDrawing() {
+    if (isDrawing) {
+        ctx.closePath(); // ⭐ ÚJ SOR - lezárjuk az útvonalat
+    }
+    isDrawing = false;
+}
+        // Képfeltöltés kezelése
+        function handleImageUpload(event, itemId) {
+            const files = event.target.files;
+            const previewContainer = document.getElementById(`preview_${itemId}`);
+            
+            Array.from(files).forEach(file => {
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    
+                    reader.onload = function(e) {
+                        const imageData = e.target.result;
+                        uploadedImages[itemId].push(imageData);
+                        
+                        const previewItem = document.createElement('div');
+                        previewItem.className = 'image-preview-item';
+                        
+                        const img = document.createElement('img');
+                        img.src = imageData;
+                        
+                        const removeBtn = document.createElement('button');
+                        removeBtn.className = 'image-remove-btn';
+                        removeBtn.innerHTML = '&times;';
+                        removeBtn.onclick = function() {
+                            const index = uploadedImages[itemId].indexOf(imageData);
+                            if (index > -1) {
+                                uploadedImages[itemId].splice(index, 1);
+                            }
+                            previewItem.remove();
+                        };
+                        
+                        previewItem.appendChild(img);
+                        previewItem.appendChild(removeBtn);
+                        previewContainer.appendChild(previewItem);
+                    };
+                    
+                    reader.readAsDataURL(file);
+                }
+            });
+            
+            event.target.value = '';
+        }
+
+        // Touch események kezelése
+function handleTouchStart(e) {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    isDrawing = true;
+    ctx.beginPath(); // ⭐ FONTOS: új útvonal kezdése
+    ctx.moveTo(
+        (touch.clientX - rect.left) * scaleX,
+        (touch.clientY - rect.top) * scaleY
+    );
+}
+
+        function handleTouchMove(e) {
+    e.preventDefault();
+    if (!isDrawing) return;
+    
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    ctx.lineTo(
+        (touch.clientX - rect.left) * scaleX,
+        (touch.clientY - rect.top) * scaleY
+    );
+    ctx.stroke();
+}
+
+// Touch befejezése
+function handleTouchEnd(e) {
+    e.preventDefault();
+    if (isDrawing) {
+        ctx.closePath();
+    }
+    isDrawing = false;
+}
+
+        // Canvas törlése
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        // Aláírás mentése
+       function saveSignature() {
+    const dataURL = canvas.toDataURL('image/png');
+    signatures[currentSignatureType] = dataURL;
+    
+    // Hidden input ID helyes kezelése
+    let hiddenInputId = currentSignatureType + 'Signature';
+    // Ha witness_0, witness_1 stb., akkor az ID formátum más
+    if (currentSignatureType.startsWith('witness_')) {
+        // witness_0 -> witness_0Signature (már jó)
+        hiddenInputId = currentSignatureType + 'Signature';
+    }
+    
+    const hiddenInput = document.getElementById(hiddenInputId);
+    if (hiddenInput) {
+        hiddenInput.value = dataURL;
+        console.log('Hidden input frissítve:', hiddenInputId);
+    } else {
+        console.error('Hidden input nem található:', hiddenInputId);
+    }
+    
+    // Preview ID helyes kezelése
+    let previewId = currentSignatureType + 'Preview';
+    if (currentSignatureType.startsWith('witness_')) {
+        // witness_0 -> witnessPreview_0
+        previewId = 'witnessPreview_' + currentSignatureType.split('_')[1];
+    }
+    
+    const preview = document.getElementById(previewId);
+    if (preview) {
+        preview.innerHTML = `<img src="${dataURL}" alt="Aláírás">`;
+        console.log('Preview frissítve:', previewId);
+    } else {
+        console.error('Preview nem található:', previewId);
+    }
+    
+    // Clear button ID helyes kezelése
+    let clearBtnId = currentSignatureType + 'Clear';
+    if (currentSignatureType.startsWith('witness_')) {
+        // witness_0 -> witness_0Clear
+        clearBtnId = currentSignatureType + 'Clear';
+    }
+    
+    const clearBtn = document.getElementById(clearBtnId);
+    if (clearBtn) {
+        clearBtn.style.display = 'block';
+        console.log('Clear button megjelenítve:', clearBtnId);
+    } else {
+        console.error('Clear button nem található:', clearBtnId);
+    }
+    
+    closeSignatureModal();
+}
+
+        // Aláírás törlése
+     function clearSignature(type) {
+    signatures[type] = null;
+    
+    // Hidden input
+    let hiddenInputId = type + 'Signature';
+    const hiddenInput = document.getElementById(hiddenInputId);
+    if (hiddenInput) {
+        hiddenInput.value = '';
+    }
+    
+    // Preview
+    let previewId = type + 'Preview';
+    if (type.startsWith('witness_')) {
+        previewId = 'witnessPreview_' + type.split('_')[1];
+    }
+    
+    const preview = document.getElementById(previewId);
+    if (preview) {
+        preview.innerHTML = '<span><i class="fas fa-pen"></i> Kattintson ide az aláírás hozzáadásához</span>';
+    }
+    
+    // Clear button
+    let clearBtnId = type + 'Clear';
+    const clearBtn = document.getElementById(clearBtnId);
+    if (clearBtn) {
+        clearBtn.style.display = 'none';
+    }
+}
+
+        // Ár kalkuláció
+        const priceCheckboxes = document.querySelectorAll('.price-item input[type="checkbox"]');
+        const totalPriceElement = document.getElementById('totalPrice');
+
+        function calculateTotal() {
+            let total = 0;
+            priceCheckboxes.forEach(checkbox => {
+                if (checkbox.checked) {
+                    total += parseInt(checkbox.value);
+                }
+            });
+            totalPriceElement.textContent = total.toLocaleString('hu-HU') + ' Ft';
+            return total;
+        }
+
+        priceCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', calculateTotal);
+        });
+
+        // Form submit
+document.getElementById('documentationForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const data = {};
+    
+    for (let [key, value] of formData.entries()) {
+        data[key] = value;
+    }
+
+    // Bírság összeg hozzáadása
+    data.total_fine = calculateTotal();
+    data.total_fine_formatted = totalPriceElement.textContent;
+    
+    // Képek hozzáadása
+    data.images = uploadedImages;
+    
+    // ⭐ ÚJ: Projekt specifikus mezők hozzáadása
+    data.projectName = document.getElementById('projectName').value;
+    data.serialNumber = document.getElementById('serialNumber').value;
+    data.inspectorPerson = document.getElementById('inspectorPerson').value;
+    data.inspectionDate = document.getElementById('inspectionDate').value;
+
+    fetch(this.action, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert('✓ Ellenőrzés sikeresen elmentve!');
+            // NEM irányítunk vissza, maradunk az oldalon
+            // window.location.href = '/projects/<%= project.id %>/new-report';
+        } else {
+            alert('✗ Hiba történt: ' + result.message);
+        }
+    })
+    .catch(error => {
+        console.error('Hiba:', error);
+        alert('✗ Hiba történt a mentés során.');
+    });
+});
+
+       // PDF Exportálás
+        function exportToPDF() {
+            const projectName = document.getElementById('projectName').value || '<%= project.name %>';
+            const serialNumber = document.getElementById('serialNumber').value || 'N/A';
+            const inspectorPerson = document.getElementById('inspectorPerson').value || '<%= user.name %>';
+            const inspectionDateValue = document.getElementById('inspectionDate').value;
+            const formattedDate = inspectionDateValue ? new Date(inspectionDateValue).toLocaleDateString('hu-HU', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            }) : 'N/A';
+
+            // Form adatok összegyűjtése
+            const formData = new FormData(document.getElementById('documentationForm'));
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+
+            // PDF dokumentum definíció
+            const docDefinition = {
+                pageSize: 'A4',
+                pageMargins: [40, 60, 40, 60],
+                content: [
+                    // Fejléc
+                    {
+                        text: 'MVM XPERT - MUNKAVÉDELMI ELLENŐRZÉSI JEGYZŐKÖNYV',
+                        style: 'header',
+                        alignment: 'center',
+                        margin: [0, 0, 0, 20]
+                    },
+                    {
+                        text: '1. DOKUMENTÁCIÓ',
+                        style: 'subheader',
+                        alignment: 'center',
+                        margin: [0, 0, 0, 30]
+                    },
+
+                    // Projekt információk
+                    {
+                        style: 'tableExample',
+                        table: {
+                            widths: [120, '*'],
+                            body: [
+                                ['Projekt neve:', projectName],
+                                ['Sorszám:', serialNumber],
+                                ['Ellenőrző személy:', inspectorPerson],
+                                ['Dátum:', formattedDate],
+                                ['Munkaterület:', data.workArea || 'N/A']
+                            ]
+                        },
+                        layout: 'lightHorizontalLines',
+                        margin: [0, 0, 0, 20]
+                    },
+
+                    // Résztvevők
+                    {
+                        text: 'ELLENŐRZÉS RÉSZTVEVŐI',
+                        style: 'sectionHeader',
+                        margin: [0, 20, 0, 10]
+                    },
+
+                    // Ellenőrzést végző
+                    {
+                        text: 'Ellenőrzést végző',
+                        style: 'participantTitle'
+                    },
+                    {
+                        columns: [
+                            { width: '*', text: `Név: ${data.inspector_name || 'N/A'}` },
+                            { width: '*', text: `Beosztás: ${data.inspector_position || 'N/A'}` }
+                        ],
+                        margin: [0, 5, 0, 5]
+                    },
+                    signatures.inspector ? {
+                        image: signatures.inspector,
+                        width: 150,
+                        margin: [0, 10, 0, 20]
+                    } : { text: '[Aláírás hiányzik]', italics: true, margin: [0, 10, 0, 20] },
+
+                    // Munkaterületért felelős
+                    {
+                        text: 'Munkaterületért felelős',
+                        style: 'participantTitle'
+                    },
+                    {
+                        columns: [
+                            { width: '*', text: `Név: ${data.responsible_name || 'N/A'}` },
+                            { width: '*', text: `Beosztás: ${data.responsible_position || 'N/A'}` }
+                        ],
+                        margin: [0, 5, 0, 5]
+                    },
+                    signatures.responsible ? {
+                        image: signatures.responsible,
+                        width: 150,
+                        margin: [0, 10, 0, 20]
+                    } : { text: '[Aláírás hiányzik]', italics: true, margin: [0, 10, 0, 20] },
+
+                    // Tanúk - csak kitöltöttek
+                    ...getWitnessesForPDF(data),
+
+                    // Alvállalkozói lánc
+                    {
+                        text: 'Alvállalkozói lánc',
+                        style: 'participantTitle'
+                    },
+                    {
+                        columns: [
+                            { width: '*', text: `Cég neve: ${data.subcontractor_name || 'N/A'}` },
+                            { width: '*', text: `Felelős: ${data.subcontractor_representative || 'N/A'}` }
+                        ],
+                        margin: [0, 5, 0, 5]
+                    },
+                    signatures.subcontractor ? {
+                        image: signatures.subcontractor,
+                        width: 150,
+                        margin: [0, 10, 0, 20]
+                    } : { text: '[Aláírás hiányzik]', italics: true, margin: [0, 10, 0, 20] },
+
+                    // Ellenőrzési pontok
+                    {
+                        text: 'ELLENŐRZÉSI PONTOK',
+                        style: 'sectionHeader',
+                        margin: [0, 30, 0, 15],
+                        pageBreak: 'before'
+                    },
+
+                    // 1.1
+                    {
+                        text: '1.1 Munkaterületért felelős beazonosítása',
+                        style: 'checklistTitle'
+                    },
+                    {
+                        text: 'Átadás átvétel jegyzőkönyv fellelhetősége, munkaengedély, stb.',
+                        style: 'checklistDesc'
+                    },
+                    {
+                        text: `Értékelés: ${getStatusText(data.item_1_1)}`,
+                        style: getStatusStyle(data.item_1_1),
+                        margin: [0, 5, 0, 5]
+                    },
+                    data.notes_1_1 ? {
+                        text: `Megjegyzés: ${data.notes_1_1}`,
+                        style: 'notes'
+                    } : {},
+                    ...getImagesForPDF('1_1'),
+
+                    // 1.2
+                    {
+                        text: '1.2 Egyéb dokumentációk',
+                        style: 'checklistTitle',
+                        margin: [0, 15, 0, 0]
+                    },
+                    {
+                        text: 'Építési napló, hulladék nyilvántartólap stb.',
+                        style: 'checklistDesc'
+                    },
+                    {
+                        text: `Értékelés: ${getStatusText(data.item_1_2)}`,
+                        style: getStatusStyle(data.item_1_2),
+                        margin: [0, 5, 0, 5]
+                    },
+                    data.notes_1_2 ? {
+                        text: `Megjegyzés: ${data.notes_1_2}`,
+                        style: 'notes'
+                    } : {},
+                    ...getImagesForPDF('1_2'),
+
+                    // 1.3
+                    {
+                        text: '1.3 Szükséges engedélyek',
+                        style: 'checklistTitle',
+                        margin: [0, 15, 0, 0]
+                    },
+                    {
+                        text: 'Tűzgyújtási, beszállási, feszültség ment., emelési terv stb.',
+                        style: 'checklistDesc'
+                    },
+                    {
+                        text: `Értékelés: ${getStatusText(data.item_1_3)}`,
+                        style: getStatusStyle(data.item_1_3),
+                        margin: [0, 5, 0, 5]
+                    },
+                    data.notes_1_3 ? {
+                        text: `Megjegyzés: ${data.notes_1_3}`,
+                        style: 'notes'
+                    } : {},
+                    ...getImagesForPDF('1_3'),
+
+                    // 1.4
+                    {
+                        text: '1.4 Szükséges tervdokumentációk, jegyzőkönyvek',
+                        style: 'checklistTitle',
+                        margin: [0, 15, 0, 0]
+                    },
+                    {
+                        text: 'BET; EBK terv; organizációs terv stb.',
+                        style: 'checklistDesc'
+                    },
+                    {
+                        text: `Értékelés: ${getStatusText(data.item_1_4)}`,
+                        style: getStatusStyle(data.item_1_4),
+                        margin: [0, 5, 0, 5]
+                    },
+                    data.notes_1_4 ? {
+                        text: `Megjegyzés: ${data.notes_1_4}`,
+                        style: 'notes'
+                    } : {},
+                    ...getImagesForPDF('1_4'),
+
+                    // Szankciók
+                    {
+                        text: 'SZANKCIÓS LISTA',
+                        style: 'sectionHeader',
+                        margin: [0, 30, 0, 15]
+                    },
+                    ...getAppliedSanctionsForPDF(data),
+                    {
+                        text: `Összesített bírság: ${totalPriceElement.textContent}`,
+                        style: 'totalFine',
+                        margin: [0, 20, 0, 0]
+                    }
+                ],
+
+                styles: {
+                    header: {
+                        fontSize: 18,
+                        bold: true,
+                        color: '#0056b3'
+                    },
+                    subheader: {
+                        fontSize: 16,
+                        bold: true,
+                        color: '#333'
+                    },
+                    sectionHeader: {
+                        fontSize: 14,
+                        bold: true,
+                        color: '#0056b3',
+                        decoration: 'underline'
+                    },
+                    participantTitle: {
+                        fontSize: 12,
+                        bold: true,
+                        margin: [0, 10, 0, 5]
+                    },
+                    checklistTitle: {
+                        fontSize: 12,
+                        bold: true,
+                        color: '#333'
+                    },
+                    checklistDesc: {
+                        fontSize: 10,
+                        color: '#666',
+                        italics: true,
+                        margin: [0, 2, 0, 5]
+                    },
+                    statusOk: {
+                        fontSize: 11,
+                        color: '#28a745',
+                        bold: true
+                    },
+                    statusFail: {
+                        fontSize: 11,
+                        color: '#dc3545',
+                        bold: true
+                    },
+                    statusNA: {
+                        fontSize: 11,
+                        color: '#ffc107',
+                        bold: true
+                    },
+                    notes: {
+                        fontSize: 10,
+                        italics: true,
+                        color: '#666',
+                        margin: [0, 5, 0, 10]
+                    },
+                    sanctions: {
+                        fontSize: 10,
+                        margin: [0, 5, 0, 5]
+                    },
+                    totalFine: {
+                        fontSize: 14,
+                        bold: true,
+                        color: '#dc3545'
+                    },
+                    imageTitle: {
+                        fontSize: 11,
+                        bold: true,
+                        color: '#0056b3',
+                        margin: [0, 10, 0, 5]
+                    }
+                }
+            };
+
+            // PDF generálás és letöltés
+            // PDF generálás és feltöltés
+pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
+    try {
+        // Küldés a backend-nek
+        const response = await fetch('/projects/<%= project.id %>/reports/documentation/export-pdf', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                pdfData: `data:application/pdf;base64,${pdfBase64}`,
+                serialNumber: serialNumber,
+                projectName: projectName,
+                images: uploadedImages
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            if (result.driveUrl) {
+                alert('✅ PDF sikeresen exportálva és feltöltve a Google Drive-ra!');
+                console.log('Drive URL:', result.driveUrl);
+            } else {
+                alert('✅ PDF letöltésre kész!');
+            }
+        }
+
+        // Letöltés MINDIG megtörténik
+        const fileName = `Dokumentacio_${serialNumber.replace(/\//g, '-')}_${Date.now()}.pdf`;
+        pdfMake.createPdf(docDefinition).download(fileName);
+
+    } catch (error) {
+        console.error('Hiba a PDF feltöltésekor:', error);
+        alert('⚠️ Hiba történt, de a PDF letöltése folytatódik.');
+        
+        // Letöltés akkor is megtörténik
+        const fileName = `Dokumentacio_${serialNumber.replace(/\//g, '-')}_${Date.now()}.pdf`;
+        pdfMake.createPdf(docDefinition).download(fileName);
+    }
+});
+}
+
+        // Segédfüggvények a PDF-hez
+        function getStatusText(status) {
+            switch(status) {
+                case 'megfelelő': return 'MEGFELELŐ (M)';
+                case 'nem_megfelelő': return 'NEM MEGFELELŐ (NM)';
+                case 'nem_vizsgált': return 'NEM VIZSGÁLT (NV)';
+                default: return 'Nincs értékelve';
+            }
+        }
+
+        function getStatusStyle(status) {
+            switch(status) {
+                case 'megfelelő': return 'statusOk';
+                case 'nem_megfelelő': return 'statusFail';
+                case 'nem_vizsgált': return 'statusNA';
+                default: return 'statusNA';
+            }
+        }
+
+        // Tanúk PDF-hez - csak kitöltöttek
+        function getWitnessesForPDF(data) {
+            const result = [];
+            
+            // Végigmegyünk az összes lehetséges tanún
+            for (let i = 0; i < witnessCounter; i++) {
+                const witnessName = data[`witness_name_${i}`];
+                const witnessPosition = data[`witness_position_${i}`];
+                const witnessSignature = signatures[`witness_${i}`];
+                
+                // Csak akkor adjuk hozzá, ha van név kitöltve
+                if (witnessName && witnessName.trim() !== '') {
+                    result.push({
+                        text: `Tanú ${i === 0 ? '' : i + 1}`,
+                        style: 'participantTitle'
+                    });
+                    
+                    result.push({
+                        columns: [
+                            { width: '*', text: `Név: ${witnessName}` },
+                            { width: '*', text: `Beosztás: ${witnessPosition || 'N/A'}` }
+                        ],
+                        margin: [0, 5, 0, 5]
+                    });
+                    
+                    if (witnessSignature) {
+                        result.push({
+                            image: witnessSignature,
+                            width: 150,
+                            margin: [0, 10, 0, 20]
+                        });
+                    } else {
+                        result.push({
+                            text: '[Aláírás hiányzik]',
+                            italics: true,
+                            margin: [0, 10, 0, 20]
+                        });
+                    }
+                }
+            }
+            
+            return result;
+        }
+
+        // Alkalmazott szankciók PDF-hez
+        function getAppliedSanctionsForPDF(data) {
+            const sanctionLabels = {
+                sanction_1: '1 MVM XPert munka-, tűz-, vagy környezetvédelmi szabályainak megsértése',
+                sanction_2: '6 Munkabiztonságot jelentősen befolyásoló eszközök, jelzések, biztonsági berendezések mellőzése, kiiktatása',
+                sanction_3: '9 Veszélyes munkaeszköz üzembehelyezésének és időszakos biztonsági felülvizsgálat elvégzésének hiánya',
+                sanction_4: '10 A munkavégzéshez használt időszakos felülvizsgálatra kötelezett gépek, berendezések, munkaeszközök nem azonosíthatók',
+                sanction_5: '15 Egyéb jogosulatlan munkavégzés (pl: gépkezelői jogosultságok)',
+                sanction_6: '16 Időszakos biztonsági és egyéb jogszabályban meghatározott felülvizsgálatok hiánya',
+                sanction_7: '26 Írásos engedélyhez kötött tevékenység végzése engedély nélkül',
+                sanction_8: '27 Emelési terv köteles tevékenység engedély nélküli végzése',
+                sanction_9: '39 Megrendelő felé jelentendő EBK esemény jelentésének elmulasztása'
+            };
+
+            const sanctionPrices = {
+                sanction_1: '100,000 Ft',
+                sanction_2: '50,000 Ft',
+                sanction_3: '50,000 Ft',
+                sanction_4: '30,000 Ft',
+                sanction_5: '50,000 Ft',
+                sanction_6: '100,000 Ft',
+                sanction_7: '100,000 Ft',
+                sanction_8: '100,000 Ft',
+                sanction_9: '100,000 Ft'
+            };
+
+            const result = [];
+            let hasAny = false;
+
+            const checkboxes = document.querySelectorAll('.price-item input[type="checkbox"]');
+            
+            checkboxes.forEach(checkbox => {
+                if (checkbox.checked) {
+                    const sanctionKey = checkbox.name;
+                    hasAny = true;
+                    
+                    result.push({
+                        text: `• ${sanctionLabels[sanctionKey]} - ${sanctionPrices[sanctionKey]}`,
+                        style: 'sanctions',
+                        margin: [0, 3, 0, 3]
+                    });
+                }
+            });
+
+            if (!hasAny) {
+                result.push({
+                    text: 'Nincs alkalmazott szankció.',
+                    style: 'sanctions',
+                    italics: true,
+                    color: '#999'
+                });
+            }
+
+            return result;
+        }
+
+        // Képek PDF-hez való hozzáadása
+        function getImagesForPDF(itemId) {
+            const images = uploadedImages[itemId];
+            if (!images || images.length === 0) {
+                return [];
+            }
+
+            const result = [
+                {
+                    text: 'Csatolt fényképek / dokumentáció:',
+                    style: 'imageTitle',
+                    margin: [0, 10, 0, 5]
+                }
+            ];
+
+            for (let i = 0; i < images.length; i += 2) {
+                const columns = [];
+                
+                columns.push({
+                    image: images[i],
+                    width: 200,
+                    margin: [0, 5, 5, 5]
+                });
+                
+                if (i + 1 < images.length) {
+                    columns.push({
+                        image: images[i + 1],
+                        width: 200,
+                        margin: [5, 5, 0, 5]
+                    });
+                } else {
+                    columns.push({ text: '', width: 200 });
+                }
+                
+                result.push({
+                    columns: columns,
+                    columnGap: 10
+                });
+            }
+
+            return result;
+        }
+
+        // Modal bezárása kattintással a háttérre
+        window.onclick = function(event) {
+            const modal = document.getElementById('signatureModal');
+            if (event.target == modal) {
+                closeSignatureModal();
+            }
+        }
+
+        // Mentett adatok betöltése a form-ba
+function loadSavedData(data) {
+    console.log('loadSavedData meghívva:', data);
+    
+    // Projekt információk
+    if (data.projectName) {
+        document.getElementById('projectName').value = data.projectName;
+    }
+    if (data.serialNumber) {
+        document.getElementById('serialNumber').value = data.serialNumber;
+    }
+    if (data.inspectorPerson) {
+        document.getElementById('inspectorPerson').value = data.inspectorPerson;
+    }
+    if (data.inspectionDate) {
+        document.getElementById('inspectionDate').value = data.inspectionDate;
+    }
+    
+    // Munkaterület
+    if (data.workArea) {
+        document.getElementById('workArea').value = data.workArea;
+    }
+    
+    // Résztvevők
+    if (data.inspector_name) {
+        document.querySelector('input[name="inspector_name"]').value = data.inspector_name;
+    }
+    if (data.inspector_position) {
+        document.querySelector('input[name="inspector_position"]').value = data.inspector_position;
+    }
+    if (data.responsible_name) {
+        document.querySelector('input[name="responsible_name"]').value = data.responsible_name;
+    }
+    if (data.responsible_position) {
+        document.querySelector('input[name="responsible_position"]').value = data.responsible_position;
+    }
+    
+    // Aláírások betöltése
+    if (data.inspector_signature) {
+        signatures.inspector = data.inspector_signature;
+        document.getElementById('inspectorSignature').value = data.inspector_signature;
+        document.getElementById('inspectorPreview').innerHTML = `<img src="${data.inspector_signature}" alt="Aláírás">`;
+        document.getElementById('inspectorClear').style.display = 'block';
+    }
+    
+    if (data.responsible_signature) {
+        signatures.responsible = data.responsible_signature;
+        document.getElementById('responsibleSignature').value = data.responsible_signature;
+        document.getElementById('responsiblePreview').innerHTML = `<img src="${data.responsible_signature}" alt="Aláírás">`;
+        document.getElementById('responsibleClear').style.display = 'block';
+    }
+    
+    if (data.subcontractor_signature) {
+        signatures.subcontractor = data.subcontractor_signature;
+        document.getElementById('subcontractorSignature').value = data.subcontractor_signature;
+        document.getElementById('subcontractorPreview').innerHTML = `<img src="${data.subcontractor_signature}" alt="Aláírás">`;
+        document.getElementById('subcontractorClear').style.display = 'block';
+    }
+    
+    // Tanúk betöltése
+    let witnessIndex = 0;
+    while (data[`witness_name_${witnessIndex}`]) {
+        if (witnessIndex > 0) {
+            addWitness(); // Új tanú hozzáadása
+        }
+        
+        setTimeout(() => {
+            const nameInput = document.querySelector(`input[name="witness_name_${witnessIndex}"]`);
+            const positionInput = document.querySelector(`input[name="witness_position_${witnessIndex}"]`);
+            
+            if (nameInput && data[`witness_name_${witnessIndex}`]) {
+                nameInput.value = data[`witness_name_${witnessIndex}`];
+            }
+            if (positionInput && data[`witness_position_${witnessIndex}`]) {
+                positionInput.value = data[`witness_position_${witnessIndex}`];
+            }
+            
+            // Tanú aláírás
+            if (data[`witness_signature_${witnessIndex}`]) {
+                signatures[`witness_${witnessIndex}`] = data[`witness_signature_${witnessIndex}`];
+                const sigInput = document.getElementById(`witness_${witnessIndex}Signature`);
+                const preview = document.getElementById(`witnessPreview_${witnessIndex}`);
+                const clearBtn = document.getElementById(`witness_${witnessIndex}Clear`);
+                
+                if (sigInput) sigInput.value = data[`witness_signature_${witnessIndex}`];
+                if (preview) preview.innerHTML = `<img src="${data[`witness_signature_${witnessIndex}`]}" alt="Aláírás">`;
+                if (clearBtn) clearBtn.style.display = 'block';
+            }
+        }, 100 * witnessIndex); // Kis késleltetés hogy a DOM elemek létrejöjjenek
+        
+        witnessIndex++;
+    }
+    
+    // Alvállalkozó
+    if (data.subcontractor_name) {
+        document.querySelector('input[name="subcontractor_name"]').value = data.subcontractor_name;
+    }
+    if (data.subcontractor_representative) {
+        document.querySelector('input[name="subcontractor_representative"]').value = data.subcontractor_representative;
+    }
+    
+    // Ellenőrzési pontok (radio buttons)
+    ['item_1_1', 'item_1_2', 'item_1_3', 'item_1_4'].forEach(itemName => {
+        if (data[itemName]) {
+            const radio = document.querySelector(`input[name="${itemName}"][value="${data[itemName]}"]`);
+            if (radio) radio.checked = true;
+        }
+    });
+    
+    // Megjegyzések
+    ['notes_1_1', 'notes_1_2', 'notes_1_3', 'notes_1_4'].forEach(noteName => {
+        if (data[noteName]) {
+            const textarea = document.querySelector(`textarea[name="${noteName}"]`);
+            if (textarea) textarea.value = data[noteName];
+        }
+    });
+    
+    // Képek betöltése
+    if (data.images) {
+        ['1_1', '1_2', '1_3', '1_4'].forEach(itemId => {
+            if (data.images[itemId] && Array.isArray(data.images[itemId])) {
+                uploadedImages[itemId] = data.images[itemId];
+                
+                const previewContainer = document.getElementById(`preview_${itemId}`);
+                data.images[itemId].forEach(imageData => {
+                    const previewItem = document.createElement('div');
+                    previewItem.className = 'image-preview-item';
+                    
+                    const img = document.createElement('img');
+                    img.src = imageData;
+                    
+                    const removeBtn = document.createElement('button');
+                    removeBtn.className = 'image-remove-btn';
+                    removeBtn.innerHTML = '&times;';
+                    removeBtn.onclick = function() {
+                        const index = uploadedImages[itemId].indexOf(imageData);
+                        if (index > -1) {
+                            uploadedImages[itemId].splice(index, 1);
+                        }
+                        previewItem.remove();
+                    };
+                    
+                    previewItem.appendChild(img);
+                    previewItem.appendChild(removeBtn);
+                    previewContainer.appendChild(previewItem);
+                });
+            }
+        });
+    }
+    
+    // Szankciók betöltése
+    const checkboxes = document.querySelectorAll('.price-item input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+        if (data[checkbox.name] === 'on' || data[checkbox.name] === checkbox.value) {
+            checkbox.checked = true;
+        }
+    });
+    calculateTotal(); // Összeg frissítése
+    
+    console.log('✓ Mentett adatok sikeresen betöltve a form-ba');
+}
+    </script>
+
+</body>
+</html>

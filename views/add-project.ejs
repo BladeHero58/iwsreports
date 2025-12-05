@@ -13,11 +13,19 @@
   <form action='/admin/projects/add' method='POST'>
     <input type='text' name='name' placeholder='Projekt neve' required>
     <textarea name='description' placeholder='Projekt leírása'></textarea>
-    <select name='status'>
+
+    <label for="projectType">Projekt Típusa:</label>
+    <select name='projectType' id="projectType" required>
+      <option value='IWS Solutions'>IWS Solutions</option>
+      <option value='MVM Xpert'>MVM Xpert</option>
+    </select>
+
+    <label for="status">Projekt Státusza:</label>
+    <select name='status' id="status">
       <option value='Elindítandó'>Elindítandó</option>
       <option value='Folyamatban'>Folyamatban</option>
-      <option value='Befejezett'>Befejezett</option>
     </select>
+    
     <button type='submit' class="btn">Hozzáadás</button>
   </form>
 </body>

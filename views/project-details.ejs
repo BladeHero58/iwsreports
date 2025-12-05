@@ -122,7 +122,9 @@
         word-wrap: break-word;
         overflow-wrap: break-word;
         white-space: normal;
-        margin-top: 10px;
+        margin-top: 0;
+        margin-bottom: 16px;
+        font-family: sans-serif;
     }
 </style>
 
@@ -133,6 +135,7 @@
 
 </head>
 <body>
+    <h1>Projekt részletei</h1>
     <h2><%= project.name %></h2>
     <p><strong>Leírás:</strong></p>
     <div class="project-description"><%= project.description %></div>

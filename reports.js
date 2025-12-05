@@ -348,100 +348,165 @@ function generateExcelFile(data) {
     return filePath;
 }
 
-//Jelentés betöltése route
+// Jelentés betöltése route (MÓDOSÍTOTT A TELJES ELKÜLÖNÍTÉSÉRT)
 router.get('/:projectId/report', async (req, res) => {
-    const { projectId } = req.params;
+    const { projectId } = req.params;
 
-    try {
-        const projectReportResult = await pool.query(
-            'SELECT latest_report_id FROM project_reports WHERE project_id = $1',
-            [projectId]
-        );
+    try {
+        // 1. Lekérjük a metaadatokat (latest_report_id, report_type, metadata)
+        const projectReportResult = await pool.query(
+            // MOST már a metadata is szerepel a lekérdezésben!
+            'SELECT latest_report_id, report_type, metadata FROM project_reports WHERE project_id = $1',
+            [projectId]
+        );
 
-        if (projectReportResult.rows.length > 0 && projectReportResult.rows[0].latest_report_id) {
-            const latestReportId = projectReportResult.rows[0].latest_report_id;
+        if (projectReportResult.rows.length === 0) {
+            // Ha a projektnek még nincs jegyzőkönyv bejegyzése, visszaküldhetjük, hogy nincs mentve.
+            return res.json({ success: false, message: "Nincs mentett projekt jelentés adat." });
+        }
 
-            const reportDataResult = await pool.query(
-                'SELECT data, merge_cells, column_sizes, row_sizes, cell_styles FROM report_data WHERE report_id = $1',
-                [latestReportId]
-            );
+        const reportMetadata = projectReportResult.rows[0]; 
+        const finalResponse = { 
+            success: true, 
+            reportType: reportMetadata.report_type,
+            // A metadata objektumot mindenképp elküldjük (MVM-es adatokat tartalmaz, IWS-nél üres)
+            metadata: reportMetadata.metadata || {} 
+        };
 
-            if (reportDataResult.rows.length > 0) {
-                res.json({
-                    success: true,
-                    data: reportDataResult.rows[0].data,
-                    mergeCells: reportDataResult.rows[0].merge_cells,
-                    colWidths: reportDataResult.rows[0].column_sizes,
-                    rowHeights: reportDataResult.rows[0].row_sizes,
-                    cellStyles: reportDataResult.rows[0].cell_styles
-                });
-            } else {
-                res.json({ success: false, message: "Nem található a legutolsó jegyzőkönyv adatai." });
-            }
-        } else {
-            res.json({ success: false, message: "Nincs mentett jegyzőkönyv ehhez a projekthez." });
-        }
+        // --- IWS SOLUTIONS LOGIKA ---
+        if (reportMetadata.report_type === 'IWS Solutions') {
+            const latestReportId = reportMetadata.latest_report_id;
+            
+            // Csak akkor kérdezzük le a report_data-t, ha van érvényes report ID (nem az MVM_CUSTOM_REPORT)
+            if (latestReportId && latestReportId !== 'MVM_CUSTOM_REPORT') {
+                const reportDataResult = await pool.query(
+                    'SELECT data, merge_cells, column_sizes, row_sizes, cell_styles FROM report_data WHERE report_id = $1',
+                    [latestReportId]
+                );
 
-    } catch (error) {
-        console.error("Hiba a jelentés lekérésekor az adatbázisból:", error);
-        res.status(500).json({ success: false, message: "Adatbázis hiba történt." });
-    }
-});
-
-// Jelentés mentése route (MÓDOSÍTOTT)
-router.post("/save", async (req, res) => {
-    const { projectId, data, mergeCells, columnSizes, rowSizes, cellStyles } = req.body;
-    const reportId = `report-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-
-    if (!data || !projectId) {
-        return res.status(400).json({ success: false, message: "Hiányzó adatok." });
-    }
-
-    try {
-        // Töröljük a korábbi jelentéseket a report_data táblából ehhez a projekthez
-        await pool.query('DELETE FROM report_data WHERE project_id = $1', [projectId]);
-
-        // Beszúrjuk az új jelentést a report_data táblába
-        // A 'data' (ami a táblázat tartalmát jelenti) most már a GCS URL-eket tartalmazza
-        await pool.query(
-            'INSERT INTO report_data (project_id, report_id, data, merge_cells, column_sizes, row_sizes, cell_styles) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-            [projectId, reportId, JSON.stringify(data), JSON.stringify(mergeCells), JSON.stringify(columnSizes), JSON.stringify(rowSizes), JSON.stringify(cellStyles)]
-        );
-
-        // Frissítjük a project_reports táblát a legutolsó report_id-val
-        await pool.query(
-            'INSERT INTO project_reports (project_id, latest_report_id) VALUES ($1, $2) ON CONFLICT (project_id) DO UPDATE SET latest_report_id = $2',
-            [projectId, reportId]
-        );
-
-        // Használt képek URL-jeinek kinyerése a data-ból (MÓDOSÍTOTT)
-        const usedImageUrls = [];
-        if (Array.isArray(data)) {
-            data.forEach(row => {
-                if (Array.isArray(row)) {
-                    row.forEach(cell => {
-                        // Most már a GCS URL-ekre keresünk, amik "https://storage.googleapis.com/"-mal kezdődnek
-                        if (typeof cell === 'string' && cell.startsWith('https://storage.googleapis.com/')) {
-                            usedImageUrls.push(cell);
-                        }
-                        // Ha a data URI-kat is figyelembe szeretnéd venni, az eredeti logikád maradhat itt
-                        // else if (typeof cell === 'string' && cell.startsWith('data:image')) {
-                        //     // Itt valószínűleg nem tudod azonosítani a szerveren lévő fájlt
-                        //     // hacsak nem tárolsz valamilyen metaadatot a data URI-khoz
-                        // }
+                if (reportDataResult.rows.length > 0) {
+                    // Hozzáadjuk a táblázati adatokat a válaszhoz
+                    Object.assign(finalResponse, {
+                        data: reportDataResult.rows[0].data,
+                        mergeCells: reportDataResult.rows[0].merge_cells,
+                        colWidths: reportDataResult.rows[0].column_sizes,
+                        rowHeights: reportDataResult.rows[0].row_sizes,
+                        cellStyles: reportDataResult.rows[0].cell_styles,
                     });
                 }
-            });
+            }
+        } 
+        
+        // --- MVM XPERT LOGIKA ---
+        // MVM Xpert esetén a finalResponse csak a reportType-ot és a metadata-t tartalmazza.
+        // A frontend dolga, hogy ezek alapján felépítse a felületet.
+        
+        res.json(finalResponse);
+
+    } catch (error) {
+        console.error("Hiba a jelentés lekérésekor az adatbázisból:", error);
+        res.status(500).json({ success: false, message: "Adatbázis hiba történt." });
+    }
+});
+
+// Jelentés mentése route (MÓDOSÍTOTT A TELJES ELKÜLÖNÍTÉSÉRT)
+router.post("/save", async (req, res) => {
+    // Kinyerjük a projekt ID-t, típust, és minden mást is
+    const { 
+        projectId, 
+        projectType, 
+        ...allReportFields
+    } = req.body;
+    
+    // A frontend javítása után most már el kell érkeznie a projectType-nak!
+    if (!projectId || !projectType) {
+        return res.status(400).json({ success: false, message: "Hiányzó projekt azonosító vagy típus." });
+    }
+
+    try {
+        // 1. Típusfüggő Adat- és Mentési Logika
+        let reportId = null; 
+        let reportMetadata = {};
+        const finalProjectType = projectType || 'IWS Solutions';
+        
+        // --- IWS SOLUTIONS LOGIKA ---
+        if (finalProjectType === 'IWS Solutions') {
+            const { data, mergeCells, columnSizes, rowSizes, cellStyles } = allReportFields;
+            
+            if (!data) { 
+                return res.status(400).json({ success: false, message: "Hiányzó IWS táblázat adatok." }); 
+            }
+
+            // Report ID generálása
+            reportId = `report-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+
+            // Töröljük a korábbi report_data bejegyzéseket
+            await pool.query('DELETE FROM report_data WHERE project_id = $1', [projectId]);
+
+            // Beszúrjuk az új jelentést a report_data táblába
+            await pool.query(
+                'INSERT INTO report_data (project_id, report_id, data, merge_cells, column_sizes, row_sizes, cell_styles) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+                [projectId, reportId, JSON.stringify(data), JSON.stringify(mergeCells), JSON.stringify(columnSizes), JSON.stringify(rowSizes), JSON.stringify(cellStyles)]
+            );
+            
+            // Képtakarító logika futtatása IWS-hez
+            const usedImageUrls = [];
+            if (Array.isArray(data)) {
+                data.forEach(row => {
+                    if (Array.isArray(row)) {
+                        row.forEach(cell => {
+                            if (typeof cell === 'string' && cell.startsWith('https://storage.googleapis.com/')) {
+                                usedImageUrls.push(cell);
+                            }
+                        });
+                    }
+                });
+            }
+            
+            // 🛑 JAVÍTÁS: Ellenőrzés hozzáadása az 500-as hiba elkerülésére (ReferenceError)
+            if (typeof cleanupUnusedImages === 'function') {
+                 await cleanupUnusedImages(projectId, usedImageUrls);
+            } else {
+                 console.warn("Figyelem: A cleanupUnusedImages függvény nem elérhető, a képtakarítás kihagyva.");
+                 // Ez a logikai ág fut le, ha nincs definiálva a függvény.
+            }
+
+            // Report metadata üres marad
+            reportMetadata = {}; 
+            
+        // --- MVM XPERT LOGIKA ---
+        } else if (finalProjectType === 'MVM Xpert') {
+            // MVM XPERT: Minden adat, ami az űrlapról jött, az a metadata lesz.
+            reportMetadata = allReportFields; 
+            
+            reportId = 'MVM_CUSTOM_REPORT'; 
+            // NEM fut le a report_data DELETE/INSERT, és NEM fut le a képtakarító
+            
+        } else {
+             return res.status(400).json({ success: false, message: "Érvénytelen projekttípus." });
         }
 
-        // FONTOS: A `cleanupUnusedImages` függvény már a GCS-ből töröl,
-        // így ez a hívás mostantól a felhő tárhelyet fogja takarítani.
-        await cleanupUnusedImages(projectId, usedImageUrls);
 
-        res.json({ success: true, message: "Jelentés sikeresen mentve az adatbázisba.", reportId });
+        // 2. Frissítjük a project_reports táblát (latest_report_id, report_type, és metadata)
+        const reportUpdateSql = `
+            INSERT INTO project_reports (project_id, latest_report_id, report_type, metadata) 
+            VALUES ($1, $2, $3, $4) 
+            ON CONFLICT (project_id) 
+            DO UPDATE SET latest_report_id = $2, report_type = $3, metadata = $4
+        `;
+        const reportUpdateParams = [
+            projectId, 
+            reportId, 
+            finalProjectType, 
+            JSON.stringify(reportMetadata)
+        ]; 
+
+        await pool.query(reportUpdateSql, reportUpdateParams);
+        
+        res.json({ success: true, message: "Jelentés sikeresen mentve.", reportId: reportId });
 
     } catch (error) {
-        console.error("Hiba a jegyzőkönyv mentésekor az adatbázisba:", error);
+        console.error("Hiba a jegyzőkönyv mentésekor:", error);
         res.status(500).json({ success: false, message: "Hiba történt a mentés során.", error: error.message });
     }
 });
