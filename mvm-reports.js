@@ -91,16 +91,17 @@ async function compressImage(imageBase64) {
         // EXIF metaadatok kinyerése TÖMÖRÍTÉS ELŐTT
         const exifMetadata = await extractExifMetadata(imageBase64);
         
-        // Tömörítés Sharp-pal METAADATOK MEGTARTÁSÁVAL
+        // ⭐ OPTIMALIZÁLT tömörítés Sharp-pal METAADATOK MEGTARTÁSÁVAL
         const compressedBuffer = await sharp(imageBuffer)
             .resize({
-                width: 800,
+                width: 1200, // ⭐ Nagyobb méret jobb minőséghez
                 fit: 'inside',
                 withoutEnlargement: true
             })
             .jpeg({
-                quality: 75,
+                quality: 80, // ⭐ Jobb minőség
                 mozjpeg: true,
+                progressive: true, // ⭐ Progresszív JPEG gyorsabb betöltéshez
                 // ⭐ KRITIKUS - EXIF megőrzése
                 withMetadata: true,
                 keepExif: true,
@@ -566,9 +567,12 @@ router.post('/projects/:projectId/reports/documentation/export-pdf', isAuthentic
                     });
 
                     console.log(`📸 ${allImages.length} kép feltöltése metaadatokkal...`);
+                    const startTime = Date.now();
 
                     const uploadImagePromises = allImages.map(async (imgObj, index) => {
+                        const imgStartTime = Date.now();
                         try {
+                            console.log(`📤 [${index + 1}/${allImages.length}] Kép feltöltés kezdés...`);
                             // ⭐ Kép tömörítése + backend EXIF kinyerés
                             const { buffer: compressedBuffer, metadata: extractedMetadata } = await compressImage(imgObj.data);
                             
@@ -603,14 +607,15 @@ router.post('/projects/:projectId/reports/documentation/export-pdf', isAuthentic
                                 finalMetadata // ⭐ Metaadatok átadása
                             );
                             
-                            console.log(`✅ Kép feltöltve metaadatokkal: ${imageFileName}`);
-                            
+                            const imgElapsed = ((Date.now() - imgStartTime) / 1000).toFixed(2);
+                            console.log(`✅ Kép feltöltve metaadatokkal: ${imageFileName} (${imgElapsed}s)`);
+
                             return {
                                 url: imageUploadResult.webViewLink,
                                 id: imageUploadResult.id,
                                 metadata: finalMetadata
                             };
-                            
+
                         } catch (imgErr) {
                             console.error(`❌ Hiba a kép feltöltésekor (${index + 1}):`, imgErr.message);
                             return null;
@@ -620,7 +625,8 @@ router.post('/projects/:projectId/reports/documentation/export-pdf', isAuthentic
                     const uploadedImages = await Promise.all(uploadImagePromises);
                     const successfulUploads = uploadedImages.filter(img => img !== null);
 
-                    console.log(`🎉 ${successfulUploads.length}/${allImages.length} kép sikeresen feltöltve metaadatokkal`);
+                    const totalElapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+                    console.log(`🎉 ${successfulUploads.length}/${allImages.length} kép sikeresen feltöltve metaadatokkal (${totalElapsed}s összesen)`);
 
                     res.json({
                         success: true,

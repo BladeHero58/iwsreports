@@ -146,6 +146,71 @@
         .no-metadata-warning i {
             color: #ffc107;
         }
+
+        /* ⭐ Progress bar feltöltéshez */
+        .upload-progress-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .upload-progress-container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .upload-progress-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+            color: #333;
+        }
+
+        .upload-progress-bar-container {
+            background: #e0e0e0;
+            border-radius: 10px;
+            height: 30px;
+            overflow: hidden;
+            margin-bottom: 15px;
+            position: relative;
+        }
+
+        .upload-progress-bar {
+            background: linear-gradient(90deg, #4CAF50, #66BB6A);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 10px;
+        }
+
+        .upload-progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-weight: bold;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .upload-progress-status {
+            text-align: center;
+            color: #666;
+            font-size: 13px;
+            min-height: 40px;
+        }
     </style>
    
 </head>
@@ -515,6 +580,20 @@ const backUrl = isAdmin
 
     </div>
 
+    <!-- ⭐ Progress bar overlay -->
+    <div id="uploadProgressOverlay" class="upload-progress-overlay">
+        <div class="upload-progress-container">
+            <div class="upload-progress-title">📤 Feltöltés folyamatban...</div>
+            <div class="upload-progress-bar-container">
+                <div id="uploadProgressBar" class="upload-progress-bar"></div>
+                <div id="uploadProgressText" class="upload-progress-text">0%</div>
+            </div>
+            <div id="uploadProgressStatus" class="upload-progress-status">
+                Feltöltés indítása...
+            </div>
+        </div>
+    </div>
+
     <!-- Aláírás Modal -->
     <div id="signatureModal" class="modal">
         <div class="modal-content">
@@ -544,6 +623,31 @@ const backUrl = isAdmin
             responsible: null,
             subcontractor: null
         };
+
+        // ⭐ Progress bar kezelés
+        function showUploadProgress() {
+            const overlay = document.getElementById('uploadProgressOverlay');
+            overlay.style.display = 'flex';
+        }
+
+        function hideUploadProgress() {
+            const overlay = document.getElementById('uploadProgressOverlay');
+            overlay.style.display = 'none';
+        }
+
+        function updateUploadProgress(percent, status) {
+            const bar = document.getElementById('uploadProgressBar');
+            const text = document.getElementById('uploadProgressText');
+            const statusDiv = document.getElementById('uploadProgressStatus');
+
+            bar.style.width = percent + '%';
+            text.textContent = Math.round(percent) + '%';
+            if (status) {
+                statusDiv.textContent = status;
+            }
+
+            console.log(`📊 Progress: ${Math.round(percent)}% - ${status}`);
+        }
 
         // ⭐ MÓDOSÍTOTT: Képek tárolása metaadatokkal
         const uploadedImages = {
@@ -705,23 +809,47 @@ function draw(e) {
 
             console.log(`📸 ${files.length} kép feltöltése indult (${itemId})`);
 
-            // ⭐ HEIC fájlok szűrése
+            // ⭐ JAVÍTOTT HEIC fájlok szűrése - MIME type és fájlnév alapján
             const unsupportedFiles = [];
             const validFiles = [];
 
             Array.from(files).forEach(file => {
                 const fileName = file.name.toLowerCase();
-                if (fileName.endsWith('.heic') || fileName.endsWith('.heif')) {
+                const fileType = file.type.toLowerCase();
+
+                console.log(`🔍 Fájl ellenőrzés: ${file.name}`, {
+                    name: fileName,
+                    type: fileType,
+                    size: `${(file.size / 1024).toFixed(2)} KB`
+                });
+
+                // HEIC detektálás fájlnév ÉS MIME type alapján
+                const isHEIC = fileName.endsWith('.heic') ||
+                              fileName.endsWith('.heif') ||
+                              fileType.includes('heic') ||
+                              fileType.includes('heif');
+
+                if (isHEIC) {
                     unsupportedFiles.push(file.name);
-                } else if (file.type.startsWith('image/')) {
+                    console.warn(`⚠️ HEIC fájl detektálva: ${file.name} (type: ${fileType})`);
+                } else if (fileType.startsWith('image/') || fileName.match(/\.(jpg|jpeg|png|webp|gif)$/i)) {
                     validFiles.push(file);
+                    console.log(`✅ Érvényes kép: ${file.name}`);
+                } else {
+                    unsupportedFiles.push(file.name);
+                    console.warn(`⚠️ Nem támogatott formátum: ${file.name} (type: ${fileType})`);
                 }
             });
 
-            // Figyelmeztetés HEIC fájlokról
+            // Figyelmeztetés nem támogatott fájlokról
             if (unsupportedFiles.length > 0) {
-                alert(`⚠️ HEIC/HEIF formátumú képek nem támogatottak:\n\n${unsupportedFiles.join('\n')}\n\nKérlek, konvertáld át JPEG vagy PNG formátumba az iPhone beállításokban:\nBeállítások → Fényképezőgép → Formátumok → "A legkompatibilisebb" opció kiválasztása`);
-                console.warn('⚠️ HEIC fájlok kiszűrve:', unsupportedFiles);
+                alert(`⚠️ Nem támogatott képformátum:\n\n${unsupportedFiles.join('\n')}\n\n📱 iPhone felhasználóknak:\nBeállítások → Fényképezőgép → Formátumok → "A legkompatibilisabb"\n\n💡 Alternatíva: Használj kép konvertáló alkalmazást JPEG formátumra.`);
+                console.warn('⚠️ Nem támogatott fájlok:', unsupportedFiles);
+            }
+
+            if (validFiles.length === 0 && files.length > 0) {
+                alert('❌ Egyetlen kép sem tölthető fel. Kérlek ellenőrizd a képformátumot!');
+                return;
             }
 
             validFiles.forEach(file => {
@@ -1642,11 +1770,18 @@ const docDefinition = {
             // PDF generálás és feltöltés
 pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
     console.log('📤 PDF base64 generálva, méret:', pdfBase64.length, 'karakter');
-    console.log('📤 Képek száma feltöltésre:', Object.keys(uploadedImages).reduce((sum, key) => sum + (uploadedImages[key]?.length || 0), 0));
+    const imageCount = Object.keys(uploadedImages).reduce((sum, key) => sum + (uploadedImages[key]?.length || 0), 0);
+    console.log('📤 Képek száma feltöltésre:', imageCount);
+
+    // ⭐ Progress bar megjelenítése
+    showUploadProgress();
+    updateUploadProgress(10, 'PDF előkészítése...');
 
     try {
         // Küldés a backend-nek
+        updateUploadProgress(20, `PDF és ${imageCount} kép feltöltése a szerverre...`);
         console.log('🌐 Fetch kezdés - PDF és képek feltöltése...');
+
         const response = await fetch('/projects/<%= project.id %>/reports/documentation/export-pdf', {
             method: 'POST',
             headers: {
@@ -1660,26 +1795,38 @@ pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
             })
         });
 
+        updateUploadProgress(40, 'Válasz fogadása...');
         console.log('📡 Válasz érkezett:', response.status, response.statusText);
 
         if (!response.ok) {
+            hideUploadProgress();
             throw new Error(`HTTP hiba! Státusz: ${response.status}`);
         }
 
+        updateUploadProgress(60, 'Adatok feldolgozása...');
         const result = await response.json();
         console.log('✅ Backend válasz:', result);
 
         if (result.success) {
+            updateUploadProgress(80, 'Drive feltöltés...');
+
             if (result.driveUrl) {
-                alert('✅ PDF sikeresen exportálva és feltöltve a Google Drive-ra!');
-                console.log('📂 Drive URL:', result.driveUrl);
-                if (result.images && result.images.length > 0) {
-                    console.log(`📸 ${result.images.length} kép sikeresen feltöltve metaadatokkal`);
-                }
+                updateUploadProgress(100, `✅ ${imageCount} kép sikeresen feltöltve!`);
+
+                setTimeout(() => {
+                    hideUploadProgress();
+                    alert('✅ PDF sikeresen exportálva és feltöltve a Google Drive-ra!');
+                    console.log('📂 Drive URL:', result.driveUrl);
+                    if (result.images && result.images.length > 0) {
+                        console.log(`📸 ${result.images.length} kép sikeresen feltöltve metaadatokkal`);
+                    }
+                }, 500);
             } else {
+                hideUploadProgress();
                 alert('✅ PDF letöltésre kész!');
             }
         } else {
+            hideUploadProgress();
             console.warn('⚠️ Backend hiba:', result.message);
             alert('⚠️ Hiba: ' + (result.message || 'Ismeretlen hiba'));
         }
@@ -1770,6 +1917,7 @@ pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
         });
 
     } catch (error) {
+        hideUploadProgress();
         console.error('❌ Kritikus hiba a PDF exportálás során:', error);
 
         // Részletes hibakezelés
