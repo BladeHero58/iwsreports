@@ -131,6 +131,40 @@ async function getOrCreateDailyPdfFolder(folderName, parentFolderId) {
     }
 }
 
+/ ⭐ ÚJ FÜGGVÉNY - EZ HIÁNYZIK!
+async function getOrCreateFolder(folderName, parentFolderId) {
+    try {
+        // Ellenőrizzük hogy létezik-e
+        const existingFolders = await driveService.files.list({
+            q: `name='${folderName}' and parents in '${parentFolderId}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+            fields: 'files(id, name)',
+        });
+
+        if (existingFolders.data.files.length > 0) {
+            console.log(`📁 Mappa már létezik: ${folderName}`);
+            return existingFolders.data.files[0].id;
+        }
+
+        // Létrehozzuk
+        const folderMetadata = {
+            name: folderName,
+            mimeType: 'application/vnd.google-apps.folder',
+            parents: [parentFolderId],
+        };
+
+        const folder = await driveService.files.create({
+            resource: folderMetadata,
+            fields: 'id',
+        });
+
+        console.log(`📁 Új mappa létrehozva: ${folderName}`);
+        return folder.data.id;
+    } catch (error) {
+        console.error(`Hiba a mappa létrehozásakor (${folderName}):`, error.message);
+        throw error;
+    }
+}
+
 // PDF feltöltése verziókezeléssel (max 12 naponta)
 async function uploadPdfWithVersionControl(pdfBuffer, fileName, folderId) {
     try {
