@@ -22,7 +22,7 @@
     <h1>Az összes projekt</h1>
 
     <form action="/admin/projects/add" method="get">
-        <button type="submit" class="btn">Új projekt hozzáadása</button>
+        <button type="submit" class="btn"><i class="fas fa-plus"></i> Új projekt hozzáadása</button>
     </form>
 
     <% if (typeof message !== 'undefined') { %>
@@ -38,13 +38,13 @@
                 Állapot: <%= project.status %><br>
 
                 <form action="/admin/projects/<%= project.id %>" method="get">
-                    <button type="submit" class="btn">Projekt adatai</button>
+                    <button type="submit" class="btn"><i class="fas fa-list-check"></i> Projekt adatai</button>
                 </form>
 
                 <!-- Törlés gomb -->
                 <form action="/admin/projects/delete" method="POST" style="display: inline;" onsubmit="confirmDelete(event)">
                     <input type="hidden" name="projectId" value="<%= project.id %>">
-                    <button type="submit" class="btn-blue">Törlés</button>
+                    <button type="submit" class="btn-blue"><i class="fas fa-times"></i> Törlés</button>
                 </form>
             </li>
         <% }); %>

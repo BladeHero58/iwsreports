@@ -23,7 +23,7 @@
                     <strong><%= project.name %></strong><br>
                     Állapot: <%= project.status %><br>
                     <form action="/user/projects/<%= project.id %>" method="GET">
-                        <button type="submit" class="btn">Projekt részletei</button>
+                        <button type="submit" class="btn"><i class="fas fa-list-check"></i> Projekt részletei</button>
                     </form>
                 </li>
             <% }); %>

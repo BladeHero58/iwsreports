@@ -908,7 +908,7 @@ const backUrl = isAdmin
             <!--  ÚJ ellenőrzés GOMB -->
 <div style="text-align: center; margin: 20px 0;">
     <button type="button" class="add-button" onclick="startNewInspection()" style="width: auto; padding: 12px 30px;">
-        <i class="fas fa-plus-circle"></i> Új ellenőrzés indítása
+        <i class="fas fa-plus"></i> Új ellenőrzés indítása
     </button>
 </div>
 
@@ -1693,281 +1693,432 @@ async function startNewInspection() {
             }
 
             // PDF dokumentum definíció
-            const docDefinition = {
-                pageSize: 'A4',
-                pageMargins: [40, 60, 40, 60],
-                content: [
-                    // Fejléc
-                    {
-                        text: 'MVM XPERT - MUNKAVÉDELMI ELLENŐRZÉSI JEGYZŐKÖNYV',
-                        style: 'header',
-                        alignment: 'center',
-                        margin: [0, 0, 0, 20]
-                    },
-                    {
-                        text: '1. DOKUMENTÁCIÓ',
-                        style: 'subheader',
-                        alignment: 'center',
-                        margin: [0, 0, 0, 30]
-                    },
-
-                    // Projekt információk
-                    {
-                        style: 'tableExample',
-                        table: {
-                            widths: [120, '*'],
-                            body: [
-                                ['Projekt neve:', projectName],
-                                ['Sorszám:', serialNumber],
-                                ['Ellenőrző személy:', inspectorPerson],
-                                ['Dátum:', formattedDate],
-                                ['Munkaterület:', data.workArea || 'N/A']
-                            ]
-                        },
-                        layout: 'lightHorizontalLines',
-                        margin: [0, 0, 0, 20]
-                    },
-
-                    // Résztvevők
-                    {
-                        text: 'ELLENŐRZÉS RÉSZTVEVŐI',
-                        style: 'sectionHeader',
-                        margin: [0, 20, 0, 10]
-                    },
-
-                    // Ellenőrzést végző
-                    {
-                        text: 'Ellenőrzést végző',
-                        style: 'participantTitle'
-                    },
-                    {
-                        columns: [
-                            { width: '*', text: `Név: ${data.inspector_name || 'N/A'}` },
-                            { width: '*', text: `Beosztás: ${data.inspector_position || 'N/A'}` }
-                        ],
-                        margin: [0, 5, 0, 5]
-                    },
-                    signatures.inspector ? {
-                        image: signatures.inspector,
-                        width: 150,
-                        margin: [0, 10, 0, 20]
-                    } : { text: '[Aláírás hiányzik]', italics: true, margin: [0, 10, 0, 20] },
-
-                    // Munkaterületért felelős
-                    {
-                        text: 'Munkaterületért felelős',
-                        style: 'participantTitle'
-                    },
-                    {
-                        columns: [
-                            { width: '*', text: `Név: ${data.responsible_name || 'N/A'}` },
-                            { width: '*', text: `Beosztás: ${data.responsible_position || 'N/A'}` }
-                        ],
-                        margin: [0, 5, 0, 5]
-                    },
-                    signatures.responsible ? {
-                        image: signatures.responsible,
-                        width: 150,
-                        margin: [0, 10, 0, 20]
-                    } : { text: '[Aláírás hiányzik]', italics: true, margin: [0, 10, 0, 20] },
-
-                    // Tanúk - csak kitöltöttek
-                    ...getWitnessesForPDF(data),
-
-                    // Alvállalkozói lánc
-                    {
-                        text: 'Alvállalkozói lánc',
-                        style: 'participantTitle'
-                    },
-                    {
-                        columns: [
-                            { width: '*', text: `Cég neve: ${data.subcontractor_name || 'N/A'}` },
-                            { width: '*', text: `Felelős: ${data.subcontractor_representative || 'N/A'}` }
-                        ],
-                        margin: [0, 5, 0, 5]
-                    },
-                    signatures.subcontractor ? {
-                        image: signatures.subcontractor,
-                        width: 150,
-                        margin: [0, 10, 0, 20]
-                    } : { text: '[Aláírás hiányzik]', italics: true, margin: [0, 10, 0, 20] },
-
-                    // Ellenőrzési pontok
-                    {
-                        text: 'ELLENŐRZÉSI PONTOK',
-                        style: 'sectionHeader',
-                        margin: [0, 30, 0, 15],
-                        pageBreak: 'before'
-                    },
-
-                    // 1.1
-                    {
-                        text: '1.1 Munkaterületért felelős beazonosítása',
-                        style: 'checklistTitle'
-                    },
-                    {
-                        text: 'Átadás átvétel jegyzőkönyv fellelhetősége, munkaengedély, stb.',
-                        style: 'checklistDesc'
-                    },
-                    {
-                        text: `Értékelés: ${getStatusText(data.item_1_1)}`,
-                        style: getStatusStyle(data.item_1_1),
-                        margin: [0, 5, 0, 5]
-                    },
-                    data.notes_1_1 ? {
-                        text: `Megjegyzés: ${data.notes_1_1}`,
-                        style: 'notes'
-                    } : {},
-                    ...getImagesForPDF('1_1'),
-
-                    // 1.2
-                    {
-                        text: '1.2 Egyéb dokumentációk',
-                        style: 'checklistTitle',
-                        margin: [0, 15, 0, 0]
-                    },
-                    {
-                        text: 'Építési napló, hulladék nyilvántartólap stb.',
-                        style: 'checklistDesc'
-                    },
-                    {
-                        text: `Értékelés: ${getStatusText(data.item_1_2)}`,
-                        style: getStatusStyle(data.item_1_2),
-                        margin: [0, 5, 0, 5]
-                    },
-                    data.notes_1_2 ? {
-                        text: `Megjegyzés: ${data.notes_1_2}`,
-                        style: 'notes'
-                    } : {},
-                    ...getImagesForPDF('1_2'),
-
-                    // 1.3
-                    {
-                        text: '1.3 Szükséges engedélyek',
-                        style: 'checklistTitle',
-                        margin: [0, 15, 0, 0]
-                    },
-                    {
-                        text: 'Tűzgyújtási, beszállási, feszültség ment., emelési terv stb.',
-                        style: 'checklistDesc'
-                    },
-                    {
-                        text: `Értékelés: ${getStatusText(data.item_1_3)}`,
-                        style: getStatusStyle(data.item_1_3),
-                        margin: [0, 5, 0, 5]
-                    },
-                    data.notes_1_3 ? {
-                        text: `Megjegyzés: ${data.notes_1_3}`,
-                        style: 'notes'
-                    } : {},
-                    ...getImagesForPDF('1_3'),
-
-                    // 1.4
-                    {
-                        text: '1.4 Szükséges tervdokumentációk, jegyzőkönyvek',
-                        style: 'checklistTitle',
-                        margin: [0, 15, 0, 0]
-                    },
-                    {
-                        text: 'BET; EBK terv; organizációs terv stb.',
-                        style: 'checklistDesc'
-                    },
-                    {
-                        text: `Értékelés: ${getStatusText(data.item_1_4)}`,
-                        style: getStatusStyle(data.item_1_4),
-                        margin: [0, 5, 0, 5]
-                    },
-                    data.notes_1_4 ? {
-                        text: `Megjegyzés: ${data.notes_1_4}`,
-                        style: 'notes'
-                    } : {},
-                    ...getImagesForPDF('1_4'),
-
-                    // Szankciók
-                    {
-                        text: 'SZANKCIÓS LISTA',
-                        style: 'sectionHeader',
-                        margin: [0, 30, 0, 15]
-                    },
-                    ...getAppliedSanctionsForPDF(data),
-                    {
-                        text: `Összesített bírság: ${totalPriceElement.textContent}`,
-                        style: 'totalFine',
-                        margin: [0, 20, 0, 0]
-                    }
-                ],
-
-                styles: {
-                    header: {
-                        fontSize: 18,
-                        bold: true,
-                        color: '#0056b3'
-                    },
-                    subheader: {
-                        fontSize: 16,
-                        bold: true,
-                        color: '#333'
-                    },
-                    sectionHeader: {
-                        fontSize: 14,
-                        bold: true,
-                        color: '#0056b3',
-                        decoration: 'underline'
-                    },
-                    participantTitle: {
-                        fontSize: 12,
-                        bold: true,
-                        margin: [0, 10, 0, 5]
-                    },
-                    checklistTitle: {
-                        fontSize: 12,
-                        bold: true,
-                        color: '#333'
-                    },
-                    checklistDesc: {
-                        fontSize: 10,
-                        color: '#666',
-                        italics: true,
-                        margin: [0, 2, 0, 5]
-                    },
-                    statusOk: {
-                        fontSize: 11,
-                        color: '#28a745',
-                        bold: true
-                    },
-                    statusFail: {
-                        fontSize: 11,
-                        color: '#dc3545',
-                        bold: true
-                    },
-                    statusNA: {
-                        fontSize: 11,
-                        color: '#ffc107',
-                        bold: true
-                    },
-                    notes: {
-                        fontSize: 10,
-                        italics: true,
-                        color: '#666',
-                        margin: [0, 5, 0, 10]
-                    },
-                    sanctions: {
-                        fontSize: 10,
-                        margin: [0, 5, 0, 5]
-                    },
-                    totalFine: {
-                        fontSize: 14,
-                        bold: true,
-                        color: '#dc3545'
-                    },
-                    imageTitle: {
-                        fontSize: 11,
-                        bold: true,
-                        color: '#0056b3',
-                        margin: [0, 10, 0, 5]
-                    }
+const docDefinition = {
+    pageSize: 'A4',
+    pageMargins: [40, 60, 40, 60],
+    content: [
+        // Fejléc - Elegáns
+        {
+            text: 'MUNKAVÉDELMI ELLENŐRZÉSI JEGYZŐKÖNYV',
+            style: 'mainHeader',
+            alignment: 'center',
+            margin: [0, 0, 0, 10]
+        },
+        {
+            text: '1. DOKUMENTÁCIÓ',
+            style: 'categoryHeader',
+            alignment: 'center',
+            margin: [0, 0, 0, 20]
+        },
+        
+        // Dekoratív vonal
+        {
+            canvas: [
+                {
+                    type: 'line',
+                    x1: 0, y1: 0,
+                    x2: 515, y2: 0,
+                    lineWidth: 2,
+                    lineColor: '#5c0099'
                 }
-            };
+            ],
+            margin: [0, 0, 0, 20]
+        },
+
+        // Projekt információk - Szép táblázat
+        {
+            style: 'infoTable',
+            table: {
+                widths: [130, '*'],
+                body: [
+                    [
+                        { text: 'Projekt neve:', style: 'labelCell' },
+                        { text: projectName, style: 'valueCell' }
+                    ],
+                    [
+                        { text: 'Sorszám:', style: 'labelCell' },
+                        { text: serialNumber, style: 'valueCell' }
+                    ],
+                    [
+                        { text: 'Ellenőrző személy:', style: 'labelCell' },
+                        { text: inspectorPerson, style: 'valueCell' }
+                    ],
+                    [
+                        { text: 'Dátum:', style: 'labelCell' },
+                        { text: formattedDate, style: 'valueCell' }
+                    ]
+                ]
+            },
+            layout: {
+                fillColor: function (rowIndex) {
+                    return (rowIndex % 2 === 0) ? '#f9f9f9' : null;
+                },
+                hLineWidth: function () { return 0.5; },
+                vLineWidth: function () { return 0; },
+                hLineColor: function () { return '#e0e0e0'; }
+            },
+            margin: [0, 0, 0, 30]
+        },
+
+        // Résztvevők szekció
+        {
+            text: 'ELLENŐRZÉS RÉSZTVEVŐI',
+            style: 'sectionHeader',
+            margin: [0, 0, 0, 15]
+        },
+
+        // Ellenőrzést végző
+        {
+            columns: [
+                { 
+                    width: '*',
+                    stack: [
+                        { text: 'Ellenőrzést végző', style: 'participantLabel' },
+                        { text: data.inspector_name || 'N/A', style: 'participantName' },
+                        { text: data.inspector_position || '', style: 'participantPosition' }
+                    ]
+                },
+                {
+                    width: 150,
+                    stack: [
+                        signatures.inspector ? {
+                            image: signatures.inspector,
+                            width: 120,
+                            alignment: 'center',
+                            margin: [0, 5, 0, 0]
+                        } : { 
+                            text: '[Aláírás hiányzik]', 
+                            italics: true, 
+                            color: '#999',
+                            fontSize: 9,
+                            alignment: 'center',
+                            margin: [0, 20, 0, 0]
+                        }
+                    ]
+                }
+            ],
+            margin: [0, 0, 0, 15]
+        },
+
+        // Munkaterületért felelős
+        {
+            columns: [
+                { 
+                    width: '*',
+                    stack: [
+                        { text: 'Munkaterületért felelős', style: 'participantLabel' },
+                        { text: data.responsible_name || 'N/A', style: 'participantName' },
+                        { text: data.responsible_position || '', style: 'participantPosition' }
+                    ]
+                },
+                {
+                    width: 150,
+                    stack: [
+                        signatures.responsible ? {
+                            image: signatures.responsible,
+                            width: 120,
+                            alignment: 'center',
+                            margin: [0, 5, 0, 0]
+                        } : { 
+                            text: '[Aláírás hiányzik]', 
+                            italics: true, 
+                            color: '#999',
+                            fontSize: 9,
+                            alignment: 'center',
+                            margin: [0, 20, 0, 0]
+                        }
+                    ]
+                }
+            ],
+            margin: [0, 0, 0, 15]
+        },
+
+        // Tanúk - csak kitöltöttek
+        ...getWitnessesForPDF(data),
+
+        // Alvállalkozói lánc
+        {
+            columns: [
+                { 
+                    width: '*',
+                    stack: [
+                        { text: 'Alvállalkozói lánc', style: 'participantLabel' },
+                        { text: data.subcontractor_name || 'N/A', style: 'participantName' },
+                        { text: data.subcontractor_representative || '', style: 'participantPosition' }
+                    ]
+                },
+                {
+                    width: 150,
+                    stack: [
+                        signatures.subcontractor ? {
+                            image: signatures.subcontractor,
+                            width: 120,
+                            alignment: 'center',
+                            margin: [0, 5, 0, 0]
+                        } : { 
+                            text: '[Aláírás hiányzik]', 
+                            italics: true, 
+                            color: '#999',
+                            fontSize: 9,
+                            alignment: 'center',
+                            margin: [0, 20, 0, 0]
+                        }
+                    ]
+                }
+            ],
+            margin: [0, 0, 0, 30]
+        },
+
+        // Ellenőrzési pontok - új oldal
+        {
+            text: 'ELLENŐRZÉSI PONTOK',
+            style: 'sectionHeader',
+            margin: [0, 0, 0, 20],
+            pageBreak: 'before'
+        },
+
+        // 1.1
+        {
+            table: {
+                widths: ['*'],
+                body: [[
+                    {
+                        stack: [
+                            { text: '1.1 Munkaterületért felelős beazonosítása', style: 'checklistTitle' },
+                            { text: 'Átadás átvétel jegyzőkönyv fellelhetősége, munkaengedély, stb.', style: 'checklistDesc' },
+                            { text: `Értékelés: ${getStatusText(data.item_1_1)}`, style: getStatusStyle(data.item_1_1), margin: [0, 8, 0, 0] },
+                            data.notes_1_1 ? { text: `Megjegyzés: ${data.notes_1_1}`, style: 'notes' } : {}
+                        ],
+                        border: [true, true, true, true],
+                        fillColor: '#fafafa'
+                    }
+                ]]
+            },
+            layout: {
+                hLineColor: '#5c0099',
+                vLineColor: '#5c0099',
+                hLineWidth: function() { return 1.5; },
+                vLineWidth: function() { return 1.5; }
+            },
+            margin: [0, 0, 0, 10]
+        },
+        ...getImagesForPDF('1_1'),
+
+        // 1.2
+        {
+            table: {
+                widths: ['*'],
+                body: [[
+                    {
+                        stack: [
+                            { text: '1.2 Egyéb dokumentációk', style: 'checklistTitle' },
+                            { text: 'Építési napló, hulladék nyilvántartólap stb.', style: 'checklistDesc' },
+                            { text: `Értékelés: ${getStatusText(data.item_1_2)}`, style: getStatusStyle(data.item_1_2), margin: [0, 8, 0, 0] },
+                            data.notes_1_2 ? { text: `Megjegyzés: ${data.notes_1_2}`, style: 'notes' } : {}
+                        ],
+                        border: [true, true, true, true],
+                        fillColor: '#fafafa'
+                    }
+                ]]
+            },
+            layout: {
+                hLineColor: '#5c0099',
+                vLineColor: '#5c0099',
+                hLineWidth: function() { return 1.5; },
+                vLineWidth: function() { return 1.5; }
+            },
+            margin: [0, 0, 0, 10]
+        },
+        ...getImagesForPDF('1_2'),
+
+        // 1.3
+        {
+            table: {
+                widths: ['*'],
+                body: [[
+                    {
+                        stack: [
+                            { text: '1.3 Szükséges engedélyek', style: 'checklistTitle' },
+                            { text: 'Tűzgyújtási, beszállási, feszültség ment., emelési terv stb.', style: 'checklistDesc' },
+                            { text: `Értékelés: ${getStatusText(data.item_1_3)}`, style: getStatusStyle(data.item_1_3), margin: [0, 8, 0, 0] },
+                            data.notes_1_3 ? { text: `Megjegyzés: ${data.notes_1_3}`, style: 'notes' } : {}
+                        ],
+                        border: [true, true, true, true],
+                        fillColor: '#fafafa'
+                    }
+                ]]
+            },
+            layout: {
+                hLineColor: '#5c0099',
+                vLineColor: '#5c0099',
+                hLineWidth: function() { return 1.5; },
+                vLineWidth: function() { return 1.5; }
+            },
+            margin: [0, 0, 0, 10]
+        },
+        ...getImagesForPDF('1_3'),
+
+        // 1.4
+        {
+            table: {
+                widths: ['*'],
+                body: [[
+                    {
+                        stack: [
+                            { text: '1.4 Szükséges tervdokumentációk, jegyzőkönyvek', style: 'checklistTitle' },
+                            { text: 'BET; EBK terv; organizációs terv stb.', style: 'checklistDesc' },
+                            { text: `Értékelés: ${getStatusText(data.item_1_4)}`, style: getStatusStyle(data.item_1_4), margin: [0, 8, 0, 0] },
+                            data.notes_1_4 ? { text: `Megjegyzés: ${data.notes_1_4}`, style: 'notes' } : {}
+                        ],
+                        border: [true, true, true, true],
+                        fillColor: '#fafafa'
+                    }
+                ]]
+            },
+            layout: {
+                hLineColor: '#5c0099',
+                vLineColor: '#5c0099',
+                hLineWidth: function() { return 1.5; },
+                vLineWidth: function() { return 1.5; }
+            },
+            margin: [0, 0, 0, 10]
+        },
+        ...getImagesForPDF('1_4'),
+
+        // Szankciók - új oldal
+        {
+            text: 'SZANKCIÓS LISTA',
+            style: 'sectionHeader',
+            margin: [0, 30, 0, 15],
+            pageBreak: 'before'
+        },
+        {
+            text: 'Dokumentáció kategória vonatkozó pontjai',
+            style: 'sanctionsSubtitle',
+            margin: [0, 0, 0, 15]
+        },
+        ...getAppliedSanctionsForPDF(data),
+        {
+            table: {
+                widths: ['*', 'auto'],
+                body: [[
+                    { text: 'Összesített bírság:', bold: true, fontSize: 14, alignment: 'right', border: [false, true, false, false], margin: [0, 10, 0, 10] },
+                    { text: totalPriceElement.textContent, bold: true, fontSize: 16, color: '#dc3545', alignment: 'right', border: [false, true, false, false], margin: [0, 10, 0, 10] }
+                ]]
+            },
+            layout: {
+                hLineColor: '#5c0099',
+                hLineWidth: function() { return 2; }
+            },
+            margin: [0, 10, 0, 0]
+        }
+    ],
+
+    styles: {
+        mainHeader: {
+            fontSize: 16,
+            bold: true,
+            color: '#5c0099',
+            letterSpacing: 1
+        },
+        categoryHeader: {
+            fontSize: 14,
+            bold: true,
+            color: '#333'
+        },
+        sectionHeader: {
+            fontSize: 13,
+            bold: true,
+            color: '#5c0099',
+            background: '#f0e6f6',
+            margin: [0, 0, 0, 10]
+        },
+        infoTable: {
+            fontSize: 11
+        },
+        labelCell: {
+            bold: true,
+            color: '#5c0099',
+            fontSize: 10
+        },
+        valueCell: {
+            color: '#333',
+            fontSize: 10
+        },
+        participantLabel: {
+            fontSize: 11,
+            bold: true,
+            color: '#5c0099',
+            margin: [0, 0, 0, 5]
+        },
+        participantName: {
+            fontSize: 12,
+            bold: true,
+            color: '#333'
+        },
+        participantPosition: {
+            fontSize: 10,
+            color: '#666',
+            italics: true
+        },
+        checklistTitle: {
+            fontSize: 12,
+            bold: true,
+            color: '#5c0099',
+            margin: [5, 5, 5, 3]
+        },
+        checklistDesc: {
+            fontSize: 9,
+            color: '#666',
+            italics: true,
+            margin: [5, 0, 5, 5]
+        },
+        statusOk: {
+            fontSize: 11,
+            color: '#28a745',
+            bold: true,
+            margin: [5, 0, 5, 5]
+        },
+        statusFail: {
+            fontSize: 11,
+            color: '#dc3545',
+            bold: true,
+            margin: [5, 0, 5, 5]
+        },
+        statusNA: {
+            fontSize: 11,
+            color: '#ffc107',
+            bold: true,
+            margin: [5, 0, 5, 5]
+        },
+        notes: {
+            fontSize: 9,
+            italics: true,
+            color: '#555',
+            margin: [5, 5, 5, 8]
+        },
+        sanctionsSubtitle: {
+            fontSize: 10,
+            color: '#666',
+            italics: true
+        },
+        sanctions: {
+            fontSize: 10,
+            margin: [0, 3, 0, 3]
+        },
+        imageTitle: {
+            fontSize: 11,
+            bold: true,
+            color: '#5c0099',
+            margin: [0, 10, 0, 8]
+        }
+    },
+    
+    defaultStyle: {
+        font: 'Roboto'
+    }
+};
+
 
             // PDF generálás és letöltés
             // PDF generálás és feltöltés

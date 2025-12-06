@@ -93,6 +93,15 @@
     <p>Állapot: **<%= project.status %>**</p>
     <p>Projekt azonosító: **<%= project.id %>**</p>
     <p>Típus: **<%= project.project_type %>**</p>
+    <p><strong>Leírás:</strong></p>
+    <div class="project-description"><%= project.description %></div>
+
+    <section>
+        <!-- Szerkesztés gomb -->
+        <a href="/user/projects/edit/<%= project.id %>">
+            <button type="submit" class="btn"><i class="fas fa-pen-to-square"></i> Projekt szerkesztése</button>
+        </a>
+    </section>
     
     <hr>
 
@@ -127,7 +136,7 @@
                     </div>
                     <div class="card-description"><%= cat.desc %></div>
                 </div>
-                <a href="/projects/<%= project.id %>/new-report?category=<%= cat.id %>" class="mvm-btn">
+                <a href="/projects/<%= project.id %>/new-report?category=<%= cat.id %>" class="mvm-btn"><i class="fas fa-list-check"></i>  
                     Ellenőrzés indítása
                 </a>
             </div>
@@ -155,9 +164,6 @@
             <div class="stat-label">Nem vizsgált pontok</div>
         </div>
     </div>
-
-    <footer>
-    </footer>
 
 </body>
 </html>

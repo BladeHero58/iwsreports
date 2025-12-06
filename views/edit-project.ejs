@@ -6,6 +6,7 @@
     <title>Projekt szerkesztése</title>
 
     <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 
 </head>
 <body>
@@ -25,14 +26,14 @@
             <option value="Befejezett" <%= project.status === 'Befejezett' ? 'selected' : '' %>>Befejezett</option>
         </select><br><br>
 
-        <button type="submit" class="btn">Mentés</button>
+        <button type="submit" class="btn"><i class="fas fa-save"></i> Mentés</button>
         
     </form>
 
     <br>
     
     <form action="/admin-dashboard" method="GET">
-        <button type="submit" class="logout-btn">Vissza az irányítópultra</button>
+        <button type="submit" class="logout-btn"><i class="fas fa-arrow-left"></i> Vissza az irányítópultra</button>
     </form>
 
 </body>

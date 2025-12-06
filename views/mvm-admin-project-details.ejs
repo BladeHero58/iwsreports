@@ -93,6 +93,15 @@
     <p>Állapot: **<%= project.status %>**</p>
     <p>Projekt azonosító: **<%= project.id %>**</p>
     <p>Típus: **<%= project.project_type %>**</p>
+    <p><strong>Leírás:</strong></p>
+    <div class="project-description"><%= project.description %></div>
+
+    <section>
+        <!-- Szerkesztés gomb -->
+        <a href="/admin/projects/edit/<%= project.id %>">
+            <button type="submit" class="btn"><i class="fas fa-pen-to-square"></i> Projekt szerkesztés</button>
+        </a>
+    </section>
     
     <hr>
 
@@ -127,7 +136,7 @@
                     </div>
                     <div class="card-description"><%= cat.desc %></div>
                 </div>
-                <a href="/projects/<%= project.id %>/new-report?category=<%= cat.id %>" class="mvm-btn">
+                <a href="/projects/<%= project.id %>/new-report?category=<%= cat.id %>" class="mvm-btn"><i class="fas fa-list-check"></i>  
                     Ellenőrzés indítása
                 </a>
             </div>
@@ -164,7 +173,7 @@
                     <%= user.username %> 
                     <!-- Felhasználó törlése a projektről -->
                     <form action="/admin/projects/<%= project.id %>/remove-user/<%= user.id %>" method="POST" style="display:inline;">
-                        <button type="submit" class="btn-blue">Felhasználó eltávolítása</button>
+                        <button type="submit" class="btn-blue"><i class="fas fa-times"></i> Felhasználó eltávolítása</button>
                     </form>
                 </li>
             <% }); %>
@@ -184,7 +193,7 @@
             </option>
         <% }); %>
     </select>
-    <button type="submit" class="btn">Felhasználók hozzárendelése</button>
+    <button type="submit" class="btn"><i class="fas fa-user-plus"></i> Felhasználók hozzárendelése</button>
 </form>
 
 </body>
