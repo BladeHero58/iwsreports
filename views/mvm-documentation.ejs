@@ -8,8 +8,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.min.js"></script>
-    <!-- ⭐ EXIF.js library hozzáadva -->
-    <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
+    <!-- ⭐ EXIF.js - újabb verzió mobilos kompatibilitással -->
+    <script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.min.js"></script>
     
     <!-- ⭐ EXIF metaadatok megjelenítésére CSS -->
     <style>
@@ -689,17 +689,22 @@ function draw(e) {
                         
                         // ⭐ EXIF adatok kinyerése
                         EXIF.getData(file, function() {
-                            const allTags = EXIF.getAllTags(this);
+                            // ⭐ KRITIKUS - Mobilon gyakran undefined a 'this'
+                            const imageElement = this || file;
+                            
+                            const allTags = EXIF.getAllTags(imageElement);
                             console.log('📋 EXIF adatok:', file.name, allTags);
 
                             const exifData = {
-                                date: EXIF.getTag(this, "DateTimeOriginal") || EXIF.getTag(this, "DateTime"),
-                                lat: EXIF.getTag(this, "GPSLatitude"),
-                                lon: EXIF.getTag(this, "GPSLongitude"),
-                                latRef: EXIF.getTag(this, "GPSLatitudeRef"),
-                                lonRef: EXIF.getTag(this, "GPSLongitudeRef"),
-                                make: EXIF.getTag(this, "Make"),
-                                model: EXIF.getTag(this, "Model")
+                                date: EXIF.getTag(imageElement, "DateTimeOriginal") || 
+                                      EXIF.getTag(imageElement, "DateTime") || 
+                                      file.lastModified, // ⭐ Fallback fájl dátumra
+                                lat: EXIF.getTag(imageElement, "GPSLatitude"),
+                                lon: EXIF.getTag(imageElement, "GPSLongitude"),
+                                latRef: EXIF.getTag(imageElement, "GPSLatitudeRef"),
+                                lonRef: EXIF.getTag(imageElement, "GPSLongitudeRef"),
+                                make: EXIF.getTag(imageElement, "Make"),
+                                model: EXIF.getTag(imageElement, "Model")
                             };
 
                             // GPS konvertálás
@@ -707,15 +712,26 @@ function draw(e) {
                             let locationText = 'Nincs GPS adat';
                             let hasGPS = false;
 
+                            console.log('🔍 GPS Raw adatok:', {
+                                lat: exifData.lat,
+                                lon: exifData.lon,
+                                latRef: exifData.latRef,
+                                lonRef: exifData.lonRef
+                            });
+
                             if (exifData.lat && exifData.lon) {
                                 const lat = convertDMSToDD(exifData.lat, exifData.latRef);
                                 const lon = convertDMSToDD(exifData.lon, exifData.lonRef);
+                                
+                                console.log('📐 Konvertált koordináták:', { lat, lon });
                                 
                                 if (lat !== null && lon !== null) {
                                     location = { lat, lon };
                                     locationText = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
                                     hasGPS = true;
                                     console.log('✅ GPS koordináták:', locationText);
+                                } else {
+                                    console.warn('⚠️ GPS konvertálás sikertelen');
                                 }
                             } else {
                                 console.warn('⚠️ Nincs GPS adat a képben');
@@ -758,6 +774,8 @@ function draw(e) {
                             const img = document.createElement('img');
                             img.src = imageData;
                             img.alt = file.name;
+                            img.loading = 'lazy'; // ⭐ Lazy loading mobilra
+                            img.style.maxWidth = '100%'; // ⭐ Mobil kompatibilitás
                             
                             // ⭐ Metaadatok megjelenítése
                             const metaInfo = document.createElement('div');
@@ -1594,9 +1612,39 @@ pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
             }
         }
 
-        // Letöltés MINDIG megtörténik
+        // ⭐ JAVÍTOTT LETÖLTÉS MOBILRA
         const fileName = `Dokumentacio_${serialNumber.replace(/\//g, '-')}_${Date.now()}.pdf`;
-        pdfMake.createPdf(docDefinition).download(fileName);
+        
+        // Mobilos böngésző detektálása
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
+        if (isMobile) {
+            console.log('📱 Mobil böngésző - Blob URL használata');
+            
+            // PDF generálás blob-ként
+            pdfMake.createPdf(docDefinition).getBlob(function(blob) {
+                // Blob URL létrehozása
+                const blobUrl = URL.createObjectURL(blob);
+                
+                // Link elem létrehozása és kattintás szimulálása
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                link.download = fileName;
+                link.style.display = 'none';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // Cleanup
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+                
+                console.log('✅ PDF letöltés elindítva (mobil)');
+            });
+        } else {
+            console.log('💻 Asztali böngésző - Standard letöltés');
+            pdfMake.createPdf(docDefinition).download(fileName);
+        }
 
     } catch (error) {
         console.error('Hiba a PDF feltöltésekor:', error);
@@ -1604,7 +1652,22 @@ pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
         
         // Letöltés akkor is megtörténik
         const fileName = `Dokumentacio_${serialNumber.replace(/\//g, '-')}_${Date.now()}.pdf`;
-        pdfMake.createPdf(docDefinition).download(fileName);
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
+        if (isMobile) {
+            pdfMake.createPdf(docDefinition).getBlob(function(blob) {
+                const blobUrl = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                link.download = fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+            });
+        } else {
+            pdfMake.createPdf(docDefinition).download(fileName);
+        }
     }
 });
 }
