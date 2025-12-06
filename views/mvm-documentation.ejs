@@ -339,7 +339,11 @@ const backUrl = isAdmin
 
                 <div class="form-group" style="margin-top: 15px;">
                     <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
-                    <input type="file" id="photos_1_1" accept="image/*" multiple onchange="handleImageUpload(event, '1_1')" style="margin-bottom: 10px;">
+                    <p style="font-size: 11px; color: #666; margin: 5px 0;">
+                        <i class="fas fa-info-circle"></i> iPhone felhasználóknak: Kérlek állítsd be a telefont "A legkompatibilisabb" képformátumra<br>
+                        (Beállítások → Fényképezőgép → Formátumok)
+                    </p>
+                    <input type="file" id="photos_1_1" accept="image/jpeg,image/jpg,image/png,image/webp" multiple onchange="handleImageUpload(event, '1_1')" style="margin-bottom: 10px;">
                     <div id="preview_1_1" class="image-preview-container"></div>
                 </div>
 
@@ -368,7 +372,7 @@ const backUrl = isAdmin
 
                 <div class="form-group" style="margin-top: 15px;">
                     <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
-                    <input type="file" id="photos_1_2" accept="image/*" multiple onchange="handleImageUpload(event, '1_2')" style="margin-bottom: 10px;">
+                    <input type="file" id="photos_1_2" accept="image/jpeg,image/jpg,image/png,image/webp" multiple onchange="handleImageUpload(event, '1_2')" style="margin-bottom: 10px;">
                     <div id="preview_1_2" class="image-preview-container"></div>
                 </div>
 
@@ -397,7 +401,7 @@ const backUrl = isAdmin
 
                 <div class="form-group" style="margin-top: 15px;">
                     <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
-                    <input type="file" id="photos_1_3" accept="image/*" multiple onchange="handleImageUpload(event, '1_3')" style="margin-bottom: 10px;">
+                    <input type="file" id="photos_1_3" accept="image/jpeg,image/jpg,image/png,image/webp" multiple onchange="handleImageUpload(event, '1_3')" style="margin-bottom: 10px;">
                     <div id="preview_1_3" class="image-preview-container"></div>
                 </div>
 
@@ -426,7 +430,7 @@ const backUrl = isAdmin
 
                 <div class="form-group" style="margin-top: 15px;">
                     <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
-                    <input type="file" id="photos_1_4" accept="image/*" multiple onchange="handleImageUpload(event, '1_4')" style="margin-bottom: 10px;">
+                    <input type="file" id="photos_1_4" accept="image/jpeg,image/jpg,image/png,image/webp" multiple onchange="handleImageUpload(event, '1_4')" style="margin-bottom: 10px;">
                     <div id="preview_1_4" class="image-preview-container"></div>
                 </div>
 
@@ -696,17 +700,35 @@ function draw(e) {
         function handleImageUpload(event, itemId) {
             const files = event.target.files;
             const previewContainer = document.getElementById(`preview_${itemId}`);
-            
+
             if (!files || files.length === 0) return;
 
             console.log(`📸 ${files.length} kép feltöltése indult (${itemId})`);
 
+            // ⭐ HEIC fájlok szűrése
+            const unsupportedFiles = [];
+            const validFiles = [];
+
             Array.from(files).forEach(file => {
-                if (file.type.startsWith('image/')) {
-                    const reader = new FileReader();
-                    
-                    reader.onload = function(e) {
-                        const imageData = e.target.result;
+                const fileName = file.name.toLowerCase();
+                if (fileName.endsWith('.heic') || fileName.endsWith('.heif')) {
+                    unsupportedFiles.push(file.name);
+                } else if (file.type.startsWith('image/')) {
+                    validFiles.push(file);
+                }
+            });
+
+            // Figyelmeztetés HEIC fájlokról
+            if (unsupportedFiles.length > 0) {
+                alert(`⚠️ HEIC/HEIF formátumú képek nem támogatottak:\n\n${unsupportedFiles.join('\n')}\n\nKérlek, konvertáld át JPEG vagy PNG formátumba az iPhone beállításokban:\nBeállítások → Fényképezőgép → Formátumok → "A legkompatibilisebb" opció kiválasztása`);
+                console.warn('⚠️ HEIC fájlok kiszűrve:', unsupportedFiles);
+            }
+
+            validFiles.forEach(file => {
+                const reader = new FileReader();
+
+                reader.onload = function(e) {
+                    const imageData = e.target.result;
                         
                         // ⭐ EXIF adatok kinyerése
                         EXIF.getData(file, function() {
@@ -902,11 +924,10 @@ function draw(e) {
                             });
                         });
                     };
-                    
+
                     reader.readAsDataURL(file);
-                }
             });
-            
+
             // Input reset
             event.target.value = '';
         }
@@ -1912,7 +1933,7 @@ pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
             for (let i = 0; i < images.length; i++) {
                 const imgObj = images[i];
                 const imageData = imgObj.data;
-                const metadata = imgObj.metadata;
+                const metadata = imgObj.metadata || {}; // ⭐ Biztonsági fallback
 
                 // Kép megjelenítése
                 result.push({
@@ -1924,16 +1945,20 @@ pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
 
                 // ⭐ Metaadatok megjelenítése a kép alatt
                 const metaText = [];
-                
+
                 if (metadata.fileName) {
                     metaText.push(`📄 ${metadata.fileName}`);
                 }
-                
+
                 if (metadata.hasDate && metadata.takenDate) {
-                    const formattedMeta = formatDate(metadata.takenDate);
-                    metaText.push(`📅 Felvétel ideje: ${formattedMeta}`);
+                    try {
+                        const formattedMeta = formatDate(metadata.takenDate);
+                        metaText.push(`📅 Felvétel ideje: ${formattedMeta}`);
+                    } catch (e) {
+                        console.warn('Dátum formázási hiba:', e);
+                    }
                 }
-                
+
                 if (metadata.hasGPS && metadata.location) {
                     metaText.push(`📍 Helyszín: ${metadata.location}`);
                 }
@@ -1944,6 +1969,11 @@ pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
 
                 if (!metadata.hasDate || !metadata.hasGPS) {
                     metaText.push(`⚠️ Hiányos metaadatok`);
+                }
+
+                // ⭐ Csak akkor adjuk hozzá, ha van valamilyen metaadat
+                if (metaText.length === 0) {
+                    metaText.push(`Kép ${i + 1}`);
                 }
 
                 result.push({
