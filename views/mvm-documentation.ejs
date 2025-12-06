@@ -8,7 +8,124 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.min.js"></script>
+    <!-- ⭐ EXIF.js library hozzáadva -->
+    <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
     
+    <!-- ⭐ EXIF metaadatok megjelenítésére CSS -->
+    <style>
+        .image-preview-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .image-preview-item {
+            position: relative;
+            width: 250px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+            background: white;
+        }
+
+        .image-preview-item:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .image-preview-item img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .image-meta-info {
+            background: linear-gradient(to top, rgba(0,0,0,0.95), rgba(0,0,0,0.7));
+            padding: 10px 12px;
+            color: white;
+            font-size: 11px;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin: 4px 0;
+            line-height: 1.4;
+        }
+
+        .meta-item i {
+            width: 14px;
+            text-align: center;
+            color: #4CAF50;
+            flex-shrink: 0;
+        }
+
+        .meta-item span {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .map-link {
+            color: #4CAF50;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .map-link:hover {
+            text-decoration: underline;
+            color: #66BB6A;
+        }
+
+        .image-remove-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(220, 53, 69, 0.95);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+            z-index: 10;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .image-remove-btn:hover {
+            background: #dc3545;
+            transform: scale(1.1);
+        }
+
+        .no-metadata-warning {
+            background: rgba(255, 193, 7, 0.2);
+            border-left: 3px solid #ffc107;
+            padding: 6px 8px;
+            margin-top: 5px;
+            font-size: 10px;
+            color: #f0f0f0;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .no-metadata-warning i {
+            color: #ffc107;
+        }
+    </style>
    
 </head>
 <body>
@@ -194,18 +311,18 @@ const backUrl = isAdmin
                         <label for="item_1_1_nm">Nem megfelelt</label>
                     </div>
                     <div class="radio-option warning">
-                        <input type="radio" id="item_1_2_nv" name="item_1_2" value="nem_vizsgált">
-                        <label for="item_1_2_nv">Nem vonatkozik / Nem vizsgált</label>
+                        <input type="radio" id="item_1_1_nv" name="item_1_1" value="nem_vizsgált">
+                        <label for="item_1_1_nv">Nem vonatkozik / Nem vizsgált</label>
                     </div>
                 </div>
 
                 <div class="form-group" style="margin-top: 15px;">
                     <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
-                    <input type="file" id="photos_1_2" accept="image/*" multiple onchange="handleImageUpload(event, '1_2')" style="margin-bottom: 10px;">
-                    <div id="preview_1_2" class="image-preview-container"></div>
+                    <input type="file" id="photos_1_1" accept="image/*" multiple onchange="handleImageUpload(event, '1_1')" style="margin-bottom: 10px;">
+                    <div id="preview_1_1" class="image-preview-container"></div>
                 </div>
 
-                <textarea class="notes-textarea" name="notes_1_2" placeholder="Megjegyzés..."></textarea>
+                <textarea class="notes-textarea" name="notes_1_1" placeholder="Megjegyzés..."></textarea>
             </div>
 
             <!-- 1.2 Egyéb dokumentációk -->
@@ -403,7 +520,7 @@ const backUrl = isAdmin
             subcontractor: null
         };
 
-        // Képek tárolása pontok szerint
+        // ⭐ MÓDOSÍTOTT: Képek tárolása metaadatokkal
         const uploadedImages = {
             '1_1': [],
             '1_2': [],
@@ -434,7 +551,7 @@ const backUrl = isAdmin
     // Érintés események (mobilra)
     canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
     canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
-    canvas.addEventListener('touchend', handleTouchEnd, { passive: false }); // ⭐ touchend, NEM stopDrawing!
+    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
 
     // Aktuális dátum beállítása alapértelmezettnek
     const today = new Date().toISOString().split('T')[0];
@@ -549,50 +666,256 @@ function draw(e) {
         // Rajzolás befejezése
         function stopDrawing() {
     if (isDrawing) {
-        ctx.closePath(); // ⭐ ÚJ SOR - lezárjuk az útvonalat
+        ctx.closePath();
     }
     isDrawing = false;
 }
-        // Képfeltöltés kezelése
+
+        // ⭐ MÓDOSÍTOTT: Képfeltöltés kezelése EXIF metaadatokkal
         function handleImageUpload(event, itemId) {
             const files = event.target.files;
             const previewContainer = document.getElementById(`preview_${itemId}`);
             
+            if (!files || files.length === 0) return;
+
+            console.log(`📸 ${files.length} kép feltöltése indult (${itemId})`);
+
             Array.from(files).forEach(file => {
                 if (file.type.startsWith('image/')) {
                     const reader = new FileReader();
                     
                     reader.onload = function(e) {
                         const imageData = e.target.result;
-                        uploadedImages[itemId].push(imageData);
                         
-                        const previewItem = document.createElement('div');
-                        previewItem.className = 'image-preview-item';
-                        
-                        const img = document.createElement('img');
-                        img.src = imageData;
-                        
-                        const removeBtn = document.createElement('button');
-                        removeBtn.className = 'image-remove-btn';
-                        removeBtn.innerHTML = '&times;';
-                        removeBtn.onclick = function() {
-                            const index = uploadedImages[itemId].indexOf(imageData);
-                            if (index > -1) {
-                                uploadedImages[itemId].splice(index, 1);
+                        // ⭐ EXIF adatok kinyerése
+                        EXIF.getData(file, function() {
+                            const allTags = EXIF.getAllTags(this);
+                            console.log('📋 EXIF adatok:', file.name, allTags);
+
+                            const exifData = {
+                                date: EXIF.getTag(this, "DateTimeOriginal") || EXIF.getTag(this, "DateTime"),
+                                lat: EXIF.getTag(this, "GPSLatitude"),
+                                lon: EXIF.getTag(this, "GPSLongitude"),
+                                latRef: EXIF.getTag(this, "GPSLatitudeRef"),
+                                lonRef: EXIF.getTag(this, "GPSLongitudeRef"),
+                                make: EXIF.getTag(this, "Make"),
+                                model: EXIF.getTag(this, "Model")
+                            };
+
+                            // GPS konvertálás
+                            let location = null;
+                            let locationText = 'Nincs GPS adat';
+                            let hasGPS = false;
+
+                            if (exifData.lat && exifData.lon) {
+                                const lat = convertDMSToDD(exifData.lat, exifData.latRef);
+                                const lon = convertDMSToDD(exifData.lon, exifData.lonRef);
+                                
+                                if (lat !== null && lon !== null) {
+                                    location = { lat, lon };
+                                    locationText = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+                                    hasGPS = true;
+                                    console.log('✅ GPS koordináták:', locationText);
+                                }
+                            } else {
+                                console.warn('⚠️ Nincs GPS adat a képben');
                             }
-                            previewItem.remove();
-                        };
-                        
-                        previewItem.appendChild(img);
-                        previewItem.appendChild(removeBtn);
-                        previewContainer.appendChild(previewItem);
+
+                            // Dátum feldolgozás
+                            const dateText = exifData.date ? formatDate(exifData.date) : 'Nincs dátum adat';
+                            const hasDate = !!exifData.date;
+
+                            if (hasDate) {
+                                console.log('✅ Felvétel dátuma:', dateText);
+                            } else {
+                                console.warn('⚠️ Nincs dátum adat a képben');
+                            }
+
+                            // Kamera info
+                            const cameraInfo = (exifData.make || exifData.model) 
+                                ? `${exifData.make || ''} ${exifData.model || ''}`.trim()
+                                : null;
+
+                            // ⭐ Kép tárolása metaadatokkal
+                            uploadedImages[itemId].push({
+                                data: imageData,
+                                metadata: {
+                                    takenDate: exifData.date || new Date().toISOString(),
+                                    location: locationText,
+                                    latitude: location?.lat,
+                                    longitude: location?.lon,
+                                    fileName: file.name,
+                                    camera: cameraInfo,
+                                    hasGPS: hasGPS,
+                                    hasDate: hasDate
+                                }
+                            });
+                            
+                            // ⭐ Preview elem létrehozása
+                            const previewItem = document.createElement('div');
+                            previewItem.className = 'image-preview-item';
+                            
+                            const img = document.createElement('img');
+                            img.src = imageData;
+                            img.alt = file.name;
+                            
+                            // ⭐ Metaadatok megjelenítése
+                            const metaInfo = document.createElement('div');
+                            metaInfo.className = 'image-meta-info';
+                            
+                            let metaHTML = '';
+                            
+                            // Dátum
+                            if (hasDate) {
+                                metaHTML += `
+                                    <div class="meta-item">
+                                        <i class="fas fa-calendar"></i> 
+                                        <span title="${dateText}">${dateText}</span>
+                                    </div>
+                                `;
+                            }
+
+                            // GPS
+                            if (hasGPS) {
+                                metaHTML += `
+                                    <div class="meta-item">
+                                        <i class="fas fa-map-marker-alt"></i> 
+                                        <span>
+                                            <a href="https://www.google.com/maps?q=${location.lat},${location.lon}" 
+                                               target="_blank" 
+                                               class="map-link"
+                                               title="Megnyitás Google Maps-ben">
+                                               ${locationText}
+                                            </a>
+                                        </span>
+                                    </div>
+                                `;
+                            } else {
+                                metaHTML += `
+                                    <div class="meta-item">
+                                        <i class="fas fa-map-marker-alt"></i> 
+                                        <span style="color: #ffc107;">Nincs GPS adat</span>
+                                    </div>
+                                `;
+                            }
+
+                            // Kamera info (opcionális)
+                            if (cameraInfo) {
+                                metaHTML += `
+                                    <div class="meta-item">
+                                        <i class="fas fa-camera"></i> 
+                                        <span title="${cameraInfo}">${cameraInfo}</span>
+                                    </div>
+                                `;
+                            }
+
+                            // Figyelmeztetés ha nincs metaadat
+                            if (!hasDate || !hasGPS) {
+                                metaHTML += `
+                                    <div class="no-metadata-warning">
+                                        <i class="fas fa-exclamation-triangle"></i> 
+                                        <span>Hiányos metaadatok</span>
+                                    </div>
+                                `;
+                            }
+
+                            metaInfo.innerHTML = metaHTML;
+                            
+                            // Törlés gomb
+                            const removeBtn = document.createElement('button');
+                            removeBtn.className = 'image-remove-btn';
+                            removeBtn.innerHTML = '&times;';
+                            removeBtn.title = 'Kép eltávolítása';
+                            removeBtn.onclick = function(e) {
+                                e.stopPropagation();
+                                const index = uploadedImages[itemId].findIndex(img => img.data === imageData);
+                                if (index > -1) {
+                                    uploadedImages[itemId].splice(index, 1);
+                                    console.log('🗑️ Kép eltávolítva:', file.name);
+                                }
+                                previewItem.remove();
+                            };
+                            
+                            // Összerakás
+                            previewItem.appendChild(img);
+                            previewItem.appendChild(metaInfo);
+                            previewItem.appendChild(removeBtn);
+                            previewContainer.appendChild(previewItem);
+
+                            console.log('✅ Kép hozzáadva metaadatokkal:', {
+                                fileName: file.name,
+                                hasDate: hasDate,
+                                hasGPS: hasGPS,
+                                location: locationText
+                            });
+                        });
                     };
                     
                     reader.readAsDataURL(file);
                 }
             });
             
+            // Input reset
             event.target.value = '';
+        }
+
+        // ⭐ GPS DMS → DD konvertálás
+        function convertDMSToDD(dms, ref) {
+            if (!dms || !Array.isArray(dms) || dms.length !== 3) {
+                console.warn('⚠️ Érvénytelen GPS formátum:', dms);
+                return null;
+            }
+            
+            try {
+                const degrees = dms[0];
+                const minutes = dms[1];
+                const seconds = dms[2];
+                
+                let dd = degrees + minutes/60 + seconds/3600;
+                
+                if (ref === "S" || ref === "W") {
+                    dd = dd * -1;
+                }
+                
+                return dd;
+            } catch (e) {
+                console.error('❌ GPS konvertálási hiba:', e);
+                return null;
+            }
+        }
+
+        // ⭐ Dátum formázás
+        function formatDate(dateString) {
+            if (!dateString) return 'Nincs adat';
+            
+            try {
+                // EXIF formátum: "2025:12:06 14:54:00"
+                let cleaned = dateString;
+                
+                if (typeof dateString === 'string') {
+                    cleaned = dateString
+                        .replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3')
+                        .replace(' ', 'T');
+                }
+                
+                const date = new Date(cleaned);
+                
+                if (isNaN(date.getTime())) {
+                    console.warn('⚠️ Érvénytelen dátum formátum:', dateString);
+                    return dateString;
+                }
+                
+                return date.toLocaleDateString('hu-HU', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            } catch (e) {
+                console.error('❌ Dátum formázási hiba:', e);
+                return dateString;
+            }
         }
 
         // Touch események kezelése
@@ -604,7 +927,7 @@ function handleTouchStart(e) {
     const scaleY = canvas.height / rect.height;
     
     isDrawing = true;
-    ctx.beginPath(); // ⭐ FONTOS: új útvonal kezdése
+    ctx.beginPath();
     ctx.moveTo(
         (touch.clientX - rect.left) * scaleX,
         (touch.clientY - rect.top) * scaleY
@@ -646,11 +969,8 @@ function handleTouchEnd(e) {
     const dataURL = canvas.toDataURL('image/png');
     signatures[currentSignatureType] = dataURL;
     
-    // Hidden input ID helyes kezelése
     let hiddenInputId = currentSignatureType + 'Signature';
-    // Ha witness_0, witness_1 stb., akkor az ID formátum más
     if (currentSignatureType.startsWith('witness_')) {
-        // witness_0 -> witness_0Signature (már jó)
         hiddenInputId = currentSignatureType + 'Signature';
     }
     
@@ -662,10 +982,8 @@ function handleTouchEnd(e) {
         console.error('Hidden input nem található:', hiddenInputId);
     }
     
-    // Preview ID helyes kezelése
     let previewId = currentSignatureType + 'Preview';
     if (currentSignatureType.startsWith('witness_')) {
-        // witness_0 -> witnessPreview_0
         previewId = 'witnessPreview_' + currentSignatureType.split('_')[1];
     }
     
@@ -677,10 +995,8 @@ function handleTouchEnd(e) {
         console.error('Preview nem található:', previewId);
     }
     
-    // Clear button ID helyes kezelése
     let clearBtnId = currentSignatureType + 'Clear';
     if (currentSignatureType.startsWith('witness_')) {
-        // witness_0 -> witness_0Clear
         clearBtnId = currentSignatureType + 'Clear';
     }
     
@@ -699,14 +1015,12 @@ function handleTouchEnd(e) {
      function clearSignature(type) {
     signatures[type] = null;
     
-    // Hidden input
     let hiddenInputId = type + 'Signature';
     const hiddenInput = document.getElementById(hiddenInputId);
     if (hiddenInput) {
         hiddenInput.value = '';
     }
     
-    // Preview
     let previewId = type + 'Preview';
     if (type.startsWith('witness_')) {
         previewId = 'witnessPreview_' + type.split('_')[1];
@@ -717,7 +1031,6 @@ function handleTouchEnd(e) {
         preview.innerHTML = '<span><i class="fas fa-pen"></i> Kattintson ide az aláírás hozzáadásához</span>';
     }
     
-    // Clear button
     let clearBtnId = type + 'Clear';
     const clearBtn = document.getElementById(clearBtnId);
     if (clearBtn) {
@@ -759,14 +1072,16 @@ document.getElementById('documentationForm').addEventListener('submit', function
     data.total_fine = calculateTotal();
     data.total_fine_formatted = totalPriceElement.textContent;
     
-    // Képek hozzáadása
+    // ⭐ Képek hozzáadása metaadatokkal
     data.images = uploadedImages;
     
-    // ⭐ ÚJ: Projekt specifikus mezők hozzáadása
+    // Projekt specifikus mezők hozzáadása
     data.projectName = document.getElementById('projectName').value;
     data.serialNumber = document.getElementById('serialNumber').value;
     data.inspectorPerson = document.getElementById('inspectorPerson').value;
     data.inspectionDate = document.getElementById('inspectionDate').value;
+
+    console.log('📤 Mentés adatokkal:', data);
 
     fetch(this.action, {
         method: 'POST',
@@ -779,8 +1094,6 @@ document.getElementById('documentationForm').addEventListener('submit', function
     .then(result => {
         if (result.success) {
             alert('✓ Ellenőrzés sikeresen elmentve!');
-            // NEM irányítunk vissza, maradunk az oldalon
-            // window.location.href = '/projects/<%= project.id %>/new-report';
         } else {
             alert('✗ Hiba történt: ' + result.message);
         }
@@ -791,16 +1104,15 @@ document.getElementById('documentationForm').addEventListener('submit', function
     });
 });
 
-// Új ellenőrzés indítása (mentett adatok törlése)
+// Új ellenőrzés indítása
 async function startNewInspection() {
     const confirmNew = confirm('⚠️ Biztosan új ellenőrzést szeretnél indítani?\n\nEz törli a jelenlegi mentett adatokat és üres lappal kezdhetsz.');
     
     if (!confirmNew) {
-        return; // Mégsem gomb
+        return;
     }
 
     try {
-        // Backend-en töröljük a mentett adatot
         const response = await fetch('/projects/<%= project.id %>/reports/documentation', {
             method: 'DELETE',
             headers: {
@@ -812,7 +1124,6 @@ async function startNewInspection() {
 
         if (result.success) {
             alert('✅ Új ellenőrzés indítva! Az oldal újratöltődik.');
-            // Oldal újratöltése - most már üres lesz
             window.location.reload();
         } else {
             alert('❌ Hiba történt: ' + result.message);
@@ -847,7 +1158,7 @@ const docDefinition = {
     pageSize: 'A4',
     pageMargins: [40, 60, 40, 60],
     content: [
-        // Fejléc - Elegáns
+        // Fejléc
         {
             text: 'MUNKAVÉDELMI ELLENŐRZÉSI JEGYZŐKÖNYV',
             style: 'mainHeader',
@@ -861,7 +1172,7 @@ const docDefinition = {
             margin: [0, 0, 0, 20]
         },
 
-        // Projekt információk - Szép táblázat
+        // Projekt információk
         {
             style: 'infoTable',
             table: {
@@ -969,7 +1280,7 @@ const docDefinition = {
             margin: [0, 0, 0, 15]
         },
 
-        // Tanúk - csak kitöltöttek
+        // Tanúk
         ...getWitnessesForPDF(data),
 
         // Alvállalkozói lánc
@@ -1005,7 +1316,7 @@ const docDefinition = {
             margin: [0, 0, 0, 30]
         },
 
-        // Ellenőrzési pontok - új oldal
+        // Ellenőrzési pontok
         {
             text: 'ELLENŐRZÉSI PONTOK',
             style: 'sectionHeader',
@@ -1031,10 +1342,10 @@ const docDefinition = {
         ]]
     },
     layout: {
-        hLineColor: '#333', // ✅ Fekete lett
-        vLineColor: '#333', // ✅ Fekete lett
-        hLineWidth: function() { return 1; }, // ✅ Vékonyabb
-        vLineWidth: function() { return 1; }  // ✅ Vékonyabb
+        hLineColor: '#333',
+        vLineColor: '#333',
+        hLineWidth: function() { return 1; },
+        vLineWidth: function() { return 1; }
     },
     margin: [0, 0, 0, 10]
 },
@@ -1058,7 +1369,7 @@ const docDefinition = {
                 ]]
             },
             layout: {
-                hLineColor: '#333', // ✅ Fekete lett
+                hLineColor: '#333',
         vLineColor: '#333', 
                 hLineWidth: function() { return 1; },
                 vLineWidth: function() { return 1; }
@@ -1085,7 +1396,7 @@ const docDefinition = {
                 ]]
             },
             layout: {
-                hLineColor: '#333', // ✅ Fekete lett
+                hLineColor: '#333',
         vLineColor: '#333', 
                 hLineWidth: function() { return 1; },
                 vLineWidth: function() { return 1; }
@@ -1112,7 +1423,7 @@ const docDefinition = {
                 ]]
             },
             layout: {
-                hLineColor: '#333', // ✅ Fekete lett
+                hLineColor: '#333',
         vLineColor: '#333', 
                 hLineWidth: function() { return 1; },
                 vLineWidth: function() { return 1; }
@@ -1121,7 +1432,7 @@ const docDefinition = {
         },
         ...getImagesForPDF('1_4'),
 
-        // Szankciók - új oldal
+        // Szankciók
         {
             text: 'SZANKCIÓS LISTA',
             style: 'sectionHeader',
@@ -1143,7 +1454,7 @@ const docDefinition = {
         ]]
     },
     layout: {
-        hLineColor: '#333', // ✅ Fekete lett
+        hLineColor: '#333',
         hLineWidth: function() { return 2; }
     },
     margin: [0, 10, 0, 0]
@@ -1154,26 +1465,26 @@ const docDefinition = {
     mainHeader: {
         fontSize: 16,
         bold: true,
-        color: '#5c0099', // ✅ Lila marad
+        color: '#5c0099',
         letterSpacing: 1
     },
     categoryHeader: {
         fontSize: 14,
         bold: true,
-        color: '#333' // ✅ Fekete
+        color: '#333'
     },
     sectionHeader: {
     fontSize: 13,
     bold: true,
-    color: '#333', //  FEKETE lett (volt: '#5c0099')
-    margin: [0, 0, 0, 10] //  Háttérszín eltávolítva
+    color: '#333',
+    margin: [0, 0, 0, 10]
 },
     infoTable: {
         fontSize: 11
     },
     labelCell: {
         bold: true,
-        color: '#333', // ✅ Fekete lett
+        color: '#333',
         fontSize: 10
     },
     valueCell: {
@@ -1183,7 +1494,7 @@ const docDefinition = {
     participantLabel: {
         fontSize: 11,
         bold: true,
-        color: '#5c0099', // ✅ Lila marad
+        color: '#5c0099',
         margin: [0, 0, 0, 5]
     },
     participantName: {
@@ -1199,7 +1510,7 @@ const docDefinition = {
     checklistTitle: {
         fontSize: 12,
         bold: true,
-        color: '#333', // ✅ Fekete lett
+        color: '#333',
         margin: [5, 5, 5, 3]
     },
     checklistDesc: {
@@ -1244,7 +1555,7 @@ const docDefinition = {
     imageTitle: {
         fontSize: 11,
         bold: true,
-        color: '#333', // ✅ Fekete lett
+        color: '#333',
         margin: [0, 10, 0, 8]
     }
 },
@@ -1255,7 +1566,6 @@ const docDefinition = {
 };
 
 
-            // PDF generálás és letöltés
             // PDF generálás és feltöltés
 pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
     try {
@@ -1318,17 +1628,15 @@ pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
             }
         }
 
-        // Tanúk PDF-hez - csak kitöltöttek
+        // Tanúk PDF-hez
         function getWitnessesForPDF(data) {
             const result = [];
             
-            // Végigmegyünk az összes lehetséges tanún
             for (let i = 0; i < witnessCounter; i++) {
                 const witnessName = data[`witness_name_${i}`];
                 const witnessPosition = data[`witness_position_${i}`];
                 const witnessSignature = signatures[`witness_${i}`];
                 
-                // Csak akkor adjuk hozzá, ha van név kitöltve
                 if (witnessName && witnessName.trim() !== '') {
                     result.push({
                         text: `Tanú ${i === 0 ? '' : i + 1}`,
@@ -1362,7 +1670,7 @@ pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
             return result;
         }
 
-        // Alkalmazott szankciók PDF-hez
+        // Szankciók PDF-hez
         function getAppliedSanctionsForPDF(data) {
             const sanctionLabels = {
                 sanction_1: '1 MVM XPert munka-, tűz-, vagy környezetvédelmi szabályainak megsértése',
@@ -1418,7 +1726,7 @@ pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
             return result;
         }
 
-        // Képek PDF-hez való hozzáadása
+        // ⭐ MÓDOSÍTOTT: Képek PDF-hez metaadatokkal
         function getImagesForPDF(itemId) {
             const images = uploadedImages[itemId];
             if (!images || images.length === 0) {
@@ -1429,32 +1737,53 @@ pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
                 {
                     text: 'Csatolt fényképek / dokumentáció:',
                     style: 'imageTitle',
-                    margin: [0, 10, 0, 5]
+                    margin: [0, 10, 0, 8]
                 }
             ];
 
-            for (let i = 0; i < images.length; i += 2) {
-                const columns = [];
-                
-                columns.push({
-                    image: images[i],
-                    width: 200,
-                    margin: [0, 5, 5, 5]
+            for (let i = 0; i < images.length; i++) {
+                const imgObj = images[i];
+                const imageData = imgObj.data;
+                const metadata = imgObj.metadata;
+
+                // Kép megjelenítése
+                result.push({
+                    image: imageData,
+                    width: 400,
+                    alignment: 'center',
+                    margin: [0, 5, 0, 5]
                 });
+
+                // ⭐ Metaadatok megjelenítése a kép alatt
+                const metaText = [];
                 
-                if (i + 1 < images.length) {
-                    columns.push({
-                        image: images[i + 1],
-                        width: 200,
-                        margin: [5, 5, 0, 5]
-                    });
-                } else {
-                    columns.push({ text: '', width: 200 });
+                if (metadata.fileName) {
+                    metaText.push(`📄 ${metadata.fileName}`);
                 }
                 
+                if (metadata.hasDate && metadata.takenDate) {
+                    const formattedMeta = formatDate(metadata.takenDate);
+                    metaText.push(`📅 Felvétel ideje: ${formattedMeta}`);
+                }
+                
+                if (metadata.hasGPS && metadata.location) {
+                    metaText.push(`📍 Helyszín: ${metadata.location}`);
+                }
+
+                if (metadata.camera) {
+                    metaText.push(`📷 ${metadata.camera}`);
+                }
+
+                if (!metadata.hasDate || !metadata.hasGPS) {
+                    metaText.push(`⚠️ Hiányos metaadatok`);
+                }
+
                 result.push({
-                    columns: columns,
-                    columnGap: 10
+                    text: metaText.join('\n'),
+                    fontSize: 9,
+                    color: '#666',
+                    italics: true,
+                    margin: [0, 3, 0, 15]
                 });
             }
 
@@ -1485,11 +1814,6 @@ function loadSavedData(data) {
     }
     if (data.inspectionDate) {
         document.getElementById('inspectionDate').value = data.inspectionDate;
-    }
-    
-    // Munkaterület
-    if (data.workArea) {
-        document.getElementById('workArea').value = data.workArea;
     }
     
     // Résztvevők
@@ -1532,7 +1856,7 @@ function loadSavedData(data) {
     let witnessIndex = 0;
     while (data[`witness_name_${witnessIndex}`]) {
         if (witnessIndex > 0) {
-            addWitness(); // Új tanú hozzáadása
+            addWitness();
         }
         
         setTimeout(() => {
@@ -1546,7 +1870,6 @@ function loadSavedData(data) {
                 positionInput.value = data[`witness_position_${witnessIndex}`];
             }
             
-            // Tanú aláírás
             if (data[`witness_signature_${witnessIndex}`]) {
                 signatures[`witness_${witnessIndex}`] = data[`witness_signature_${witnessIndex}`];
                 const sigInput = document.getElementById(`witness_${witnessIndex}Signature`);
@@ -1557,7 +1880,7 @@ function loadSavedData(data) {
                 if (preview) preview.innerHTML = `<img src="${data[`witness_signature_${witnessIndex}`]}" alt="Aláírás">`;
                 if (clearBtn) clearBtn.style.display = 'block';
             }
-        }, 100 * witnessIndex); // Kis késleltetés hogy a DOM elemek létrejöjjenek
+        }, 100 * witnessIndex);
         
         witnessIndex++;
     }
@@ -1570,7 +1893,7 @@ function loadSavedData(data) {
         document.querySelector('input[name="subcontractor_representative"]').value = data.subcontractor_representative;
     }
     
-    // Ellenőrzési pontok (radio buttons)
+    // Ellenőrzési pontok
     ['item_1_1', 'item_1_2', 'item_1_3', 'item_1_4'].forEach(itemName => {
         if (data[itemName]) {
             const radio = document.querySelector(`input[name="${itemName}"][value="${data[itemName]}"]`);
@@ -1586,25 +1909,76 @@ function loadSavedData(data) {
         }
     });
     
-    // Képek betöltése
+    // ⭐ Képek betöltése metaadatokkal
     if (data.images) {
         ['1_1', '1_2', '1_3', '1_4'].forEach(itemId => {
             if (data.images[itemId] && Array.isArray(data.images[itemId])) {
                 uploadedImages[itemId] = data.images[itemId];
                 
                 const previewContainer = document.getElementById(`preview_${itemId}`);
-                data.images[itemId].forEach(imageData => {
+                data.images[itemId].forEach(imgObj => {
+                    const imageData = imgObj.data;
+                    const metadata = imgObj.metadata || {};
+                    
                     const previewItem = document.createElement('div');
                     previewItem.className = 'image-preview-item';
                     
                     const img = document.createElement('img');
                     img.src = imageData;
                     
+                    // Metaadatok megjelenítése
+                    const metaInfo = document.createElement('div');
+                    metaInfo.className = 'image-meta-info';
+                    
+                    let metaHTML = '';
+                    
+                    if (metadata.hasDate && metadata.takenDate) {
+                        metaHTML += `
+                            <div class="meta-item">
+                                <i class="fas fa-calendar"></i> 
+                                <span>${formatDate(metadata.takenDate)}</span>
+                            </div>
+                        `;
+                    }
+                    
+                    if (metadata.hasGPS && metadata.location) {
+                        metaHTML += `
+                            <div class="meta-item">
+                                <i class="fas fa-map-marker-alt"></i> 
+                                <span>
+                                    <a href="https://www.google.com/maps?q=${metadata.latitude},${metadata.longitude}" 
+                                       target="_blank" 
+                                       class="map-link">
+                                       ${metadata.location}
+                                    </a>
+                                </span>
+                            </div>
+                        `;
+                    } else {
+                        metaHTML += `
+                            <div class="meta-item">
+                                <i class="fas fa-map-marker-alt"></i> 
+                                <span style="color: #ffc107;">Nincs GPS adat</span>
+                            </div>
+                        `;
+                    }
+                    
+                    if (!metadata.hasDate || !metadata.hasGPS) {
+                        metaHTML += `
+                            <div class="no-metadata-warning">
+                                <i class="fas fa-exclamation-triangle"></i> 
+                                <span>Hiányos metaadatok</span>
+                            </div>
+                        `;
+                    }
+                    
+                    metaInfo.innerHTML = metaHTML;
+                    
                     const removeBtn = document.createElement('button');
                     removeBtn.className = 'image-remove-btn';
                     removeBtn.innerHTML = '&times;';
                     removeBtn.onclick = function() {
-                        const index = uploadedImages[itemId].indexOf(imageData);
+                        const index = uploadedImages[itemId].findIndex(img => img.data === imageData);
                         if (index > -1) {
                             uploadedImages[itemId].splice(index, 1);
                         }
@@ -1612,6 +1986,7 @@ function loadSavedData(data) {
                     };
                     
                     previewItem.appendChild(img);
+                    previewItem.appendChild(metaInfo);
                     previewItem.appendChild(removeBtn);
                     previewContainer.appendChild(previewItem);
                 });
@@ -1626,7 +2001,7 @@ function loadSavedData(data) {
             checkbox.checked = true;
         }
     });
-    calculateTotal(); // Összeg frissítése
+    calculateTotal();
     
     console.log('✓ Mentett adatok sikeresen betöltve a form-ba');
 }

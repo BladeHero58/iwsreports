@@ -6,6 +6,7 @@ const { Storage } = require('@google-cloud/storage');
 const { google } = require('googleapis');
 const fs = require('fs');
 const sharp = require('sharp');
+const ExifParser = require('exif-parser'); // ⭐ ÚJ - npm install exif-parser
 
 // Middleware
 const isAuthenticated = (req, res, next) => {
@@ -15,23 +16,80 @@ const isAuthenticated = (req, res, next) => {
     res.redirect('/login');
 };
 
-// Google Cloud Storage és Drive változók (ezek a reports.js-ből jönnek)
+// Google Cloud Storage és Drive változók
 let storage;
 let bucket;
 let driveService;
 
-// Google Drive fő mappa ID (ahol a projektek vannak)
+// Google Drive fő mappa ID
 const MAIN_DRIVE_FOLDER_ID = '18-7OP8B23r-QBVWHbgaLn3Klj3lm62bk';
 
-// Kép tömörítése Sharp-pal
-// Kép tömörítése Sharp-pal METAADATOK MEGŐRZÉSÉVEL
+// ⭐ ÚJ FÜGGVÉNY - EXIF metaadatok kinyerése
+async function extractExifMetadata(imageBase64) {
+    try {
+        // Base64 → Buffer
+        const imageBuffer = Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+        
+        // EXIF parser
+        const parser = ExifParser.create(imageBuffer);
+        const result = parser.parse();
+        
+        const metadata = {
+            takenDate: null,
+            location: null,
+            latitude: null,
+            longitude: null,
+            camera: null,
+            hasGPS: false,
+            hasDate: false
+        };
+
+        // Dátum kinyerése
+        if (result.tags.DateTimeOriginal) {
+            metadata.takenDate = new Date(result.tags.DateTimeOriginal * 1000).toISOString();
+            metadata.hasDate = true;
+            console.log(`📅 EXIF dátum: ${metadata.takenDate}`);
+        }
+
+        // GPS koordináták kinyerése
+        if (result.tags.GPSLatitude && result.tags.GPSLongitude) {
+            metadata.latitude = result.tags.GPSLatitude;
+            metadata.longitude = result.tags.GPSLongitude;
+            metadata.location = `${metadata.latitude.toFixed(6)}, ${metadata.longitude.toFixed(6)}`;
+            metadata.hasGPS = true;
+            console.log(`📍 GPS koordináták: ${metadata.location}`);
+        }
+
+        // Kamera információk
+        if (result.tags.Make || result.tags.Model) {
+            metadata.camera = `${result.tags.Make || ''} ${result.tags.Model || ''}`.trim();
+            console.log(`📷 Kamera: ${metadata.camera}`);
+        }
+
+        return metadata;
+    } catch (error) {
+        console.warn('⚠️ EXIF kinyerési hiba:', error.message);
+        // Ha nincs EXIF, akkor üres metaadatokat adunk vissza
+        return {
+            takenDate: new Date().toISOString(),
+            location: 'Nincs GPS adat',
+            latitude: null,
+            longitude: null,
+            camera: null,
+            hasGPS: false,
+            hasDate: false
+        };
+    }
+}
+
+// ⭐ MÓDOSÍTOTT - Kép tömörítése METAADATOK MEGŐRZÉSÉVEL
 async function compressImage(imageBase64) {
     try {
         // Base64 → Buffer
         const imageBuffer = Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
         
-        // ⭐ METAADATOK KINYERÉSE
-        const metadata = await sharp(imageBuffer).metadata();
+        // EXIF metaadatok kinyerése TÖMÖRÍTÉS ELŐTT
+        const exifMetadata = await extractExifMetadata(imageBase64);
         
         // Tömörítés Sharp-pal METAADATOK MEGTARTÁSÁVAL
         const compressedBuffer = await sharp(imageBuffer)
@@ -43,8 +101,8 @@ async function compressImage(imageBase64) {
             .jpeg({
                 quality: 75,
                 mozjpeg: true,
-                // ⭐ METAADATOK MEGTARTÁSA
-                withMetadata: true, // EXIF, GPS, stb. megmarad
+                // ⭐ KRITIKUS - EXIF megőrzése
+                withMetadata: true,
                 keepExif: true,
                 keepIcc: true
             })
@@ -52,21 +110,24 @@ async function compressImage(imageBase64) {
         
         const originalSizeKB = (imageBuffer.length / 1024).toFixed(2);
         const compressedSizeKB = (compressedBuffer.length / 1024).toFixed(2);
-        console.log(`📊 Kép tömörítve: ${originalSizeKB} KB → ${compressedSizeKB} KB (metaadatok megőrizve)`);
+        console.log(`📊 Kép tömörítve: ${originalSizeKB} KB → ${compressedSizeKB} KB (EXIF megőrizve)`);
         
-        return compressedBuffer;
+        return {
+            buffer: compressedBuffer,
+            metadata: exifMetadata
+        };
     } catch (error) {
         console.error('Hiba a kép tömörítésekor:', error);
         throw error;
     }
 }
 
-// Biztonságos mappa/fájlnév generálása ÉKEZETEK ÉS / MEGTARTÁSÁVAL
+// Biztonságos mappa/fájlnév generálása
 function sanitizeFolderName(name) {
     return name
-        .replace(/[\\:*?"<>|]/g, '_') // Csak a VESZÉLYES karaktereket cseréljük (/ MEGTARTVA!)
-        .replace(/_+/g, '_') // Dupla underscore-ok törlése
-        .replace(/^_|_$/g, '') // Kezdő/záró underscore törlése
+        .replace(/[\\:*?"<>|]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '')
         .trim();
 }
 
@@ -94,20 +155,19 @@ async function initializeGoogleDrive() {
         const auth = await authClient.getClient();
         driveService = google.drive({ version: 'v3', auth });
         
-        console.log('✅ Google Drive inicializálva az MVM reports-ban');
+        console.log('✅ Google Drive inicializálva');
     } catch (error) {
         console.error('❌ Hiba a Google Drive inicializálásakor:', error);
         throw error;
     }
 }
 
-// Napi PDF mappa létrehozása (max 12 jegyzőkönyv naponta)
+// Napi PDF mappa létrehozása
 async function getOrCreateDailyPdfFolder(folderName, parentFolderId) {
     try {
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-        const dailyFolderName = `${today}_${folderName}`; // Pl: 2024-12-06_IWS/SZB/20251206
+        const today = new Date().toISOString().split('T')[0];
+        const dailyFolderName = `${today}_${folderName}`;
 
-        // Ellenőrizzük hogy létezik-e már a mappa
         const existingFolders = await driveService.files.list({
             q: `name='${dailyFolderName}' and parents in '${parentFolderId}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
             fields: 'files(id, name)',
@@ -118,7 +178,6 @@ async function getOrCreateDailyPdfFolder(folderName, parentFolderId) {
             return existingFolders.data.files[0].id;
         }
 
-        // Ha nem létezik, létrehozzuk
         const folderMetadata = {
             name: dailyFolderName,
             mimeType: 'application/vnd.google-apps.folder',
@@ -133,15 +192,13 @@ async function getOrCreateDailyPdfFolder(folderName, parentFolderId) {
         console.log(`📁 Új napi PDF mappa létrehozva: ${dailyFolderName}`);
         return folder.data.id;
     } catch (error) {
-        console.error(`Hiba a napi PDF mappa létrehozásakor (${folderName}):`, error.message);
+        console.error(`Hiba a napi PDF mappa létrehozásakor:`, error.message);
         throw error;
     }
 }
 
-// ⭐ ÚJ FÜGGVÉNY - EZ HIÁNYZIK!
 async function getOrCreateFolder(folderName, parentFolderId) {
     try {
-        // Ellenőrizzük hogy létezik-e
         const existingFolders = await driveService.files.list({
             q: `name='${folderName}' and parents in '${parentFolderId}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
             fields: 'files(id, name)',
@@ -152,7 +209,6 @@ async function getOrCreateFolder(folderName, parentFolderId) {
             return existingFolders.data.files[0].id;
         }
 
-        // Létrehozzuk
         const folderMetadata = {
             name: folderName,
             mimeType: 'application/vnd.google-apps.folder',
@@ -167,25 +223,23 @@ async function getOrCreateFolder(folderName, parentFolderId) {
         console.log(`📁 Új mappa létrehozva: ${folderName}`);
         return folder.data.id;
     } catch (error) {
-        console.error(`Hiba a mappa létrehozásakor (${folderName}):`, error.message);
+        console.error(`Hiba a mappa létrehozásakor:`, error.message);
         throw error;
     }
 }
 
-// PDF feltöltése verziókezeléssel (max 12 naponta)
+// PDF feltöltése verziókezeléssel
 async function uploadPdfWithVersionControl(pdfBuffer, fileName, folderId) {
     try {
-        // Lekérjük a mappában lévő összes PDF-et
         const existingPdfs = await driveService.files.list({
             q: `parents in '${folderId}' and mimeType='application/pdf' and trashed=false`,
             fields: 'files(id, name, createdTime)',
-            orderBy: 'createdTime asc', // Legrégebbi először
+            orderBy: 'createdTime asc',
         });
 
         const pdfFiles = existingPdfs.data.files || [];
-        console.log(`📄 Jelenlegi PDF-ek száma a mappában: ${pdfFiles.length}`);
+        console.log(`📄 Jelenlegi PDF-ek száma: ${pdfFiles.length}`);
 
-        // Ha már 12 van, töröljük a legrégebbit
         if (pdfFiles.length >= 12) {
             const oldestPdf = pdfFiles[0];
             console.log(`🗑️ 12 PDF elérve, legrégebbi törlése: ${oldestPdf.name}`);
@@ -194,7 +248,6 @@ async function uploadPdfWithVersionControl(pdfBuffer, fileName, folderId) {
             });
         }
 
-        // PDF feltöltése verziószámmal
         const version = pdfFiles.length >= 12 ? 12 : pdfFiles.length + 1;
         const versionedFileName = `v${version}_${fileName}`;
 
@@ -208,49 +261,27 @@ async function uploadPdfWithVersionControl(pdfBuffer, fileName, folderId) {
     }
 }
 
-async function createOrReplacePdfFolder(folderName, parentFolderId) {
-    try {
-        // Ellenőrizzük hogy létezik-e
-        const existingFolders = await driveService.files.list({
-            q: `name='${folderName}' and parents in '${parentFolderId}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-            fields: 'files(id, name)',
-        });
-
-        // Ha létezik, töröljük
-        if (existingFolders.data.files.length > 0) {
-            console.log(`🗑️ Meglévő PDF mappa törlése: ${folderName}`);
-            for (const folder of existingFolders.data.files) {
-                await driveService.files.delete({
-                    fileId: folder.id,
-                });
-            }
-        }
-
-        // Létrehozzuk az új mappát
-        const folderMetadata = {
-            name: folderName,
-            mimeType: 'application/vnd.google-apps.folder',
-            parents: [parentFolderId],
-        };
-
-        const folder = await driveService.files.create({
-            resource: folderMetadata,
-            fields: 'id',
-        });
-
-        console.log(`📁 Új PDF mappa létrehozva: ${folderName}`);
-        return folder.data.id;
-    } catch (error) {
-        console.error(`Hiba a PDF mappa létrehozásakor (${folderName}):`, error.message);
-        throw error;
-    }
-}
-
-async function uploadBufferToDrive(buffer, fileName, parentFolderId, mimeType) {
+// ⭐ MÓDOSÍTOTT - Buffer feltöltése METAADATOKKAL
+async function uploadBufferToDrive(buffer, fileName, parentFolderId, mimeType, metadata = null) {
     const fileMetadata = {
         name: fileName,
         parents: [parentFolderId],
     };
+
+    // ⭐ Ha van metaadat, akkor hozzáadjuk a fájl leírásához és tulajdonságaihoz
+    if (metadata) {
+        fileMetadata.description = JSON.stringify(metadata);
+        fileMetadata.properties = {
+            takenDate: metadata.takenDate || '',
+            location: metadata.location || 'Nincs GPS adat',
+            latitude: metadata.latitude?.toString() || '',
+            longitude: metadata.longitude?.toString() || '',
+            camera: metadata.camera || '',
+            hasGPS: metadata.hasGPS ? 'true' : 'false',
+            hasDate: metadata.hasDate ? 'true' : 'false'
+        };
+        console.log('📋 Metaadatok hozzáadva a Drive fájlhoz:', fileMetadata.properties);
+    }
 
     const { Readable } = require('stream');
     const bufferStream = new Readable();
@@ -266,11 +297,12 @@ async function uploadBufferToDrive(buffer, fileName, parentFolderId, mimeType) {
         const response = await driveService.files.create({
             resource: fileMetadata,
             media: media,
-            fields: 'id, webViewLink',
+            fields: 'id, webViewLink, description, properties',
         });
+        console.log(`✅ Fájl feltöltve Drive-ra: ${fileName}`);
         return response.data;
     } catch (error) {
-        console.error(`Hiba a buffer feltöltése során (${fileName}):`, error.message);
+        console.error(`❌ Hiba a buffer feltöltése során (${fileName}):`, error.message);
         throw error;
     }
 }
@@ -296,7 +328,6 @@ router.post('/projects/:projectId/reports/documentation', isAuthenticated, async
             }
         }
 
-        // Ellenőrizzük hogy létezik-e már mentés ehhez a projekthez és kategóriához
         const existingReport = await knex('mvm_reports')
             .where({ project_id: projectId, category_id: 1 })
             .first();
@@ -304,7 +335,6 @@ router.post('/projects/:projectId/reports/documentation', isAuthenticated, async
         let reportId;
         
         if (existingReport) {
-            // UPDATE - Ha már létezik
             await knex('mvm_reports')
                 .where({ project_id: projectId, category_id: 1 })
                 .update({
@@ -315,7 +345,6 @@ router.post('/projects/:projectId/reports/documentation', isAuthenticated, async
             
             reportId = existingReport.id;
         } else {
-            // INSERT - Ha még nem létezik
             const [result] = await knex('mvm_reports')
                 .insert({
                     project_id: projectId,
@@ -353,7 +382,6 @@ router.get('/projects/:projectId/reports/documentation', isAuthenticated, async 
     const userId = req.user.id;
 
     try {
-        // Jogosultság ellenőrzése
         if (!req.user.isAdmin) {
             const assignment = await knex('user_projects')
                 .where({ user_id: userId, project_id: projectId })
@@ -367,7 +395,6 @@ router.get('/projects/:projectId/reports/documentation', isAuthenticated, async 
             }
         }
 
-        // Lekérjük az elmentett jelentést
         const report = await knex('mvm_reports')
             .select('report_data')
             .where({ project_id: projectId, category_id: 1 })
@@ -381,7 +408,7 @@ router.get('/projects/:projectId/reports/documentation', isAuthenticated, async 
         } else {
             res.json({ 
                 success: true, 
-                data: null // Nincs még mentett adat
+                data: null
             });
         }
 
@@ -394,13 +421,12 @@ router.get('/projects/:projectId/reports/documentation', isAuthenticated, async 
     }
 });
 
-// MVM Dokumentáció Ellenőrzés Törlése (Új ellenőrzés indítása)
+// MVM Dokumentáció Ellenőrzés Törlése
 router.delete('/projects/:projectId/reports/documentation', isAuthenticated, async (req, res) => {
     const projectId = req.params.projectId;
     const userId = req.user.id;
 
     try {
-        // Jogosultság ellenőrzése
         if (!req.user.isAdmin) {
             const assignment = await knex('user_projects')
                 .where({ user_id: userId, project_id: projectId })
@@ -414,21 +440,20 @@ router.delete('/projects/:projectId/reports/documentation', isAuthenticated, asy
             }
         }
 
-        // Mentett ellenőrzés törlése
         const deleted = await knex('mvm_reports')
             .where({ project_id: projectId, category_id: 1 })
             .del();
 
         if (deleted > 0) {
-            console.log(`🗑️ Dokumentáció ellenőrzés törölve - Projekt: ${projectId}, User: ${userId}`);
+            console.log(`🗑️ Dokumentáció ellenőrzés törölve - Projekt: ${projectId}`);
             res.json({ 
                 success: true, 
-                message: 'Mentett ellenőrzés törölve, új ellenőrzés indítható.' 
+                message: 'Mentett ellenőrzés törölve.' 
             });
         } else {
             res.json({ 
                 success: true, 
-                message: 'Nincs mentett ellenőrzés, új ellenőrzés indítható.' 
+                message: 'Nincs mentett ellenőrzés.' 
             });
         }
 
@@ -441,7 +466,7 @@ router.delete('/projects/:projectId/reports/documentation', isAuthenticated, asy
     }
 });
 
-// MVM Dokumentáció PDF Exportálás és Feltöltés
+// ⭐ MÓDOSÍTOTT - MVM Dokumentáció PDF Exportálás EXIF metaadatokkal
 router.post('/projects/:projectId/reports/documentation/export-pdf', isAuthenticated, async (req, res) => {
     const projectId = req.params.projectId;
     const userId = req.user.id;
@@ -462,20 +487,18 @@ router.post('/projects/:projectId/reports/documentation/export-pdf', isAuthentic
             }
         }
 
-        // PDF név meghatározása: sorszám vagy projekt név
         const safeProjectName = sanitizeFolderName(projectName);
-const safeFolderName = (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A') 
-    ? sanitizeFolderName(serialNumber)
-    : safeProjectName;
+        const safeFolderName = (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A') 
+            ? sanitizeFolderName(serialNumber)
+            : safeProjectName;
 
-const pdfFileName = (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A') 
-    ? `${sanitizeFolderName(serialNumber)}.pdf`
-    : `${safeProjectName}.pdf`;
+        const pdfFileName = (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A') 
+            ? `${sanitizeFolderName(serialNumber)}.pdf`
+            : `${safeProjectName}.pdf`;
 
         console.log(`📄 PDF export kezdés: ${pdfFileName}`);
-        console.log(`📁 Projekt: ${safeProjectName}, Mappa: ${safeFolderName}`);
 
-        // PDF buffer konvertálása (ha base64-ben jön)
+        // PDF buffer konvertálása
         let pdfBuffer;
         if (pdfData.startsWith('data:application/pdf;base64,')) {
             const base64Data = pdfData.replace('data:application/pdf;base64,', '');
@@ -488,99 +511,138 @@ const pdfFileName = (serialNumber && serialNumber.trim() !== '' && serialNumber 
 
         console.log(`📊 PDF mérete: ${(pdfBuffer.length / 1024).toFixed(2)} KB`);
 
-        // Csak éles környezetben (DATABASE_URL létezik) töltjük fel a Drive-ra
         const isProduction = !!process.env.DATABASE_URL;
 
         if (isProduction) {
-            console.log('🏭 Éles környezet - Google Drive feltöltés engedélyezve');
+            console.log('🏭 Éles környezet - Google Drive feltöltés');
 
             try {
-                // Ellenőrizzük a Drive service elérhetőségét
                 if (!driveService) {
-                    console.log('⚠️ Drive service nincs inicializálva, inicializálás...');
+                    console.log('⚠️ Drive service inicializálása...');
                     await initializeGoogleDrive();
                 }
 
-                // Projekt mappa elérése/létrehozása
                 const projectFolderId = await getOrCreateFolder(safeProjectName, MAIN_DRIVE_FOLDER_ID);
-                console.log(`📁 Projekt mappa ID: ${projectFolderId}`);
+                const pdfFolderId = await getOrCreateDailyPdfFolder(safeFolderName, projectFolderId);
 
-                // ⭐ JAVÍTVA: Napi mappa létrehozása (nem törli az előzőeket!)
-const pdfFolderId = await getOrCreateDailyPdfFolder(safeFolderName, projectFolderId);
-console.log(`📁 Napi PDF mappa ID: ${pdfFolderId}`);
+                // PDF feltöltése
+                const uploadResult = await uploadPdfWithVersionControl(pdfBuffer, pdfFileName, pdfFolderId);
+                console.log(`✅ PDF feltöltve: ${uploadResult.webViewLink}`);
 
-// ⭐ JAVÍTVA: PDF feltöltése verziókezeléssel (max 12 naponta)
-const uploadResult = await uploadPdfWithVersionControl(pdfBuffer, pdfFileName, pdfFolderId);
-console.log(`✅ PDF feltöltve a Drive-ra: ${uploadResult.webViewLink}`);
-
-                // Képek feltöltése (aláírások kiszűrése)
+                // ⭐ MÓDOSÍTOTT - Képek feltöltése EXIF metaadatokkal
                 if (images && Object.keys(images).length > 0) {
                     const allImages = [];
                     
-                    // Összegyűjtjük az összes képet a kategóriákból
+                    // Képek összegyűjtése az összes kategóriából
                     Object.keys(images).forEach(itemId => {
                         if (Array.isArray(images[itemId])) {
-                            allImages.push(...images[itemId]);
+                            images[itemId].forEach(imgObj => {
+                                // ⭐ FONTOS - A frontend most objektumot küld: { data, metadata }
+                                if (imgObj && imgObj.data) {
+                                    allImages.push({
+                                        data: imgObj.data,
+                                        metadata: imgObj.metadata || {},
+                                        itemId: itemId
+                                    });
+                                } else if (typeof imgObj === 'string') {
+                                    // Régi formátum támogatása (csak base64 string)
+                                    allImages.push({
+                                        data: imgObj,
+                                        metadata: {},
+                                        itemId: itemId
+                                    });
+                                }
+                            });
                         }
                     });
 
-                    console.log(`📸 ${allImages.length} kép feltöltése kezdődik...`);
+                    console.log(`📸 ${allImages.length} kép feltöltése metaadatokkal...`);
 
-                    const uploadImagePromises = allImages.map(async (imageBase64, index) => {
-    try {
-        // ⭐ JAVÍTVA: Először tömörítünk
-        const compressedBuffer = await compressImage(imageBase64);
-        
-        // Kép neve
-        const imageFileName = `image_${index + 1}.jpg`;
-        const imageMimeType = 'image/jpeg';
+                    const uploadImagePromises = allImages.map(async (imgObj, index) => {
+                        try {
+                            // ⭐ Kép tömörítése + backend EXIF kinyerés
+                            const { buffer: compressedBuffer, metadata: extractedMetadata } = await compressImage(imgObj.data);
+                            
+                            // ⭐ Frontend metadata és backend metadata összevonása
+                            const finalMetadata = {
+                                ...extractedMetadata,
+                                ...imgObj.metadata, // Frontend metadata felülírja a backend-et ha van
+                                itemId: imgObj.itemId,
+                                serialNumber: serialNumber || 'N/A',
+                                projectName: projectName,
+                                uploadDate: new Date().toISOString()
+                            };
+                            
+                            console.log(`📋 Kép ${index + 1} metaadatai:`, {
+                                hasDate: finalMetadata.hasDate,
+                                hasGPS: finalMetadata.hasGPS,
+                                location: finalMetadata.location
+                            });
 
-        // ⭐ JAVÍTVA: A compressedBuffer-t töltjük fel, NEM az imageBuffer-t
-        const imageUploadResult = await uploadBufferToDrive(
-            compressedBuffer, // Ez a tömörített buffer!
-            imageFileName, 
-            pdfFolderId, 
-            imageMimeType
-        );
-        
-        console.log(`✅ Kép feltöltve: ${imageFileName}, URL: ${imageUploadResult.webViewLink}`);
-        return imageUploadResult.webViewLink;
-        
-    } catch (imgErr) {
-        console.error(`❌ Hiba a kép feltöltésekor (${index}):`, imgErr.message);
-        return null;
-    }
-});
+                            // Fájlnév generálása metaadatokkal
+                            const timestamp = finalMetadata.takenDate 
+                                ? new Date(finalMetadata.takenDate).getTime()
+                                : Date.now();
+                            const imageFileName = `${imgObj.itemId}_${timestamp}_${index + 1}.jpg`;
 
-                    const uploadedImageLinks = await Promise.all(uploadImagePromises);
-                    const successfulUploads = uploadedImageLinks.filter(link => link !== null);
+                            // ⭐ Feltöltés metaadatokkal
+                            const imageUploadResult = await uploadBufferToDrive(
+                                compressedBuffer,
+                                imageFileName,
+                                pdfFolderId,
+                                'image/jpeg',
+                                finalMetadata // ⭐ Metaadatok átadása
+                            );
+                            
+                            console.log(`✅ Kép feltöltve metaadatokkal: ${imageFileName}`);
+                            
+                            return {
+                                url: imageUploadResult.webViewLink,
+                                id: imageUploadResult.id,
+                                metadata: finalMetadata
+                            };
+                            
+                        } catch (imgErr) {
+                            console.error(`❌ Hiba a kép feltöltésekor (${index + 1}):`, imgErr.message);
+                            return null;
+                        }
+                    });
 
-                    console.log(`🎉 ${successfulUploads.length}/${allImages.length} kép sikeresen feltöltve a Drive-ra`);
+                    const uploadedImages = await Promise.all(uploadImagePromises);
+                    const successfulUploads = uploadedImages.filter(img => img !== null);
+
+                    console.log(`🎉 ${successfulUploads.length}/${allImages.length} kép sikeresen feltöltve metaadatokkal`);
+
+                    res.json({
+                        success: true,
+                        message: 'PDF és képek sikeresen feltöltve a Google Drive-ra',
+                        driveUrl: uploadResult.webViewLink,
+                        images: successfulUploads
+                    });
+                } else {
+                    res.json({
+                        success: true,
+                        message: 'PDF sikeresen feltöltve',
+                        driveUrl: uploadResult.webViewLink
+                    });
                 }
-
-                res.json({
-                    success: true,
-                    message: 'PDF sikeresen exportálva és feltöltve a Google Drive-ra',
-                    driveUrl: uploadResult.webViewLink
-                });
 
             } catch (driveErr) {
                 console.error('❌ Hiba a Google Drive feltöltésnél:', driveErr.message);
-                // Ha Drive feltöltés sikertelen, akkor is küldjük le a PDF-et
-                res.setHeader('Content-Type', 'application/pdf');
-                res.setHeader('Content-Disposition', `attachment; filename="${pdfFileName}"`);
-                res.send(pdfBuffer);
+                res.json({
+                    success: true,
+                    message: 'PDF letöltésre kész (Drive feltöltés sikertelen)',
+                    pdfData: pdfBuffer.toString('base64')
+                });
             }
         } else {
-    console.log('🏠 Fejlesztői környezet - PDF csak letöltésre');
-    
-    // JAVÍTVA: JSON válasz küldése fejlesztői környezetben is
-    res.json({
-        success: true,
-        message: 'PDF letöltésre kész (fejlesztői környezet)',
-        pdfData: pdfBuffer.toString('base64') // Base64-ben küldjük vissza
-    });
-}
+            console.log('🏠 Fejlesztői környezet - PDF csak letöltésre');
+            res.json({
+                success: true,
+                message: 'PDF letöltésre kész (fejlesztői környezet)',
+                pdfData: pdfBuffer.toString('base64')
+            });
+        }
 
     } catch (error) {
         console.error('❌ Hiba a PDF exportálás során:', error);
@@ -588,6 +650,61 @@ console.log(`✅ PDF feltöltve a Drive-ra: ${uploadResult.webViewLink}`);
             success: false,
             message: 'Hiba történt a PDF exportálása során.',
             error: error.message
+        });
+    }
+});
+
+// ⭐ ÚJ ROUTE - Képek metaadatainak lekérése Drive-ról
+router.get('/projects/:projectId/images-metadata', isAuthenticated, async (req, res) => {
+    const { serialNumber } = req.query;
+    
+    try {
+        if (!driveService) {
+            await initializeGoogleDrive();
+        }
+
+        // Képek keresése serialNumber alapján
+        const response = await driveService.files.list({
+            q: `properties has { key='serialNumber' and value='${serialNumber}' } and mimeType='image/jpeg' and trashed=false`,
+            fields: 'files(id, name, webViewLink, description, properties, createdTime)',
+            orderBy: 'createdTime'
+        });
+
+        const imagesWithMetadata = response.data.files.map(file => {
+            let metadata = {};
+            try {
+                if (file.description) {
+                    metadata = JSON.parse(file.description);
+                }
+            } catch (e) {
+                console.warn('Nem sikerült a metadata parse-olása');
+            }
+
+            return {
+                id: file.id,
+                name: file.name,
+                url: file.webViewLink,
+                createdTime: file.createdTime,
+                takenDate: file.properties?.takenDate || metadata.takenDate || 'Nincs adat',
+                location: file.properties?.location || metadata.location || 'Nincs GPS adat',
+                latitude: file.properties?.latitude || metadata.latitude,
+                longitude: file.properties?.longitude || metadata.longitude,
+                camera: file.properties?.camera || metadata.camera,
+                hasGPS: file.properties?.hasGPS === 'true',
+                hasDate: file.properties?.hasDate === 'true'
+            };
+        });
+
+        res.json({
+            success: true,
+            images: imagesWithMetadata
+        });
+
+    } catch (error) {
+        console.error('❌ Hiba a metaadatok lekérésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message
         });
     }
 });
