@@ -1,7 +1,7 @@
 @charset "UTF-8";
 body {
   background-color: #ffffff;
-  background-image: url("/images/IWS.jpg");
+  background-image: url("../images/IWS.jpg");
   background-size: cover;
   background-repeat: no-repeat;
   background-attachment: fixed;
@@ -42,16 +42,9 @@ h1, h2, h3, h4, h5, h6, p, li, a, button {
   font-weight: 400;
   cursor: pointer;
   transition: background-color 0.3s ease, color 0.3s ease; /* Simább átmenet */
-  margin-top: 40px; /* Példa távolság a többi gombtól */
-  margin-bottom: 40px;
+  margin-top: 80px; /* Példa távolság a többi gombtól */
+  margin-bottom: 3%;
   box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3); /* Árnyék hozzáadása */
-}
-
-/* Új stílusok a gombhoz */
-.button-container {
-  display: flex;
-  justify-content: center;
-  margin-top: 20px; /* Távolság a h1-től */
 }
 
 .logout-btn:hover {
@@ -60,29 +53,6 @@ h1, h2, h3, h4, h5, h6, p, li, a, button {
   box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3); /* Árnyék hozzáadása */
 }
 
-.btn-blue {
-  background-color: #5c0099;
-  color: #ffffff; /* vagy más szövegszín */
-  border: none;
-  padding: 10px 20px;
-  border-radius: 50px; /* Teljesen lekerekített gombok */
-  font-family: "Montserrat", sans-serif;
-  font-weight: 400;
-  cursor: pointer;
-  transition: background-color 0.3s ease; /* Simább átmenet */
-  margin: 5px; /* Példa távolság */
-  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3); /* Árnyék hozzáadása */
-}
 
-.btn-blue:hover {
-  background-color: #202020;
-  color: white; /* vagy más hover szövegszín */
-  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3); /* Árnyék hozzáadása */
-}
 
-td {
-  text-align: center;
-  padding: 10px 30px;
-}
-
-/*# sourceMappingURL=admin-users-style.css.map */
+/*# sourceMappingURL=style.css.map */

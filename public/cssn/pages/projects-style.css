@@ -72,6 +72,7 @@ h1, h2, h3, h4, h5, h6, p, li, a, button {
   transition: background-color 0.3s ease; /* Simább átmenet */
   margin: 5px; /* Példa távolság */
   box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3); /* Árnyék hozzáadása */
+  margin-bottom: 30px;
 }
 
 .btn-blue:hover {
@@ -80,9 +81,6 @@ h1, h2, h3, h4, h5, h6, p, li, a, button {
   box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3); /* Árnyék hozzáadása */
 }
 
-td {
-  text-align: center;
-  padding: 10px 30px;
-}
 
-/*# sourceMappingURL=admin-users-style.css.map */
+
+/*# sourceMappingURL=projects-style.css.map */

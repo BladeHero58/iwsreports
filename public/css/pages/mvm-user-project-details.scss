@@ -1,0 +1,458 @@
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #ffffff;
+            background-image: url("./images/IWS.jpg");
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            font-family: "Montserrat", sans-serif;
+            margin: 0;
+            padding: 0;
+            background-image: url("/images/IWS.jpg");
+        }
+
+        h1, h2, h3, h4, h5, h6, p, li, a, button {
+            font-family: "Montserrat", sans-serif;
+        }
+
+        /* Vissza gomb */
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background-color: #5c0099;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+            font-size: 14px;
+            color: white;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 1000;
+            transition: all 0.3s;
+        }
+
+        .back-button:hover {
+            background-color: #202020;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Fő konténer */
+        .container {
+            max-width: 700px;
+            margin: 80px auto 40px;
+            padding: 0 15px;
+        }
+
+        /* Projekt információs blokk */
+        .project-info {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .project-info h1 {
+            font-size: 24px;
+            color: #5c0099;
+            margin-bottom: 15px;
+        }
+
+        .project-info p {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 8px;
+            line-height: 1.6;
+        }
+
+        .project-info p strong {
+            color: #333;
+            font-weight: 600;
+        }
+
+        .project-description {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 10px;
+            color: #555;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        /* Szerkesztés gomb */
+        .edit-section {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .btn-edit {
+            background-color: #f6ee48;
+            color: #202020;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .btn-edit:hover {
+            background-color: #5c0099;
+            color: white;
+        }
+
+        /* Kategóriák szakasz */
+        .categories-section {
+            background: white;
+            padding: 25px 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .categories-section h2 {
+            font-size: 20px;
+            color: #5c0099;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        /* Kártyák konténer */
+        .card-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+        }
+
+        .check-card {
+            background: #f9f9f9;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 180px;
+            transition: all 0.3s;
+            border-left: 4px solid #5c0099;
+        }
+
+        .check-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+
+        .card-header {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            color: #333;
+        }
+
+        .card-header .number {
+            background: #5c0099;
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            margin-right: 10px;
+            font-weight: 700;
+        }
+
+        .card-description {
+            color: #666;
+            font-size: 13px;
+            margin-bottom: 15px;
+            line-height: 1.5;
+            flex-grow: 1;
+        }
+
+        .mvm-btn {
+            background-color: #f6ee48;
+            color: #202020;
+            border: none;
+            padding: 12px 16px;
+            border-radius: 50px;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            font-weight: 600;
+            font-size: 13px;
+            transition: all 0.3s;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .mvm-btn:hover {
+            background-color: #5c0099;
+            color: white;
+        }
+
+        /* Statisztikák */
+        .statistics-section {
+            background: white;
+            padding: 25px 15px;
+            border-radius: 8px;
+            margin-bottom: 40px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .statistics-section h2 {
+            font-size: 20px;
+            color: #5c0099;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .statistics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 15px;
+        }
+
+        .stat-box {
+            padding: 20px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #f9f9f9 0%, #ffffff 100%);
+            text-align: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+            transition: all 0.3s;
+        }
+
+        .stat-box:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            line-height: 1;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            font-weight: 500;
+            line-height: 1.4;
+        }
+
+        /* Színek a statisztikákhoz */
+        .stat-box:nth-child(1) .stat-value { color: #007bff; }
+        .stat-box:nth-child(2) .stat-value { color: #28a745; }
+        .stat-box:nth-child(3) .stat-value { color: #dc3545; }
+        .stat-box:nth-child(4) .stat-value { color: #ffc107; }
+
+        /* Tablet nézet */
+        @media (max-width: 768px) {
+            .back-button {
+                top: 10px;
+                left: 10px;
+                padding: 10px 16px;
+                font-size: 13px;
+            }
+
+            .container {
+                margin: 70px 10px 30px;
+                padding: 0 10px;
+            }
+
+            .project-info h1 {
+                font-size: 20px;
+            }
+
+            .categories-section h2,
+            .statistics-section h2 {
+                font-size: 18px;
+            }
+
+            .card-container {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+
+            .check-card {
+                min-height: 160px;
+            }
+
+            .statistics {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+            }
+
+            .stat-value {
+                font-size: 28px;
+            }
+
+            .stat-label {
+                font-size: 11px;
+            }
+        }
+
+        /* Mobil nézet */
+        @media (max-width: 480px) {
+            .back-button {
+                top: 10px;
+                left: 10px;
+                padding: 8px 14px;
+                font-size: 12px;
+                gap: 6px;
+            }
+
+            .container {
+                margin: 60px 8px 20px;
+                padding: 0 8px;
+            }
+
+            .project-info,
+            .edit-section,
+            .categories-section,
+            .statistics-section {
+                padding: 15px;
+                margin-bottom: 15px;
+            }
+
+            .project-info h1 {
+                font-size: 18px;
+                margin-bottom: 12px;
+            }
+
+            .project-info p {
+                font-size: 13px;
+                margin-bottom: 6px;
+            }
+
+            .project-description {
+                padding: 12px;
+                font-size: 13px;
+            }
+
+            .btn-edit {
+                padding: 10px 20px;
+                font-size: 13px;
+            }
+
+            .categories-section h2,
+            .statistics-section h2 {
+                font-size: 16px;
+                margin-bottom: 15px;
+            }
+
+            .card-container {
+                gap: 10px;
+            }
+
+            .check-card {
+                padding: 15px;
+                min-height: 150px;
+            }
+
+            .card-header {
+                font-size: 14px;
+            }
+
+            .card-header .number {
+                width: 24px;
+                height: 24px;
+                font-size: 12px;
+                margin-right: 8px;
+            }
+
+            .card-description {
+                font-size: 12px;
+                margin-bottom: 12px;
+            }
+
+            .mvm-btn {
+                padding: 10px 14px;
+                font-size: 12px;
+            }
+
+            .statistics {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+
+            .stat-box {
+                padding: 15px 10px;
+            }
+
+            .stat-value {
+                font-size: 24px;
+                margin-bottom: 6px;
+            }
+
+            .stat-label {
+                font-size: 10px;
+            }
+        }
+
+        /* Nagyon kis képernyők */
+        @media (max-width: 375px) {
+            .container {
+                margin: 55px 5px 15px;
+                padding: 0 5px;
+            }
+
+            .project-info h1 {
+                font-size: 16px;
+            }
+
+            .categories-section h2,
+            .statistics-section h2 {
+                font-size: 15px;
+            }
+
+            .card-header {
+                font-size: 13px;
+            }
+
+            .card-description {
+                font-size: 11px;
+            }
+
+            .mvm-btn {
+                font-size: 11px;
+                padding: 9px 12px;
+            }
+
+            .stat-value {
+                font-size: 22px;
+            }
+
+            .stat-label {
+                font-size: 9px;
+            }
+        }
+    

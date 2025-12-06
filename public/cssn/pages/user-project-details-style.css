@@ -1,7 +1,7 @@
 @charset "UTF-8";
 body {
   background-color: #ffffff;
-  background-image: url("/images/IWS.jpg");
+  background-image: url("/images/15.jpg");
   background-size: cover;
   background-repeat: no-repeat;
   background-attachment: fixed;
@@ -61,7 +61,7 @@ h1, h2, h3, h4, h5, h6, p, li, a, button {
 }
 
 .btn-blue {
-  background-color: #5c0099;
+  background-color: #3d5dee;
   color: #ffffff; /* vagy más szövegszín */
   border: none;
   padding: 10px 20px;
@@ -80,9 +80,6 @@ h1, h2, h3, h4, h5, h6, p, li, a, button {
   box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3); /* Árnyék hozzáadása */
 }
 
-td {
-  text-align: center;
-  padding: 10px 30px;
-}
 
-/*# sourceMappingURL=admin-users-style.css.map */
+
+/*# sourceMappingURL=user-project-details-style.css.map */

@@ -44,7 +44,7 @@
                 <!-- Törlés gomb -->
                 <form action="/admin/projects/delete" method="POST" style="display: inline;" onsubmit="confirmDelete(event)">
                     <input type="hidden" name="projectId" value="<%= project.id %>">
-                    <button type="submit" class="btn-blue"><i class="fas fa-times"></i> Törlés</button>
+                    <button type="submit" class="btn-blue"><i class="fas fa-trash"></i> Törlés</button>
                 </form>
             </li>
         <% }); %>

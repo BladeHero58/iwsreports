@@ -1353,7 +1353,7 @@ document.getElementById('saveReportBtn').addEventListener('click', async () => {
                     <%= user.username %> 
                     <!-- Felhasználó törlése a projektről -->
                     <form action="/admin/projects/<%= project.id %>/remove-user/<%= user.id %>" method="POST" style="display:inline;">
-                        <button type="submit" class="btn-blue"><i class="fas fa-times"></i> Felhasználó eltávolítása</button>
+                        <button type="submit" class="btn-blue"><i class="fas fa-trash"></i> Felhasználó eltávolítása</button>
                     </form>
                 </li>
             <% }); %>

@@ -61,7 +61,7 @@ h1, h2, h3, h4, h5, h6, p, li, a, button {
 }
 
 .btn-blue {
-  background-color: #5c0099;
+  background-color: #3d5dee;
   color: #ffffff; /* vagy más szövegszín */
   border: none;
   padding: 10px 20px;
@@ -84,5 +84,7 @@ td {
   text-align: center;
   padding: 10px 30px;
 }
+
+
 
 /*# sourceMappingURL=admin-users-style.css.map */
