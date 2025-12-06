@@ -42,7 +42,10 @@ async function compressImage(imageBase64) {
             })
             .toBuffer();
         
-        console.log(`📊 Kép méret csökkentve: ${(imageBuffer.length / 1024).toFixed(2)} KB → ${(compressedBuffer.length / 1024).toFixed(2)} KB`);
+        // ⭐ JAVÍTVA: Eredeti és tömörített méret logolása
+        const originalSizeKB = (imageBuffer.length / 1024).toFixed(2);
+        const compressedSizeKB = (compressedBuffer.length / 1024).toFixed(2);
+        console.log(`📊 Kép méret csökkentve: ${originalSizeKB} KB → ${compressedSizeKB} KB`);
         
         return compressedBuffer;
     } catch (error) {
@@ -266,22 +269,29 @@ const pdfFileName = (serialNumber && serialNumber.trim() !== '' && serialNumber 
 
                     const uploadImagePromises = allImages.map(async (imageBase64, index) => {
     try {
-        // Kép tömörítése Sharp-pal
+        // ⭐ JAVÍTVA: Először tömörítünk
         const compressedBuffer = await compressImage(imageBase64);
         
-        // Kép neve (JPEG, mert Sharp-pal tömörítettük)
+        // Kép neve
         const imageFileName = `image_${index + 1}.jpg`;
         const imageMimeType = 'image/jpeg';
 
-                            // Feltöltés Drive-ra
-                            const imageUploadResult = await uploadBufferToDrive(imageBuffer, imageFileName, pdfFolderId, imageMimeType);
-                            console.log(`✅ Kép feltöltve: ${imageFileName}, URL: ${imageUploadResult.webViewLink}`);
-                            return imageUploadResult.webViewLink;
-                        } catch (imgErr) {
-                            console.error(`❌ Hiba a kép feltöltésekor (${index}):`, imgErr.message);
-                            return null;
-                        }
-                    });
+        // ⭐ JAVÍTVA: A compressedBuffer-t töltjük fel, NEM az imageBuffer-t
+        const imageUploadResult = await uploadBufferToDrive(
+            compressedBuffer, // Ez a tömörített buffer!
+            imageFileName, 
+            pdfFolderId, 
+            imageMimeType
+        );
+        
+        console.log(`✅ Kép feltöltve: ${imageFileName}, URL: ${imageUploadResult.webViewLink}`);
+        return imageUploadResult.webViewLink;
+        
+    } catch (imgErr) {
+        console.error(`❌ Hiba a kép feltöltésekor (${index}):`, imgErr.message);
+        return null;
+    }
+});
 
                     const uploadedImageLinks = await Promise.all(uploadImagePromises);
                     const successfulUploads = uploadedImageLinks.filter(link => link !== null);
