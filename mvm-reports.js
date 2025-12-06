@@ -472,6 +472,15 @@ router.post('/projects/:projectId/reports/documentation/export-pdf', isAuthentic
     const userId = req.user.id;
     const { pdfData, serialNumber, projectName, images } = req.body;
 
+    console.log('📥 PDF export request érkezett:', {
+        projectId,
+        userId,
+        serialNumber,
+        projectName,
+        hasImages: !!images,
+        imageCount: images ? Object.keys(images).reduce((sum, key) => sum + (images[key]?.length || 0), 0) : 0
+    });
+
     try {
         // Jogosultság ellenőrzése
         if (!req.user.isAdmin) {

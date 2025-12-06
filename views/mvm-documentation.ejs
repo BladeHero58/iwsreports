@@ -31,6 +31,27 @@
             background: white;
         }
 
+        /* ⭐ Mobilos optimalizálás */
+        @media (max-width: 768px) {
+            .image-preview-container {
+                gap: 10px;
+            }
+
+            .image-preview-item {
+                width: 100%;
+                max-width: 100%;
+            }
+
+            .image-meta-info {
+                font-size: 10px;
+                padding: 8px 10px;
+            }
+
+            .meta-item {
+                gap: 4px;
+            }
+        }
+
         .image-preview-item:hover {
             transform: scale(1.02);
             box-shadow: 0 4px 12px rgba(0,0,0,0.2);
@@ -774,8 +795,17 @@ function draw(e) {
                             const img = document.createElement('img');
                             img.src = imageData;
                             img.alt = file.name;
-                            img.loading = 'lazy'; // ⭐ Lazy loading mobilra
-                            img.style.maxWidth = '100%'; // ⭐ Mobil kompatibilitás
+                            // ⭐ JAVÍTOTT - Mobilos képmegjelenítés
+                            img.style.width = '100%';
+                            img.style.height = '200px';
+                            img.style.objectFit = 'cover';
+                            img.style.display = 'block';
+                            img.onload = function() {
+                                console.log('✅ Kép betöltve:', file.name);
+                            };
+                            img.onerror = function() {
+                                console.error('❌ Kép betöltési hiba:', file.name);
+                            };
                             
                             // ⭐ Metaadatok megjelenítése
                             const metaInfo = document.createElement('div');
@@ -793,15 +823,18 @@ function draw(e) {
                                 `;
                             }
 
-                            // GPS
-                            if (hasGPS) {
+                            // GPS - JAVÍTOTT mobilra
+                            if (hasGPS && location) {
+                                console.log('📍 GPS megjelenítés:', locationText, location);
                                 metaHTML += `
                                     <div class="meta-item">
-                                        <i class="fas fa-map-marker-alt"></i> 
+                                        <i class="fas fa-map-marker-alt"></i>
                                         <span>
-                                            <a href="https://www.google.com/maps?q=${location.lat},${location.lon}" 
-                                               target="_blank" 
+                                            <a href="https://www.google.com/maps?q=${location.lat},${location.lon}"
+                                               target="_blank"
+                                               rel="noopener noreferrer"
                                                class="map-link"
+                                               style="color: #4CAF50; text-decoration: none; font-weight: bold;"
                                                title="Megnyitás Google Maps-ben">
                                                ${locationText}
                                             </a>
@@ -809,9 +842,10 @@ function draw(e) {
                                     </div>
                                 `;
                             } else {
+                                console.warn('⚠️ Nincs GPS adat a képhez');
                                 metaHTML += `
                                     <div class="meta-item">
-                                        <i class="fas fa-map-marker-alt"></i> 
+                                        <i class="fas fa-map-marker-alt"></i>
                                         <span style="color: #ffc107;">Nincs GPS adat</span>
                                     </div>
                                 `;
@@ -1586,8 +1620,12 @@ const docDefinition = {
 
             // PDF generálás és feltöltés
 pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
+    console.log('📤 PDF base64 generálva, méret:', pdfBase64.length, 'karakter');
+    console.log('📤 Képek száma feltöltésre:', Object.keys(uploadedImages).reduce((sum, key) => sum + (uploadedImages[key]?.length || 0), 0));
+
     try {
         // Küldés a backend-nek
+        console.log('🌐 Fetch kezdés - PDF és képek feltöltése...');
         const response = await fetch('/projects/<%= project.id %>/reports/documentation/export-pdf', {
             method: 'POST',
             headers: {
@@ -1601,72 +1639,139 @@ pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
             })
         });
 
+        console.log('📡 Válasz érkezett:', response.status, response.statusText);
+
+        if (!response.ok) {
+            throw new Error(`HTTP hiba! Státusz: ${response.status}`);
+        }
+
         const result = await response.json();
+        console.log('✅ Backend válasz:', result);
 
         if (result.success) {
             if (result.driveUrl) {
                 alert('✅ PDF sikeresen exportálva és feltöltve a Google Drive-ra!');
-                console.log('Drive URL:', result.driveUrl);
+                console.log('📂 Drive URL:', result.driveUrl);
+                if (result.images && result.images.length > 0) {
+                    console.log(`📸 ${result.images.length} kép sikeresen feltöltve metaadatokkal`);
+                }
             } else {
                 alert('✅ PDF letöltésre kész!');
             }
+        } else {
+            console.warn('⚠️ Backend hiba:', result.message);
+            alert('⚠️ Hiba: ' + (result.message || 'Ismeretlen hiba'));
         }
 
-        // ⭐ JAVÍTOTT LETÖLTÉS MOBILRA
+        // ⭐ JAVÍTOTT LETÖLTÉS MOBILRA ÉS ASZTALRA
         const fileName = `Dokumentacio_${serialNumber.replace(/\//g, '-')}_${Date.now()}.pdf`;
-        
+
         // Mobilos böngésző detektálása
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        
-        if (isMobile) {
-            console.log('📱 Mobil böngésző - Blob URL használata');
-            
-            // PDF generálás blob-ként
-            pdfMake.createPdf(docDefinition).getBlob(function(blob) {
-                // Blob URL létrehozása
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+        console.log(`📱 Eszköz típus: ${isMobile ? 'Mobil' : 'Asztal'}, iOS: ${isIOS}`);
+
+        // PDF generálás blob-ként (minden eszközön)
+        pdfMake.createPdf(docDefinition).getBlob(function(blob) {
+            try {
                 const blobUrl = URL.createObjectURL(blob);
-                
-                // Link elem létrehozása és kattintás szimulálása
-                const link = document.createElement('a');
-                link.href = blobUrl;
-                link.download = fileName;
-                link.style.display = 'none';
-                
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                
-                // Cleanup
-                setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
-                
-                console.log('✅ PDF letöltés elindítva (mobil)');
-            });
-        } else {
-            console.log('💻 Asztali böngésző - Standard letöltés');
-            pdfMake.createPdf(docDefinition).download(fileName);
-        }
+
+                if (isIOS) {
+                    // iOS specifikus kezelés - új ablakban nyitás
+                    console.log('🍎 iOS eszköz - Új ablak megnyitása');
+                    const reader = new FileReader();
+                    reader.onloadend = function() {
+                        const newWindow = window.open('', '_blank');
+                        if (newWindow) {
+                            newWindow.document.write(`
+                                <html>
+                                <head><title>${fileName}</title></head>
+                                <body style="margin:0;">
+                                    <embed src="${reader.result}" type="application/pdf" width="100%" height="100%" />
+                                </body>
+                                </html>
+                            `);
+                        } else {
+                            alert('⚠️ Kérlek engedélyezd az új ablak megnyitását a böngészőben!');
+                        }
+                    };
+                    reader.readAsDataURL(blob);
+                } else if (isMobile) {
+                    // Android és egyéb mobilok - Download attribútum
+                    console.log('📱 Mobil böngésző - Letöltés indítása');
+                    const link = document.createElement('a');
+                    link.href = blobUrl;
+                    link.download = fileName;
+                    link.style.display = 'none';
+
+                    document.body.appendChild(link);
+
+                    // Kattintás szimulálása több módon is
+                    if (link.click) {
+                        link.click();
+                    } else {
+                        const clickEvent = new MouseEvent('click', {
+                            view: window,
+                            bubbles: true,
+                            cancelable: true
+                        });
+                        link.dispatchEvent(clickEvent);
+                    }
+
+                    // Cleanup késleltetéssel
+                    setTimeout(() => {
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(blobUrl);
+                    }, 100);
+
+                    console.log('✅ PDF letöltés elindítva (mobil)');
+                } else {
+                    // Asztali böngésző - Standard letöltés
+                    console.log('💻 Asztali böngésző - Standard letöltés');
+                    const link = document.createElement('a');
+                    link.href = blobUrl;
+                    link.download = fileName;
+                    link.style.display = 'none';
+
+                    document.body.appendChild(link);
+                    link.click();
+
+                    setTimeout(() => {
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(blobUrl);
+                    }, 100);
+                }
+            } catch (error) {
+                console.error('❌ PDF letöltési hiba:', error);
+                alert('⚠️ Hiba történt a PDF letöltésekor. Próbáld újra!');
+            }
+        });
 
     } catch (error) {
-        console.error('Hiba a PDF feltöltésekor:', error);
-        alert('⚠️ Hiba történt, de a PDF letöltése folytatódik.');
-        
-        // Letöltés akkor is megtörténik
-        const fileName = `Dokumentacio_${serialNumber.replace(/\//g, '-')}_${Date.now()}.pdf`;
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        
-        if (isMobile) {
-            pdfMake.createPdf(docDefinition).getBlob(function(blob) {
-                const blobUrl = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = blobUrl;
-                link.download = fileName;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
-            });
+        console.error('❌ Kritikus hiba a PDF exportálás során:', error);
+
+        // Részletes hibakezelés
+        let errorMessage = '⚠️ Hiba történt a PDF exportálása közben.\n\n';
+
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+            errorMessage += 'Hálózati kapcsolat hiba. Ellenőrizd az internet kapcsolatot és próbáld újra!';
+        } else if (error.message.includes('HTTP hiba')) {
+            errorMessage += 'Szerver hiba: ' + error.message;
         } else {
+            errorMessage += error.message || 'Ismeretlen hiba történt.';
+        }
+
+        alert(errorMessage);
+
+        // Próbáljunk helyi letöltést biztonsági mentésként
+        console.log('🔄 Próbálkozás helyi PDF letöltéssel...');
+        try {
+            const fileName = `Dokumentacio_${serialNumber.replace(/\//g, '-')}_${Date.now()}.pdf`;
             pdfMake.createPdf(docDefinition).download(fileName);
+            console.log('✅ Helyi letöltés sikerült');
+        } catch (downloadError) {
+            console.error('❌ Helyi letöltés is sikertelen:', downloadError);
         }
     }
 });
@@ -1985,33 +2090,48 @@ function loadSavedData(data) {
                     
                     const previewItem = document.createElement('div');
                     previewItem.className = 'image-preview-item';
-                    
+
                     const img = document.createElement('img');
                     img.src = imageData;
-                    
+                    // ⭐ JAVÍTOTT - Mobilos képmegjelenítés betöltött képeknél is
+                    img.style.width = '100%';
+                    img.style.height = '200px';
+                    img.style.objectFit = 'cover';
+                    img.style.display = 'block';
+                    img.onload = function() {
+                        console.log('✅ Mentett kép betöltve');
+                    };
+                    img.onerror = function() {
+                        console.error('❌ Mentett kép betöltési hiba');
+                    };
+
                     // Metaadatok megjelenítése
                     const metaInfo = document.createElement('div');
                     metaInfo.className = 'image-meta-info';
-                    
+
                     let metaHTML = '';
-                    
+
                     if (metadata.hasDate && metadata.takenDate) {
                         metaHTML += `
                             <div class="meta-item">
-                                <i class="fas fa-calendar"></i> 
+                                <i class="fas fa-calendar"></i>
                                 <span>${formatDate(metadata.takenDate)}</span>
                             </div>
                         `;
                     }
-                    
-                    if (metadata.hasGPS && metadata.location) {
+
+                    // ⭐ JAVÍTOTT - GPS megjelenítés betöltött képeknél
+                    if (metadata.hasGPS && metadata.location && metadata.latitude && metadata.longitude) {
+                        console.log('📍 Betöltött GPS:', metadata.location);
                         metaHTML += `
                             <div class="meta-item">
-                                <i class="fas fa-map-marker-alt"></i> 
+                                <i class="fas fa-map-marker-alt"></i>
                                 <span>
-                                    <a href="https://www.google.com/maps?q=${metadata.latitude},${metadata.longitude}" 
-                                       target="_blank" 
-                                       class="map-link">
+                                    <a href="https://www.google.com/maps?q=${metadata.latitude},${metadata.longitude}"
+                                       target="_blank"
+                                       rel="noopener noreferrer"
+                                       class="map-link"
+                                       style="color: #4CAF50; text-decoration: none; font-weight: bold;">
                                        ${metadata.location}
                                     </a>
                                 </span>
@@ -2020,7 +2140,7 @@ function loadSavedData(data) {
                     } else {
                         metaHTML += `
                             <div class="meta-item">
-                                <i class="fas fa-map-marker-alt"></i> 
+                                <i class="fas fa-map-marker-alt"></i>
                                 <span style="color: #ffc107;">Nincs GPS adat</span>
                             </div>
                         `;
