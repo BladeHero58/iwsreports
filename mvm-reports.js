@@ -24,28 +24,35 @@ let driveService;
 const MAIN_DRIVE_FOLDER_ID = '18-7OP8B23r-QBVWHbgaLn3Klj3lm62bk';
 
 // Kép tömörítése Sharp-pal
+// Kép tömörítése Sharp-pal METAADATOK MEGŐRZÉSÉVEL
 async function compressImage(imageBase64) {
     try {
         // Base64 → Buffer
         const imageBuffer = Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
         
-        // Tömörítés Sharp-pal
+        // ⭐ METAADATOK KINYERÉSE
+        const metadata = await sharp(imageBuffer).metadata();
+        
+        // Tömörítés Sharp-pal METAADATOK MEGTARTÁSÁVAL
         const compressedBuffer = await sharp(imageBuffer)
             .resize({
-                width: 800, // Max szélesség (PDF-hez elegendő)
+                width: 800,
                 fit: 'inside',
                 withoutEnlargement: true
             })
-            .toFormat('jpeg', {
-                quality: 75, // Jó kompromisszum
-                mozjpeg: true // Extra tömörítés
+            .jpeg({
+                quality: 75,
+                mozjpeg: true,
+                // ⭐ METAADATOK MEGTARTÁSA
+                withMetadata: true, // EXIF, GPS, stb. megmarad
+                keepExif: true,
+                keepIcc: true
             })
             .toBuffer();
         
-        // ⭐ JAVÍTVA: Eredeti és tömörített méret logolása
         const originalSizeKB = (imageBuffer.length / 1024).toFixed(2);
         const compressedSizeKB = (compressedBuffer.length / 1024).toFixed(2);
-        console.log(`📊 Kép méret csökkentve: ${originalSizeKB} KB → ${compressedSizeKB} KB`);
+        console.log(`📊 Kép tömörítve: ${originalSizeKB} KB → ${compressedSizeKB} KB (metaadatok megőrizve)`);
         
         return compressedBuffer;
     } catch (error) {
