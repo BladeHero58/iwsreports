@@ -131,7 +131,7 @@ async function getOrCreateDailyPdfFolder(folderName, parentFolderId) {
     }
 }
 
-/ ⭐ ÚJ FÜGGVÉNY - EZ HIÁNYZIK!
+// ⭐ ÚJ FÜGGVÉNY - EZ HIÁNYZIK!
 async function getOrCreateFolder(folderName, parentFolderId) {
     try {
         // Ellenőrizzük hogy létezik-e
