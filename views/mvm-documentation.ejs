@@ -85,7 +85,7 @@
 
         .header h1 {
             font-size: 28px;
-            color: #333;
+            color: #5c0099;
             margin-bottom: 10px;
         }
 
@@ -863,9 +863,17 @@
 </head>
 <body>
 
-    <a href="/projects/<%= project.id %>/new-report" class="back-button">
-        <i class="fas fa-arrow-left"></i> Vissza a kategóriákhoz
-    </a>
+    <% 
+// Eldöntjük hogy admin vagy user oldal kell
+const isAdmin = user.isAdmin || false;
+const backUrl = isAdmin 
+    ? `/admin/projects/${project.id}` 
+    : `/user/projects/${project.id}`;
+%>
+
+<a href="<%= backUrl %>" class="back-button">
+    <i class="fas fa-arrow-left"></i> Vissza a kategóriákhoz
+</a>
 
     <div class="container">
 
@@ -896,6 +904,14 @@
             <p style="font-size: 13px; color: #999; margin-top: 10px;">
                 <em>Projekt típus: <%= project.project_type %></em>
             </p>
+
+            <!--  ÚJ ellenőrzés GOMB -->
+<div style="text-align: center; margin: 20px 0;">
+    <button type="button" class="add-button" onclick="startNewInspection()" style="width: auto; padding: 12px 30px;">
+        <i class="fas fa-plus-circle"></i> Új ellenőrzés indítása
+    </button>
+</div>
+
         </div>
 
         <!-- Header -->
@@ -905,21 +921,6 @@
         </div>
 
         <form id="documentationForm" method="POST" action="/projects/<%= project.id %>/reports/documentation">
-
-            <!-- Munkaterület kiválasztása -->
-            <div class="form-section">
-                <div class="section-title">Munkaterület kiválasztása</div>
-                <div class="form-group">
-                    <label for="workArea">Munkaterület neve</label>
-                    <select id="workArea" name="workArea">
-                        <option value="">Válasszon munkaterületet...</option>
-                        <option value="terület_1">Munkaterület 1</option>
-                        <option value="terület_2">Munkaterület 2</option>
-                        <option value="terület_3">Munkaterület 3</option>
-                        <option value="egyéb">Egyéb</option>
-                    </select>
-                </div>
-            </div>
 
             <!-- Ellenőrzés résztvevői -->
             <div class="form-section">
@@ -1639,6 +1640,38 @@ document.getElementById('documentationForm').addEventListener('submit', function
         alert('✗ Hiba történt a mentés során.');
     });
 });
+
+// Új ellenőrzés indítása (mentett adatok törlése)
+async function startNewInspection() {
+    const confirmNew = confirm('⚠️ Biztosan új ellenőrzést szeretnél indítani?\n\nEz törli a jelenlegi mentett adatokat és üres lappal kezdhetsz.');
+    
+    if (!confirmNew) {
+        return; // Mégsem gomb
+    }
+
+    try {
+        // Backend-en töröljük a mentett adatot
+        const response = await fetch('/projects/<%= project.id %>/reports/documentation', {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert('✅ Új ellenőrzés indítva! Az oldal újratöltődik.');
+            // Oldal újratöltése - most már üres lesz
+            window.location.reload();
+        } else {
+            alert('❌ Hiba történt: ' + result.message);
+        }
+    } catch (error) {
+        console.error('Hiba az új ellenőrzés indításakor:', error);
+        alert('❌ Hiba történt az új ellenőrzés indításakor.');
+    }
+}
 
        // PDF Exportálás
         function exportToPDF() {

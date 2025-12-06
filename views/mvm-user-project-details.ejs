@@ -84,9 +84,9 @@
 <body>
 
     <header>
-        <button onclick="window.history.back()" class="logout-btn">
-            <i class="fas fa-arrow-left"></i> Vissza a projektekhez
-        </button>
+        <form action="/user/projects" method="GET">
+        <button type="submit" class="logout-btn"><i class="fas fa-arrow-left"></i> Vissza a projektekhez</button>
+    </form>
     </header>
 
     <h1>MVM Xpert Projekt: <%= project.name %></h1>

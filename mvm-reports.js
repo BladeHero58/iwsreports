@@ -387,6 +387,53 @@ router.get('/projects/:projectId/reports/documentation', isAuthenticated, async 
     }
 });
 
+// MVM Dokumentáció Ellenőrzés Törlése (Új ellenőrzés indítása)
+router.delete('/projects/:projectId/reports/documentation', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        // Jogosultság ellenőrzése
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({ 
+                    success: false, 
+                    message: 'Nincs jogosultsága ehhez a projekthez.' 
+                });
+            }
+        }
+
+        // Mentett ellenőrzés törlése
+        const deleted = await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 1 })
+            .del();
+
+        if (deleted > 0) {
+            console.log(`🗑️ Dokumentáció ellenőrzés törölve - Projekt: ${projectId}, User: ${userId}`);
+            res.json({ 
+                success: true, 
+                message: 'Mentett ellenőrzés törölve, új ellenőrzés indítható.' 
+            });
+        } else {
+            res.json({ 
+                success: true, 
+                message: 'Nincs mentett ellenőrzés, új ellenőrzés indítható.' 
+            });
+        }
+
+    } catch (error) {
+        console.error('Hiba az ellenőrzés törlésekor:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Hiba történt a törlés során.' 
+        });
+    }
+});
+
 // MVM Dokumentáció PDF Exportálás és Feltöltés
 router.post('/projects/:projectId/reports/documentation/export-pdf', isAuthenticated, async (req, res) => {
     const projectId = req.params.projectId;
