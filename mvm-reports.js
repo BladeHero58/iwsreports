@@ -194,10 +194,10 @@ router.post('/projects/:projectId/reports/documentation/export-pdf', isAuthentic
             }
         }
 
-// Biztonságos mappa/fájlnév generálása ÉKEZETEK MEGTARTÁSÁVAL
+// Biztonságos mappa/fájlnév generálása ÉKEZETEK ÉS / MEGTARTÁSÁVAL
 function sanitizeFolderName(name) {
     return name
-        .replace(/[\/\\:*?"<>|]/g, '_') // Csak a veszélyes karaktereket cseréljük
+        .replace(/[\\:*?"<>|]/g, '_') // Csak a VESZÉLYES karaktereket cseréljük (/ MEGTARTVA!)
         .replace(/_+/g, '_') // Dupla underscore-ok törlése
         .replace(/^_|_$/g, '') // Kezdő/záró underscore törlése
         .trim();
@@ -246,13 +246,13 @@ const pdfFileName = (serialNumber && serialNumber.trim() !== '' && serialNumber 
                 const projectFolderId = await getOrCreateFolder(safeProjectName, MAIN_DRIVE_FOLDER_ID);
                 console.log(`📁 Projekt mappa ID: ${projectFolderId}`);
 
-                // Sorszám/PDF specifikus mappa létrehozása (ha már létezik, töröljük)
-                const pdfFolderId = await createOrReplacePdfFolder(safeFolderName, projectFolderId);
-                console.log(`📁 PDF mappa ID: ${pdfFolderId}`);
+                // ⭐ JAVÍTVA: Napi mappa létrehozása (nem törli az előzőeket!)
+const pdfFolderId = await getOrCreateDailyPdfFolder(safeFolderName, projectFolderId);
+console.log(`📁 Napi PDF mappa ID: ${pdfFolderId}`);
 
-                // PDF feltöltése
-                const uploadResult = await uploadBufferToDrive(pdfBuffer, pdfFileName, pdfFolderId, 'application/pdf');
-                console.log(`✅ PDF feltöltve a Drive-ra: ${uploadResult.webViewLink}`);
+// ⭐ JAVÍTVA: PDF feltöltése verziókezeléssel (max 12 naponta)
+const uploadResult = await uploadPdfWithVersionControl(pdfBuffer, pdfFileName, pdfFolderId);
+console.log(`✅ PDF feltöltve a Drive-ra: ${uploadResult.webViewLink}`);
 
                 // Képek feltöltése (aláírások kiszűrése)
                 if (images && Object.keys(images).length > 0) {
@@ -364,22 +364,26 @@ async function initializeGoogleDrive() {
     }
 }
 
-async function getOrCreateFolder(folderName, parentFolderId) {
+// Napi PDF mappa létrehozása (max 12 jegyzőkönyv naponta)
+async function getOrCreateDailyPdfFolder(folderName, parentFolderId) {
     try {
-        // Ellenőrizzük hogy létezik-e
+        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        const dailyFolderName = `${today}_${folderName}`; // Pl: 2024-12-06_IWS/SZB/20251206
+
+        // Ellenőrizzük hogy létezik-e már a mappa
         const existingFolders = await driveService.files.list({
-            q: `name='${folderName}' and parents in '${parentFolderId}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+            q: `name='${dailyFolderName}' and parents in '${parentFolderId}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
             fields: 'files(id, name)',
         });
 
         if (existingFolders.data.files.length > 0) {
-            console.log(`📁 Mappa már létezik: ${folderName}`);
+            console.log(`📁 Napi PDF mappa már létezik: ${dailyFolderName}`);
             return existingFolders.data.files[0].id;
         }
 
-        // Létrehozzuk
+        // Ha nem létezik, létrehozzuk
         const folderMetadata = {
-            name: folderName,
+            name: dailyFolderName,
             mimeType: 'application/vnd.google-apps.folder',
             parents: [parentFolderId],
         };
@@ -389,10 +393,46 @@ async function getOrCreateFolder(folderName, parentFolderId) {
             fields: 'id',
         });
 
-        console.log(`📁 Új mappa létrehozva: ${folderName}`);
+        console.log(`📁 Új napi PDF mappa létrehozva: ${dailyFolderName}`);
         return folder.data.id;
     } catch (error) {
-        console.error(`Hiba a mappa létrehozásakor (${folderName}):`, error.message);
+        console.error(`Hiba a napi PDF mappa létrehozásakor (${folderName}):`, error.message);
+        throw error;
+    }
+}
+
+// PDF feltöltése verziókezeléssel (max 12 naponta)
+async function uploadPdfWithVersionControl(pdfBuffer, fileName, folderId) {
+    try {
+        // Lekérjük a mappában lévő összes PDF-et
+        const existingPdfs = await driveService.files.list({
+            q: `parents in '${folderId}' and mimeType='application/pdf' and trashed=false`,
+            fields: 'files(id, name, createdTime)',
+            orderBy: 'createdTime asc', // Legrégebbi először
+        });
+
+        const pdfFiles = existingPdfs.data.files || [];
+        console.log(`📄 Jelenlegi PDF-ek száma a mappában: ${pdfFiles.length}`);
+
+        // Ha már 12 van, töröljük a legrégebbit
+        if (pdfFiles.length >= 12) {
+            const oldestPdf = pdfFiles[0];
+            console.log(`🗑️ 12 PDF elérve, legrégebbi törlése: ${oldestPdf.name}`);
+            await driveService.files.delete({
+                fileId: oldestPdf.id,
+            });
+        }
+
+        // PDF feltöltése verziószámmal
+        const version = pdfFiles.length >= 12 ? 12 : pdfFiles.length + 1;
+        const versionedFileName = `v${version}_${fileName}`;
+
+        const uploadResult = await uploadBufferToDrive(pdfBuffer, versionedFileName, folderId, 'application/pdf');
+        console.log(`✅ PDF feltöltve verzióval: ${versionedFileName}`);
+        
+        return uploadResult;
+    } catch (error) {
+        console.error('Hiba a PDF verziókezelésnél:', error);
         throw error;
     }
 }
