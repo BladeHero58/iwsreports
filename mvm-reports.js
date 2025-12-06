@@ -12,7 +12,7 @@ let bucket;
 let driveService;
 
 // Google Drive fő mappa ID (ahol a projektek vannak)
-const MAIN_DRIVE_FOLDER_ID = process.env.MAIN_DRIVE_FOLDER_ID || 'YOUR_MAIN_FOLDER_ID';
+const MAIN_DRIVE_FOLDER_ID = '18-7OP8B23r-QBVWHbgaLn3Klj3lm62bk';
 
 // Middleware
 const isAuthenticated = (req, res, next) => {
