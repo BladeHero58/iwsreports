@@ -5,6 +5,7 @@ const path = require('path');
 const { Storage } = require('@google-cloud/storage');
 const { google } = require('googleapis');
 const fs = require('fs');
+const sharp = require('sharp');
 
 // Google Cloud Storage és Drive változók (ezek a reports.js-ből jönnek)
 let storage;
@@ -21,6 +22,34 @@ const isAuthenticated = (req, res, next) => {
     }
     res.redirect('/login');
 };
+
+// Kép tömörítése Sharp-pal
+async function compressImage(imageBase64) {
+    try {
+        // Base64 → Buffer
+        const imageBuffer = Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+        
+        // Tömörítés Sharp-pal
+        const compressedBuffer = await sharp(imageBuffer)
+            .resize({
+                width: 800, // Max szélesség (PDF-hez elegendő)
+                fit: 'inside',
+                withoutEnlargement: true
+            })
+            .toFormat('jpeg', {
+                quality: 75, // Jó kompromisszum
+                mozjpeg: true // Extra tömörítés
+            })
+            .toBuffer();
+        
+        console.log(`📊 Kép méret csökkentve: ${(imageBuffer.length / 1024).toFixed(2)} KB → ${(compressedBuffer.length / 1024).toFixed(2)} KB`);
+        
+        return compressedBuffer;
+    } catch (error) {
+        console.error('Hiba a kép tömörítésekor:', error);
+        throw error;
+    }
+}
 
 // MVM Dokumentáció Ellenőrzés Mentése
 router.post('/projects/:projectId/reports/documentation', isAuthenticated, async (req, res) => {
@@ -162,15 +191,24 @@ router.post('/projects/:projectId/reports/documentation/export-pdf', isAuthentic
             }
         }
 
-        // PDF név meghatározása: sorszám vagy projekt név
-        const pdfFileName = (serialNumber && serialNumber.trim() !== '') 
-            ? `${serialNumber.replace(/\//g, '-')}.pdf`
-            : `${projectName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+// Biztonságos mappa/fájlnév generálása ÉKEZETEK MEGTARTÁSÁVAL
+function sanitizeFolderName(name) {
+    return name
+        .replace(/[\/\\:*?"<>|]/g, '_') // Csak a veszélyes karaktereket cseréljük
+        .replace(/_+/g, '_') // Dupla underscore-ok törlése
+        .replace(/^_|_$/g, '') // Kezdő/záró underscore törlése
+        .trim();
+}
 
-        const safeProjectName = projectName.replace(/[^a-zA-Z0-9]/g, '_');
-        const safeFolderName = (serialNumber && serialNumber.trim() !== '') 
-            ? serialNumber.replace(/\//g, '-')
-            : safeProjectName;
+        // PDF név meghatározása: sorszám vagy projekt név
+        const safeProjectName = sanitizeFolderName(projectName);
+const safeFolderName = (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A') 
+    ? sanitizeFolderName(serialNumber)
+    : safeProjectName;
+
+const pdfFileName = (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A') 
+    ? `${sanitizeFolderName(serialNumber)}.pdf`
+    : `${safeProjectName}.pdf`;
 
         console.log(`📄 PDF export kezdés: ${pdfFileName}`);
         console.log(`📁 Projekt: ${safeProjectName}, Mappa: ${safeFolderName}`);
@@ -227,13 +265,13 @@ router.post('/projects/:projectId/reports/documentation/export-pdf', isAuthentic
                     console.log(`📸 ${allImages.length} kép feltöltése kezdődik...`);
 
                     const uploadImagePromises = allImages.map(async (imageBase64, index) => {
-                        try {
-                            // Ellenőrizzük hogy nem aláírás-e (aláírások általában kisebbek)
-                            const imageBuffer = Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
-                            
-                            // Kép neve
-                            const imageFileName = `image_${index + 1}.png`;
-                            const imageMimeType = 'image/png';
+    try {
+        // Kép tömörítése Sharp-pal
+        const compressedBuffer = await compressImage(imageBase64);
+        
+        // Kép neve (JPEG, mert Sharp-pal tömörítettük)
+        const imageFileName = `image_${index + 1}.jpg`;
+        const imageMimeType = 'image/jpeg';
 
                             // Feltöltés Drive-ra
                             const imageUploadResult = await uploadBufferToDrive(imageBuffer, imageFileName, pdfFolderId, imageMimeType);
