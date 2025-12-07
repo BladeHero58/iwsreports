@@ -1115,9 +1115,13 @@ function draw(e) {
 
                                     (async () => {
                                         try {
-                                            // ⭐ exifr.gps() direktben decimális GPS-t ad
-                                            const gpsData = await exifr.gps(file);
-                                            console.log('📍 GPS (exifr.gps):', gpsData);
+                                            // ⭐ KRITIKUS FIX: Konvertáljuk a File-t ArrayBuffer-ré
+                                            // Néhány telefonos EXIF formátumnál az exifr library jobban működik buffer-rel
+                                            const arrayBuffer = await file.arrayBuffer();
+
+                                            // ⭐ exifr.gps() ArrayBuffer-rel
+                                            const gpsData = await exifr.gps(arrayBuffer);
+                                            console.log('📍 GPS (exifr.gps) ArrayBuffer-rel:', gpsData);
 
                                             // ⭐ RÉSZLETES GPS DEBUG
                                             if (gpsData) {
@@ -1132,15 +1136,20 @@ function draw(e) {
                                                 });
                                             }
 
-                                            // ⭐ Teljes EXIF
-                                            const exifrData = await exifr.parse(file, {
+                                            // ⭐ Teljes EXIF - ArrayBuffer-rel
+                                            const exifrData = await exifr.parse(arrayBuffer, {
                                                 gps: true,
                                                 exif: true,
                                                 ifd0: true,
-                                                mergeOutput: true
+                                                tiff: true,
+                                                mergeOutput: true,
+                                                sanitize: false,
+                                                reviveValues: true,
+                                                translateKeys: false,
+                                                translateValues: false
                                             });
 
-                                            console.log('📋 EXIF (exifr):', exifrData);
+                                            console.log('📋 EXIF (exifr) ArrayBuffer-rel:', exifrData);
 
                                             // ⭐ EXIF GPS RÉSZLETEK
                                             console.log('🔍 EXIF GPS MEZŐK:', {
