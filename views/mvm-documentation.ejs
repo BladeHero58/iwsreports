@@ -14,8 +14,8 @@
     <!-- ⭐ HEIC to JPEG konverzióhoz -->
     <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 
-    <!-- ⭐ exifr - HEIC EXIF támogatással -->
-    <script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.umd.js"></script>
+    <!-- ⭐ exifr - HEIC EXIF támogatással (TELJES verzió GPS parsing-gel) -->
+    <script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.js"></script>
 
     <!-- ⭐ EXIF metaadatok megjelenítésére CSS -->
     <style>
@@ -868,41 +868,76 @@ function draw(e) {
                     const exifrData = await exifr.parse(file, {
                         gps: true,
                         exif: true,
-                        ifd0: true
+                        ifd0: true,
+                        tiff: true,
+                        mergeOutput: false // Ne fúzza össze, kapjuk meg a nyers GPS adatokat is
                     });
 
-                    console.log('📋 Eredeti HEIC EXIF adatok (exifr):', exifrData);
+                    console.log('📋 Eredeti HEIC EXIF adatok (exifr) - TELJES:', exifrData);
+
+                    // ⭐ GPS adatok debug - nézzük meg MINDEN lehetséges GPS mezőt
+                    console.log('🔍 GPS mezők részletesen:', {
+                        'latitude': exifrData?.latitude,
+                        'longitude': exifrData?.longitude,
+                        'GPSLatitude': exifrData?.GPSLatitude,
+                        'GPSLongitude': exifrData?.GPSLongitude,
+                        'GPSLatitudeRef': exifrData?.GPSLatitudeRef,
+                        'GPSLongitudeRef': exifrData?.GPSLongitudeRef
+                    });
 
                     if (exifrData) {
-                        originalExifData = {
-                            date: exifrData.DateTimeOriginal || exifrData.DateTime || file.lastModified,
-                            lat: exifrData.GPSLatitude || exifrData.latitude,
-                            lon: exifrData.GPSLongitude || exifrData.longitude,
-                            latRef: exifrData.GPSLatitudeRef,
-                            lonRef: exifrData.GPSLongitudeRef,
-                            make: exifrData.Make,
-                            model: exifrData.Model
-                        };
+                        // ⭐ Először próbáljuk a már feldolgozott decimális koordinátákat
+                        const hasDecimalGPS = (typeof exifrData.latitude === 'number' && !isNaN(exifrData.latitude) &&
+                                              typeof exifrData.longitude === 'number' && !isNaN(exifrData.longitude));
 
-                        console.log('🔍 HEIC GPS Raw adatok (exifr):', {
-                            lat: originalExifData.lat,
-                            lon: originalExifData.lon,
-                            latRef: originalExifData.latRef,
-                            lonRef: originalExifData.lonRef,
-                            latitude: exifrData.latitude,
-                            longitude: exifrData.longitude
-                        });
-
-                        // ⭐ Ha exifr már decimális koordinátákat adott, használjuk azokat
-                        if (exifrData.latitude && exifrData.longitude) {
-                            originalExifData.lat = [exifrData.latitude, 0, 0]; // Fake DMS formátum
-                            originalExifData.lon = [exifrData.longitude, 0, 0];
-                            originalExifData.isDecimal = true; // Jelölés hogy már decimális
-                            console.log('✅ Decimális GPS koordináták:', exifrData.latitude, exifrData.longitude);
+                        if (hasDecimalGPS) {
+                            // ⭐ Decimális koordináták - közvetlenül használjuk
+                            originalExifData = {
+                                date: exifrData.DateTimeOriginal || exifrData.DateTime || file.lastModified,
+                                lat: exifrData.latitude, // Közvetlenül decimális szám
+                                lon: exifrData.longitude,
+                                latRef: null,
+                                lonRef: null,
+                                make: exifrData.Make,
+                                model: exifrData.Model,
+                                isDecimal: true
+                            };
+                            console.log('✅ exifr decimális GPS:', exifrData.latitude, exifrData.longitude);
+                        }
+                        // ⭐ Ha van GPSLatitude/GPSLongitude (DMS tömb vagy decimális)
+                        else if (exifrData.GPSLatitude && exifrData.GPSLongitude) {
+                            originalExifData = {
+                                date: exifrData.DateTimeOriginal || exifrData.DateTime || file.lastModified,
+                                lat: exifrData.GPSLatitude,
+                                lon: exifrData.GPSLongitude,
+                                latRef: exifrData.GPSLatitudeRef,
+                                lonRef: exifrData.GPSLongitudeRef,
+                                make: exifrData.Make,
+                                model: exifrData.Model
+                            };
+                            console.log('⚙️ GPS DMS adatok (exifr):', {
+                                lat: exifrData.GPSLatitude,
+                                lon: exifrData.GPSLongitude,
+                                latRef: exifrData.GPSLatitudeRef,
+                                lonRef: exifrData.GPSLongitudeRef
+                            });
+                        }
+                        // ⭐ Nincs GPS adat
+                        else {
+                            originalExifData = {
+                                date: exifrData.DateTimeOriginal || exifrData.DateTime || file.lastModified,
+                                lat: null,
+                                lon: null,
+                                latRef: null,
+                                lonRef: null,
+                                make: exifrData.Make,
+                                model: exifrData.Model
+                            };
+                            console.warn('⚠️ Nincs GPS adat az exifr kimenetében');
                         }
                     }
                 } catch (exifrError) {
-                    console.warn('⚠️ exifr hiba, fallback EXIF.js-re:', exifrError.message);
+                    console.warn('⚠️ exifr hiba:', exifrError.message, exifrError);
                     // Fallback az eredeti EXIF.js-re
                 }
 
@@ -1255,14 +1290,21 @@ function draw(e) {
 
         // ⭐ GPS DMS → DD konvertálás
         function convertDMSToDD(dms, ref) {
-            // ⭐ Ha már decimális (exifr adta vissza így)
-            if (typeof dms === 'number') {
+            // ⭐ Ha már decimális szám (exifr adta vissza közvetlenül)
+            if (typeof dms === 'number' && !isNaN(dms)) {
                 console.log('✅ Már decimális koordináta:', dms);
                 return dms;
             }
 
-            if (!dms || !Array.isArray(dms) || dms.length !== 3) {
-                console.warn('⚠️ Érvénytelen GPS formátum:', dms);
+            // ⭐ Ha NaN vagy null vagy undefined
+            if (!dms || (typeof dms === 'number' && isNaN(dms))) {
+                console.warn('⚠️ Érvénytelen GPS adat (NaN/null/undefined):', dms);
+                return null;
+            }
+
+            // ⭐ Ha nem tömb vagy rossz méret
+            if (!Array.isArray(dms) || dms.length !== 3) {
+                console.warn('⚠️ Érvénytelen GPS formátum (nem 3 elemű tömb):', dms);
                 return null;
             }
 
@@ -1271,15 +1313,22 @@ function draw(e) {
                 const minutes = dms[1];
                 const seconds = dms[2];
 
+                // ⭐ Ellenőrizzük hogy a számok érvényesek-e
+                if (isNaN(degrees) || isNaN(minutes) || isNaN(seconds)) {
+                    console.warn('⚠️ GPS tömb tartalmaz NaN értékeket:', { degrees, minutes, seconds });
+                    return null;
+                }
+
                 // ⭐ Ha exifr decimális koordinátát adott [decimal, 0, 0] formában
                 if (minutes === 0 && seconds === 0 && Math.abs(degrees) > 0) {
-                    console.log('✅ Decimális GPS (exifr):', degrees);
+                    console.log('✅ Decimális GPS [x,0,0] formátumban:', degrees);
                     return degrees; // Már decimális, nem kell konvertálni
                 }
 
                 // ⭐ Normál DMS konverzió
                 let dd = degrees + minutes/60 + seconds/3600;
 
+                // ⭐ Ref lehet undefined is (akkor pozitív marad)
                 if (ref === "S" || ref === "W") {
                     dd = dd * -1;
                 }
