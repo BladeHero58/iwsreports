@@ -1283,6 +1283,18 @@ function draw(e) {
                                                     'lonRef': lonRef
                                                 });
 
+                                                // ⭐ RÉSZLETES TÖMB TARTALOM
+                                                console.log('🔍 TÖMB ELEMEK:', {
+                                                    'latArray[0]': latArray[0],
+                                                    'latArray[1]': latArray[1],
+                                                    'latArray[2]': latArray[2],
+                                                    'lonArray[0]': lonArray[0],
+                                                    'lonArray[1]': lonArray[1],
+                                                    'lonArray[2]': lonArray[2],
+                                                    'parseFloat(latArray[0])': parseFloat(latArray[0]),
+                                                    'isNaN(latArray[0])': isNaN(latArray[0])
+                                                });
+
                                                 const lat = dmsArrayToDecimal(latArray, latRef);
                                                 const lon = dmsArrayToDecimal(lonArray, lonRef);
 
