@@ -1070,6 +1070,55 @@ function draw(e) {
         function processNormalImage(file, itemId, preExtractedExif = null) {
             const previewContainer = document.getElementById(`preview_${itemId}`);
 
+            // ⭐ KRITIKUS FIX: Kinyerjük az EXIF-et AZONNAL a file objektumból
+            // MIELŐTT bármilyen Image/Canvas feldolgozás történne
+            console.log('🔍 EXIF kinyerése AZONNAL a fájlból (mobil fix)...');
+
+            (async () => {
+                let extractedExif = preExtractedExif;
+
+                if (!extractedExif) {
+                    try {
+                        // ⭐ EXIF kinyerés KÖZVETLENÜL a file objektumból
+                        const gpsData = await exifr.gps(file);
+                        const exifrData = await exifr.parse(file, {
+                            gps: true,
+                            exif: true,
+                            ifd0: true,
+                            tiff: true,
+                            mergeOutput: true
+                        });
+
+                        console.log('📋 Korai EXIF beolvasás (file objektumból):', {
+                            gps: gpsData,
+                            date: exifrData?.DateTimeOriginal || exifrData?.DateTime,
+                            make: exifrData?.Make,
+                            model: exifrData?.Model
+                        });
+
+                        // EXIF objektum előkészítése
+                        extractedExif = {
+                            date: exifrData?.DateTimeOriginal || exifrData?.DateTime || file.lastModified,
+                            lat: gpsData?.latitude,
+                            lon: gpsData?.longitude,
+                            make: exifrData?.Make,
+                            model: exifrData?.Model,
+                            isDecimal: true
+                        };
+
+                        console.log('✅ Korai EXIF kinyerve:', extractedExif);
+                    } catch (err) {
+                        console.warn('⚠️ Korai EXIF kinyerés sikertelen:', err.message);
+                    }
+                }
+
+                // Most folytatjuk a képfeldolgozást
+                processImageWithExif(file, itemId, extractedExif, previewContainer);
+            })();
+        }
+
+        // ⭐ ÚJ: Képfeldolgozás már kinyert EXIF-fel
+        function processImageWithExif(file, itemId, extractedExif, previewContainer) {
             const reader = new FileReader();
 
             reader.onload = function(e) {
@@ -1108,13 +1157,13 @@ function draw(e) {
                             blobReader.onload = function(blobEvent) {
                                 const compressedImageData = blobEvent.target.result;
 
-                                // ⭐ KRITIKUS: Használjuk az előre kinyert EXIF-et ha van (HEIC-ből)
-                                if (preExtractedExif) {
-                                    console.log('✅ Használom az előre kinyert EXIF adatokat (HEIC-ből)');
-                                    processExifData(preExtractedExif, file, originalImageData, compressedImageData, previewContainer, itemId);
+                                // ⭐ KRITIKUS: Használjuk a KORAI EXIF-et (file objektumból kinyerve)
+                                if (extractedExif) {
+                                    console.log('✅ Használom a korai EXIF adatokat (file objektumból)');
+                                    processExifData(extractedExif, file, originalImageData, compressedImageData, previewContainer, itemId);
                                 } else {
-                                    // ⭐ JAVÍTOTT: exifr használata JPEG/PNG-nél is (EXIF.js NEM MŰKÖDIK!)
-                                    console.log('🔍 EXIF kinyerése exifr-rel (JPEG/PNG)...');
+                                    // ⭐ FALLBACK: Ha valahogy nem sikerült korábban
+                                    console.log('⚠️ Fallback EXIF kinyerés...');
 
                                     (async () => {
                                         try {
