@@ -1063,16 +1063,20 @@ function draw(e) {
             }
         }
 
-        // ⭐ JAVÍTOTT: Normál képfeldolgozás tömörítéssel + opcionális előre kinyert EXIF
+        // ⭐ JAVÍTOTT: Normál képfeldolgozás + opcionális előre kinyert EXIF
         function processNormalImage(file, itemId, preExtractedExif = null) {
             const previewContainer = document.getElementById(`preview_${itemId}`);
 
             const reader = new FileReader();
 
             reader.onload = function(e) {
+                // ⭐ EREDETI kép base64 (TÖMÖRÍTÉS NÉLKÜL - Google Drive-hoz)
+                const originalImageData = e.target.result;
+                console.log(`📦 Eredeti kép méret: ${(file.size / 1024).toFixed(2)} KB (tömörítés nélkül)`);
+
                 const img = new Image();
                 img.onload = function() {
-                    // ⭐ Képtömörítés Canvas-szal
+                    // ⭐ Képtömörítés Canvas-szal (CSAK PDF-hez és preview-hoz)
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
 
@@ -1090,22 +1094,21 @@ function draw(e) {
                     canvas.height = height;
                     ctx.drawImage(img, 0, 0, width, height);
 
-                    // ⭐ JPEG konverzió 70% minőséggel
+                    // ⭐ JPEG konverzió 70% minőséggel (PDF és preview)
                     canvas.toBlob(function(blob) {
                         if (blob) {
                             const compressedSizeKB = (blob.size / 1024).toFixed(2);
-                            const originalSizeKB = (file.size / 1024).toFixed(2);
-                            console.log(`📊 Kép tömörítve: ${originalSizeKB} KB → ${compressedSizeKB} KB`);
+                            console.log(`📊 Tömörített preview: ${compressedSizeKB} KB (PDF-hez)`);
 
-                            // Blob → base64
+                            // Blob → base64 (tömörített verzió)
                             const blobReader = new FileReader();
                             blobReader.onload = function(blobEvent) {
-                                const imageData = blobEvent.target.result;
+                                const compressedImageData = blobEvent.target.result;
 
                                 // ⭐ KRITIKUS: Használjuk az előre kinyert EXIF-et ha van (HEIC-ből)
                                 if (preExtractedExif) {
                                     console.log('✅ Használom az előre kinyert EXIF adatokat (HEIC-ből)');
-                                    processExifData(preExtractedExif, file, imageData, previewContainer, itemId);
+                                    processExifData(preExtractedExif, file, originalImageData, compressedImageData, previewContainer, itemId);
                                 } else {
                                     // ⭐ EXIF adatok kinyerése (normál JPEG/PNG fájlból)
                                     EXIF.getData(file, function() {
@@ -1126,7 +1129,7 @@ function draw(e) {
                                             model: EXIF.getTag(imageElement, "Model")
                                         };
 
-                                        processExifData(exifData, file, imageData, previewContainer, itemId);
+                                        processExifData(exifData, file, originalImageData, compressedImageData, previewContainer, itemId);
                                     });
                                 }
                             };
@@ -1152,8 +1155,10 @@ function draw(e) {
             reader.readAsDataURL(file);
         }
 
-        // ⭐ ÚJ: EXIF adatok feldolgozása és preview létrehozása
-        function processExifData(exifData, file, imageData, previewContainer, itemId) {
+        // ⭐ EXIF adatok feldolgozása és preview létrehozása
+        // originalImageData: tömörítetlen (Google Drive-hoz)
+        // compressedImageData: tömörített (preview és PDF-hez)
+        function processExifData(exifData, file, originalImageData, compressedImageData, previewContainer, itemId) {
             // GPS konvertálás
             let location = null;
             let locationText = 'Nincs GPS adat';
@@ -1199,9 +1204,10 @@ function draw(e) {
                 ? `${exifData.make || ''} ${exifData.model || ''}`.trim()
                 : null;
 
-            // ⭐ Kép tárolása metaadatokkal
+            // ⭐ Kép tárolása metaadatokkal - KÉT VERZIÓ!
             uploadedImages[itemId].push({
-                data: imageData,
+                data: compressedImageData,  // ⭐ Tömörített verzió PDF-hez
+                originalData: originalImageData,  // ⭐ EREDETI verzió Google Drive-hoz (TÖMÖRÍTETLEN)
                 metadata: {
                     takenDate: exifData.date || new Date().toISOString(),
                     location: locationText,
@@ -1214,12 +1220,17 @@ function draw(e) {
                 }
             });
 
-            // ⭐ Preview elem létrehozása
+            console.log('✅ Kép tárolva:', {
+                'Tömörített (PDF)': `${(compressedImageData.length / 1024).toFixed(2)} KB`,
+                'Eredeti (Drive)': `${(originalImageData.length / 1024).toFixed(2)} KB`
+            });
+
+            // ⭐ Preview elem létrehozása (tömörített verzióval)
             const previewItem = document.createElement('div');
             previewItem.className = 'image-preview-item';
 
             const img = document.createElement('img');
-            img.src = imageData;
+            img.src = compressedImageData;  // ⭐ Preview is tömörített
             img.alt = file.name;
             // ⭐ JAVÍTOTT - Mobilos képmegjelenítés
             img.style.width = '100%';

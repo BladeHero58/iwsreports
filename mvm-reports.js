@@ -83,6 +83,9 @@ async function extractExifMetadata(imageBase64) {
 }
 
 // ⭐ MÓDOSÍTOTT - Kép tömörítése METAADATOK MEGŐRZÉSÉVEL
+// ⭐ MEGJEGYZÉS: Ez a függvény NINCS használva a Google Drive feltöltésnél
+// Azért mert az EREDETI (tömörítetlen) képeket töltjük fel, hogy a metaadatok megmaradjanak
+// PDF-nél továbbra is tömörítést használunk (frontend oldal)
 async function compressImage(imageBase64) {
     try {
         // Base64 → Buffer
@@ -547,8 +550,17 @@ router.post('/projects/:projectId/reports/documentation/export-pdf', isAuthentic
                     Object.keys(images).forEach(itemId => {
                         if (Array.isArray(images[itemId])) {
                             images[itemId].forEach(imgObj => {
-                                // ⭐ FONTOS - A frontend most objektumot küld: { data, metadata }
-                                if (imgObj && imgObj.data) {
+                                // ⭐ FONTOS - A frontend objektumot küld: { data, originalData, metadata }
+                                if (imgObj && imgObj.originalData) {
+                                    // ⭐ ÚJ: originalData = tömörítetlen verzió Google Drive-hoz!
+                                    allImages.push({
+                                        data: imgObj.originalData,  // ⭐ TÖMÖRÍTETLEN!
+                                        compressedData: imgObj.data,  // Tömörített (backup)
+                                        metadata: imgObj.metadata || {},
+                                        itemId: itemId
+                                    });
+                                } else if (imgObj && imgObj.data) {
+                                    // Fallback: ha nincs originalData, használjuk a data-t
                                     allImages.push({
                                         data: imgObj.data,
                                         metadata: imgObj.metadata || {},
@@ -572,14 +584,17 @@ router.post('/projects/:projectId/reports/documentation/export-pdf', isAuthentic
                     const uploadImagePromises = allImages.map(async (imgObj, index) => {
                         const imgStartTime = Date.now();
                         try {
-                            console.log(`📤 [${index + 1}/${allImages.length}] Kép feltöltés kezdés...`);
-                            // ⭐ Kép tömörítése + backend EXIF kinyerés
-                            const { buffer: compressedBuffer, metadata: extractedMetadata } = await compressImage(imgObj.data);
-                            
-                            // ⭐ Frontend metadata és backend metadata összevonása
+                            console.log(`📤 [${index + 1}/${allImages.length}] Kép feltöltés kezdés (TÖMÖRÍTÉS NÉLKÜL)...`);
+
+                            // ⭐ TÖMÖRÍTÉS NÉLKÜL - konvertáljuk base64 → buffer
+                            const base64Data = imgObj.data.replace(/^data:image\/\w+;base64,/, '');
+                            const imageBuffer = Buffer.from(base64Data, 'base64');
+
+                            console.log(`📦 Eredeti képméret: ${(imageBuffer.length / 1024).toFixed(2)} KB (metaadatok megmaradnak)`);
+
+                            // ⭐ Frontend metadata használata (backend EXIF kinyerés NÉLKÜL)
                             const finalMetadata = {
-                                ...extractedMetadata,
-                                ...imgObj.metadata, // Frontend metadata felülírja a backend-et ha van
+                                ...imgObj.metadata, // Frontend metadata
                                 itemId: imgObj.itemId,
                                 serialNumber: serialNumber || 'N/A',
                                 projectName: projectName,
@@ -593,22 +608,22 @@ router.post('/projects/:projectId/reports/documentation/export-pdf', isAuthentic
                             });
 
                             // Fájlnév generálása metaadatokkal
-                            const timestamp = finalMetadata.takenDate 
+                            const timestamp = finalMetadata.takenDate
                                 ? new Date(finalMetadata.takenDate).getTime()
                                 : Date.now();
                             const imageFileName = `${imgObj.itemId}_${timestamp}_${index + 1}.jpg`;
 
-                            // ⭐ Feltöltés metaadatokkal
+                            // ⭐ Feltöltés EREDETI képpel metaadatokkal (TÖMÖRÍTÉS NÉLKÜL)
                             const imageUploadResult = await uploadBufferToDrive(
-                                compressedBuffer,
+                                imageBuffer,  // ⭐ EREDETI kép buffer (NEM tömörített!)
                                 imageFileName,
                                 pdfFolderId,
                                 'image/jpeg',
                                 finalMetadata // ⭐ Metaadatok átadása
                             );
-                            
+
                             const imgElapsed = ((Date.now() - imgStartTime) / 1000).toFixed(2);
-                            console.log(`✅ Kép feltöltve metaadatokkal: ${imageFileName} (${imgElapsed}s)`);
+                            console.log(`✅ Eredeti kép feltöltve metaadatokkal: ${imageFileName} (${(imageBuffer.length / 1024).toFixed(2)} KB, ${imgElapsed}s)`);
 
                             return {
                                 url: imageUploadResult.webViewLink,
