@@ -1110,27 +1110,63 @@ function draw(e) {
                                     console.log('✅ Használom az előre kinyert EXIF adatokat (HEIC-ből)');
                                     processExifData(preExtractedExif, file, originalImageData, compressedImageData, previewContainer, itemId);
                                 } else {
-                                    // ⭐ EXIF adatok kinyerése (normál JPEG/PNG fájlból)
-                                    EXIF.getData(file, function() {
-                                        const imageElement = this || file;
+                                    // ⭐ JAVÍTOTT: exifr használata JPEG/PNG-nél is (EXIF.js NEM MŰKÖDIK!)
+                                    console.log('🔍 EXIF kinyerése exifr-rel (JPEG/PNG)...');
 
-                                        const allTags = EXIF.getAllTags(imageElement);
-                                        console.log('📋 EXIF adatok:', file.name, allTags);
+                                    (async () => {
+                                        try {
+                                            // ⭐ exifr.gps() direktben decimális GPS-t ad
+                                            const gpsData = await exifr.gps(file);
+                                            console.log('📍 GPS (exifr.gps):', gpsData);
 
-                                        const exifData = {
-                                            date: EXIF.getTag(imageElement, "DateTimeOriginal") ||
-                                                  EXIF.getTag(imageElement, "DateTime") ||
-                                                  file.lastModified,
-                                            lat: EXIF.getTag(imageElement, "GPSLatitude"),
-                                            lon: EXIF.getTag(imageElement, "GPSLongitude"),
-                                            latRef: EXIF.getTag(imageElement, "GPSLatitudeRef"),
-                                            lonRef: EXIF.getTag(imageElement, "GPSLongitudeRef"),
-                                            make: EXIF.getTag(imageElement, "Make"),
-                                            model: EXIF.getTag(imageElement, "Model")
-                                        };
+                                            // ⭐ Teljes EXIF
+                                            const exifrData = await exifr.parse(file, {
+                                                gps: true,
+                                                exif: true,
+                                                ifd0: true,
+                                                mergeOutput: true
+                                            });
 
-                                        processExifData(exifData, file, originalImageData, compressedImageData, previewContainer, itemId);
-                                    });
+                                            console.log('📋 EXIF (exifr):', exifrData);
+
+                                            const exifData = {
+                                                date: exifrData?.DateTimeOriginal || exifrData?.DateTime || file.lastModified,
+                                                lat: null,
+                                                lon: null,
+                                                make: exifrData?.Make,
+                                                model: exifrData?.Model,
+                                                isDecimal: false
+                                            };
+
+                                            // ⭐ GPS - próbáljuk exifr.gps() elsőként
+                                            if (gpsData && typeof gpsData.latitude === 'number' && !isNaN(gpsData.latitude)) {
+                                                exifData.lat = gpsData.latitude;
+                                                exifData.lon = gpsData.longitude;
+                                                exifData.isDecimal = true;
+                                                console.log('✅ GPS decimális (exifr.gps):', gpsData.latitude, gpsData.longitude);
+                                            } else if (exifrData?.latitude && !isNaN(exifrData.latitude)) {
+                                                exifData.lat = exifrData.latitude;
+                                                exifData.lon = exifrData.longitude;
+                                                exifData.isDecimal = true;
+                                                console.log('✅ GPS decimális (exifr.parse):', exifrData.latitude, exifrData.longitude);
+                                            } else {
+                                                console.warn('⚠️ Nincs GPS adat (exifr)');
+                                            }
+
+                                            processExifData(exifData, file, originalImageData, compressedImageData, previewContainer, itemId);
+
+                                        } catch (exifrError) {
+                                            console.error('❌ exifr hiba:', exifrError);
+                                            // Fallback: GPS nélküli feldolgozás
+                                            processExifData({
+                                                date: file.lastModified,
+                                                lat: null,
+                                                lon: null,
+                                                make: null,
+                                                model: null
+                                            }, file, originalImageData, compressedImageData, previewContainer, itemId);
+                                        }
+                                    })();
                                 }
                             };
 
@@ -1167,17 +1203,25 @@ function draw(e) {
             console.log('🔍 GPS Raw adatok:', {
                 lat: exifData.lat,
                 lon: exifData.lon,
-                latRef: exifData.latRef,
-                lonRef: exifData.lonRef
+                isDecimal: exifData.isDecimal
             });
 
-            if (exifData.lat && exifData.lon) {
-                const lat = convertDMSToDD(exifData.lat, exifData.latRef);
-                const lon = convertDMSToDD(exifData.lon, exifData.lonRef);
+            if (exifData.lat !== null && exifData.lon !== null) {
+                let lat, lon;
 
-                console.log('📐 Konvertált koordináták:', { lat, lon });
+                // ⭐ Ha már decimális (exifr adta vissza)
+                if (exifData.isDecimal && typeof exifData.lat === 'number' && !isNaN(exifData.lat)) {
+                    lat = exifData.lat;
+                    lon = exifData.lon;
+                    console.log('✅ GPS már decimális formátumban:', lat, lon);
+                } else {
+                    // ⭐ DMS konverzió
+                    lat = convertDMSToDD(exifData.lat, exifData.latRef);
+                    lon = convertDMSToDD(exifData.lon, exifData.lonRef);
+                    console.log('📐 Konvertált koordináták (DMS→DD):', { lat, lon });
+                }
 
-                if (lat !== null && lon !== null) {
+                if (lat !== null && lon !== null && !isNaN(lat) && !isNaN(lon)) {
                     location = { lat, lon };
                     locationText = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
                     hasGPS = true;
