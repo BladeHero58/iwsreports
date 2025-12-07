@@ -1161,6 +1161,15 @@ function draw(e) {
                                                 'GPSLongitudeRef': exifrData?.GPSLongitudeRef
                                             });
 
+                                            // ⭐ RAW GPS TAG-ek (tag számok szerint)
+                                            console.log('🔍 RAW GPS TAG-ek (numerikus kulcsok):', {
+                                                'Tag 1 (GPSLatitudeRef)': exifrData?.[1],
+                                                'Tag 2 (GPSLatitude)': exifrData?.[2],
+                                                'Tag 3 (GPSLongitudeRef)': exifrData?.[3],
+                                                'Tag 4 (GPSLongitude)': exifrData?.[4],
+                                                'Tag 34853 (GPS IFD)': exifrData?.[34853]
+                                            });
+
                                             const exifData = {
                                                 date: exifrData?.DateTimeOriginal || exifrData?.DateTime || file.lastModified,
                                                 lat: null,
@@ -1181,6 +1190,52 @@ function draw(e) {
                                                 exifData.lon = exifrData.longitude;
                                                 exifData.isDecimal = true;
                                                 console.log('✅ GPS decimális (exifr.parse):', exifrData.latitude, exifrData.longitude);
+                                            }
+                                            // ⭐ KRITIKUS FIX: Ha NaN, próbáljuk meg manuálisan konvertálni a RAW GPS tag-ekből!
+                                            else if (Array.isArray(exifrData?.[2]) && Array.isArray(exifrData?.[4])) {
+                                                console.log('🔧 Manuális GPS konverzió (RAW tag-ekből)...');
+
+                                                // DMS (Degrees, Minutes, Seconds) → Decimális konverzió
+                                                function dmsArrayToDecimal(dmsArray, ref) {
+                                                    if (!Array.isArray(dmsArray) || dmsArray.length !== 3) return null;
+
+                                                    const degrees = parseFloat(dmsArray[0]) || 0;
+                                                    const minutes = parseFloat(dmsArray[1]) || 0;
+                                                    const seconds = parseFloat(dmsArray[2]) || 0;
+
+                                                    let decimal = degrees + (minutes / 60) + (seconds / 3600);
+
+                                                    // Ha van reference (N/S/E/W) és az S vagy W, akkor negatív
+                                                    if (ref && (ref === 'S' || ref === 'W')) {
+                                                        decimal = -decimal;
+                                                    }
+
+                                                    return decimal;
+                                                }
+
+                                                const latArray = exifrData[2];
+                                                const lonArray = exifrData[4];
+                                                const latRef = exifrData[1] || 'N';
+                                                const lonRef = exifrData[3] || 'E';
+
+                                                console.log('📍 RAW GPS adatok:', {
+                                                    'latArray': latArray,
+                                                    'lonArray': lonArray,
+                                                    'latRef': latRef,
+                                                    'lonRef': lonRef
+                                                });
+
+                                                const lat = dmsArrayToDecimal(latArray, latRef);
+                                                const lon = dmsArrayToDecimal(lonArray, lonRef);
+
+                                                if (lat !== null && lon !== null && !isNaN(lat) && !isNaN(lon)) {
+                                                    exifData.lat = lat;
+                                                    exifData.lon = lon;
+                                                    exifData.isDecimal = true;
+                                                    console.log('✅ GPS manuális konverzió sikeres:', lat, lon);
+                                                } else {
+                                                    console.warn('⚠️ Manuális GPS konverzió sikertelen');
+                                                }
                                             } else {
                                                 console.warn('⚠️ Nincs GPS adat (exifr)');
                                             }
