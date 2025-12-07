@@ -844,10 +844,40 @@ function draw(e) {
             event.target.value = '';
         }
 
-        // ⭐ JAVÍTOTT: HEIC → JPEG konverzió heic2any library-val
+        // ⭐ JAVÍTOTT: HEIC → JPEG konverzió EXIF metaadatok megőrzésével
         async function convertHEICtoJPEG(file, itemId) {
             try {
                 console.log(`🔄 HEIC konverzió indítása: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
+
+                // ⭐ KRITIKUS: EXIF metaadatok kinyerése az EREDETI HEIC fájlból KONVERZIÓ ELŐTT
+                const originalExifData = await new Promise((resolve) => {
+                    EXIF.getData(file, function() {
+                        const imageElement = this || file;
+                        const allTags = EXIF.getAllTags(imageElement);
+                        console.log('📋 Eredeti HEIC EXIF adatok:', allTags);
+
+                        const exifData = {
+                            date: EXIF.getTag(imageElement, "DateTimeOriginal") ||
+                                  EXIF.getTag(imageElement, "DateTime") ||
+                                  null,
+                            lat: EXIF.getTag(imageElement, "GPSLatitude"),
+                            lon: EXIF.getTag(imageElement, "GPSLongitude"),
+                            latRef: EXIF.getTag(imageElement, "GPSLatitudeRef"),
+                            lonRef: EXIF.getTag(imageElement, "GPSLongitudeRef"),
+                            make: EXIF.getTag(imageElement, "Make"),
+                            model: EXIF.getTag(imageElement, "Model")
+                        };
+
+                        console.log('🔍 HEIC GPS Raw adatok:', {
+                            lat: exifData.lat,
+                            lon: exifData.lon,
+                            latRef: exifData.latRef,
+                            lonRef: exifData.lonRef
+                        });
+
+                        resolve(exifData);
+                    });
+                });
 
                 // ⭐ heic2any library használata
                 const convertedBlob = await heic2any({
@@ -871,8 +901,8 @@ function draw(e) {
                     }
                 );
 
-                // Feldolgozás mint normál kép
-                processNormalImage(convertedFile, itemId);
+                // ⭐ KRITIKUS: Feldolgozás az eredeti EXIF adatokkal
+                processNormalImage(convertedFile, itemId, originalExifData);
 
             } catch (error) {
                 console.error('❌ HEIC konverzió hiba:', error);
@@ -931,9 +961,9 @@ function draw(e) {
             }
         }
 
-        // ⭐ ÚJ: Normál képfeldolgozás tömörítéssel
-        function processNormalImage(file, itemId) {
-            const previewContainer = document.getElementById(`preview_${itemId}`); // ⭐ FIX: preview container lekérése
+        // ⭐ JAVÍTOTT: Normál képfeldolgozás tömörítéssel + opcionális előre kinyert EXIF
+        function processNormalImage(file, itemId, preExtractedExif = null) {
+            const previewContainer = document.getElementById(`preview_${itemId}`);
 
             const reader = new FileReader();
 
@@ -970,108 +1000,140 @@ function draw(e) {
                             blobReader.onload = function(blobEvent) {
                                 const imageData = blobEvent.target.result;
 
-                                // ⭐ EXIF adatok kinyerése (eredeti fájlból!)
-                                EXIF.getData(file, function() {
-                                    // ⭐ KRITIKUS - Mobilon gyakran undefined a 'this'
-                                    const imageElement = this || file;
-                            
-                            const allTags = EXIF.getAllTags(imageElement);
-                            console.log('📋 EXIF adatok:', file.name, allTags);
-
-                            const exifData = {
-                                date: EXIF.getTag(imageElement, "DateTimeOriginal") || 
-                                      EXIF.getTag(imageElement, "DateTime") || 
-                                      file.lastModified, // ⭐ Fallback fájl dátumra
-                                lat: EXIF.getTag(imageElement, "GPSLatitude"),
-                                lon: EXIF.getTag(imageElement, "GPSLongitude"),
-                                latRef: EXIF.getTag(imageElement, "GPSLatitudeRef"),
-                                lonRef: EXIF.getTag(imageElement, "GPSLongitudeRef"),
-                                make: EXIF.getTag(imageElement, "Make"),
-                                model: EXIF.getTag(imageElement, "Model")
-                            };
-
-                            // GPS konvertálás
-                            let location = null;
-                            let locationText = 'Nincs GPS adat';
-                            let hasGPS = false;
-
-                            console.log('🔍 GPS Raw adatok:', {
-                                lat: exifData.lat,
-                                lon: exifData.lon,
-                                latRef: exifData.latRef,
-                                lonRef: exifData.lonRef
-                            });
-
-                            if (exifData.lat && exifData.lon) {
-                                const lat = convertDMSToDD(exifData.lat, exifData.latRef);
-                                const lon = convertDMSToDD(exifData.lon, exifData.lonRef);
-                                
-                                console.log('📐 Konvertált koordináták:', { lat, lon });
-                                
-                                if (lat !== null && lon !== null) {
-                                    location = { lat, lon };
-                                    locationText = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
-                                    hasGPS = true;
-                                    console.log('✅ GPS koordináták:', locationText);
+                                // ⭐ KRITIKUS: Használjuk az előre kinyert EXIF-et ha van (HEIC-ből)
+                                if (preExtractedExif) {
+                                    console.log('✅ Használom az előre kinyert EXIF adatokat (HEIC-ből)');
+                                    processExifData(preExtractedExif, file, imageData, previewContainer, itemId);
                                 } else {
-                                    console.warn('⚠️ GPS konvertálás sikertelen');
+                                    // ⭐ EXIF adatok kinyerése (normál JPEG/PNG fájlból)
+                                    EXIF.getData(file, function() {
+                                        const imageElement = this || file;
+
+                                        const allTags = EXIF.getAllTags(imageElement);
+                                        console.log('📋 EXIF adatok:', file.name, allTags);
+
+                                        const exifData = {
+                                            date: EXIF.getTag(imageElement, "DateTimeOriginal") ||
+                                                  EXIF.getTag(imageElement, "DateTime") ||
+                                                  file.lastModified,
+                                            lat: EXIF.getTag(imageElement, "GPSLatitude"),
+                                            lon: EXIF.getTag(imageElement, "GPSLongitude"),
+                                            latRef: EXIF.getTag(imageElement, "GPSLatitudeRef"),
+                                            lonRef: EXIF.getTag(imageElement, "GPSLongitudeRef"),
+                                            make: EXIF.getTag(imageElement, "Make"),
+                                            model: EXIF.getTag(imageElement, "Model")
+                                        };
+
+                                        processExifData(exifData, file, imageData, previewContainer, itemId);
+                                    });
                                 }
-                            } else {
-                                console.warn('⚠️ Nincs GPS adat a képben');
-                            }
-
-                            // Dátum feldolgozás
-                            const dateText = exifData.date ? formatDate(exifData.date) : 'Nincs dátum adat';
-                            const hasDate = !!exifData.date;
-
-                            if (hasDate) {
-                                console.log('✅ Felvétel dátuma:', dateText);
-                            } else {
-                                console.warn('⚠️ Nincs dátum adat a képben');
-                            }
-
-                            // Kamera info
-                            const cameraInfo = (exifData.make || exifData.model) 
-                                ? `${exifData.make || ''} ${exifData.model || ''}`.trim()
-                                : null;
-
-                            // ⭐ Kép tárolása metaadatokkal
-                            uploadedImages[itemId].push({
-                                data: imageData,
-                                metadata: {
-                                    takenDate: exifData.date || new Date().toISOString(),
-                                    location: locationText,
-                                    latitude: location?.lat,
-                                    longitude: location?.lon,
-                                    fileName: file.name,
-                                    camera: cameraInfo,
-                                    hasGPS: hasGPS,
-                                    hasDate: hasDate
-                                }
-                            });
-                            
-                            // ⭐ Preview elem létrehozása
-                            const previewItem = document.createElement('div');
-                            previewItem.className = 'image-preview-item';
-                            
-                            const img = document.createElement('img');
-                            img.src = imageData;
-                            img.alt = file.name;
-                            // ⭐ JAVÍTOTT - Mobilos képmegjelenítés
-                            img.style.width = '100%';
-                            img.style.height = '200px';
-                            img.style.objectFit = 'cover';
-                            img.style.display = 'block';
-                            img.onload = function() {
-                                console.log('✅ Kép betöltve:', file.name);
                             };
-                            img.onerror = function() {
-                                console.error('❌ Kép betöltési hiba:', file.name);
-                            };
-                            
-                            // ⭐ Metaadatok megjelenítése
-                            const metaInfo = document.createElement('div');
-                            metaInfo.className = 'image-meta-info';
+
+                            blobReader.readAsDataURL(blob);
+                        } else {
+                            console.error('❌ Kép tömörítés sikertelen:', file.name);
+                        }
+                    }, 'image/jpeg', 0.7);
+                };
+
+                img.onerror = function() {
+                    console.error('❌ Kép betöltési hiba:', file.name);
+                };
+
+                img.src = e.target.result;
+            };
+
+            reader.onerror = function() {
+                console.error('❌ Fájl olvasási hiba:', file.name);
+            };
+
+            reader.readAsDataURL(file);
+        }
+
+        // ⭐ ÚJ: EXIF adatok feldolgozása és preview létrehozása
+        function processExifData(exifData, file, imageData, previewContainer, itemId) {
+            // GPS konvertálás
+            let location = null;
+            let locationText = 'Nincs GPS adat';
+            let hasGPS = false;
+
+            console.log('🔍 GPS Raw adatok:', {
+                lat: exifData.lat,
+                lon: exifData.lon,
+                latRef: exifData.latRef,
+                lonRef: exifData.lonRef
+            });
+
+            if (exifData.lat && exifData.lon) {
+                const lat = convertDMSToDD(exifData.lat, exifData.latRef);
+                const lon = convertDMSToDD(exifData.lon, exifData.lonRef);
+
+                console.log('📐 Konvertált koordináták:', { lat, lon });
+
+                if (lat !== null && lon !== null) {
+                    location = { lat, lon };
+                    locationText = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+                    hasGPS = true;
+                    console.log('✅ GPS koordináták:', locationText);
+                } else {
+                    console.warn('⚠️ GPS konvertálás sikertelen');
+                }
+            } else {
+                console.warn('⚠️ Nincs GPS adat a képben');
+            }
+
+            // Dátum feldolgozás
+            const dateText = exifData.date ? formatDate(exifData.date) : 'Nincs dátum adat';
+            const hasDate = !!exifData.date;
+
+            if (hasDate) {
+                console.log('✅ Felvétel dátuma:', dateText);
+            } else {
+                console.warn('⚠️ Nincs dátum adat a képben');
+            }
+
+            // Kamera info
+            const cameraInfo = (exifData.make || exifData.model)
+                ? `${exifData.make || ''} ${exifData.model || ''}`.trim()
+                : null;
+
+            // ⭐ Kép tárolása metaadatokkal
+            uploadedImages[itemId].push({
+                data: imageData,
+                metadata: {
+                    takenDate: exifData.date || new Date().toISOString(),
+                    location: locationText,
+                    latitude: location?.lat,
+                    longitude: location?.lon,
+                    fileName: file.name,
+                    camera: cameraInfo,
+                    hasGPS: hasGPS,
+                    hasDate: hasDate
+                }
+            });
+
+            // ⭐ Preview elem létrehozása
+            const previewItem = document.createElement('div');
+            previewItem.className = 'image-preview-item';
+
+            const img = document.createElement('img');
+            img.src = imageData;
+            img.alt = file.name;
+            // ⭐ JAVÍTOTT - Mobilos képmegjelenítés
+            img.style.width = '100%';
+            img.style.height = '200px';
+            img.style.objectFit = 'cover';
+            img.style.display = 'block';
+            img.onload = function() {
+                console.log('✅ Kép betöltve:', file.name);
+            };
+            img.onerror = function() {
+                console.error('❌ Kép betöltési hiba:', file.name);
+            };
+
+            // ⭐ Metaadatok megjelenítése
+            const metaInfo = document.createElement('div');
+            metaInfo.className = 'image-meta-info';
                             
                             let metaHTML = '';
                             
@@ -1150,40 +1212,18 @@ function draw(e) {
                                 previewItem.remove();
                             };
                             
-                            // Összerakás
-                            previewItem.appendChild(img);
-                            previewItem.appendChild(metaInfo);
-                            previewItem.appendChild(removeBtn);
-                            previewContainer.appendChild(previewItem);
+            // Összerakás
+            previewItem.appendChild(img);
+            previewItem.appendChild(metaInfo);
+            previewItem.appendChild(removeBtn);
+            previewContainer.appendChild(previewItem);
 
-                                    console.log('✅ Kép hozzáadva metaadatokkal:', {
-                                        fileName: file.name,
-                                        hasDate: hasDate,
-                                        hasGPS: hasGPS,
-                                        location: locationText
-                                    });
-                                });
-                            };
-
-                            blobReader.readAsDataURL(blob);
-                        } else {
-                            console.error('❌ Kép tömörítés sikertelen:', file.name);
-                        }
-                    }, 'image/jpeg', 0.7);
-                };
-
-                img.onerror = function() {
-                    console.error('❌ Kép betöltési hiba:', file.name);
-                };
-
-                img.src = e.target.result;
-            };
-
-            reader.onerror = function() {
-                console.error('❌ Fájl olvasási hiba:', file.name);
-            };
-
-            reader.readAsDataURL(file);
+            console.log('✅ Kép hozzáadva metaadatokkal:', {
+                fileName: file.name,
+                hasDate: hasDate,
+                hasGPS: hasGPS,
+                location: locationText
+            });
         }
 
         // ⭐ GPS DMS → DD konvertálás
