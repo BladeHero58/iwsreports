@@ -584,42 +584,103 @@ router.post('/projects/:projectId/reports/documentation/export-pdf', isAuthentic
                     const uploadImagePromises = allImages.map(async (imgObj, index) => {
                         const imgStartTime = Date.now();
                         try {
-                            console.log(`📤 [${index + 1}/${allImages.length}] Kép feltöltés kezdés (TÖMÖRÍTÉS NÉLKÜL)...`);
+                            console.log(`📤 [${index + 1}/${allImages.length}] Kép feltöltés kezdés (EXIF metaadatokkal)...`);
 
-                            // ⭐ TÖMÖRÍTÉS NÉLKÜL - konvertáljuk base64 → buffer
+                            // ⭐ base64 → buffer
                             const base64Data = imgObj.data.replace(/^data:image\/\w+;base64,/, '');
                             const imageBuffer = Buffer.from(base64Data, 'base64');
 
-                            console.log(`📦 Eredeti képméret: ${(imageBuffer.length / 1024).toFixed(2)} KB (metaadatok megmaradnak)`);
+                            console.log(`📦 Eredeti képméret: ${(imageBuffer.length / 1024).toFixed(2)} KB`);
 
-                            // ⭐ Frontend metadata használata (backend EXIF kinyerés NÉLKÜL)
+                            // ⭐ Frontend metadata
                             const finalMetadata = {
-                                ...imgObj.metadata, // Frontend metadata
+                                ...imgObj.metadata,
                                 itemId: imgObj.itemId,
                                 serialNumber: serialNumber || 'N/A',
                                 projectName: projectName,
                                 uploadDate: new Date().toISOString()
                             };
-                            
+
                             console.log(`📋 Kép ${index + 1} metaadatai:`, {
                                 hasDate: finalMetadata.hasDate,
                                 hasGPS: finalMetadata.hasGPS,
-                                location: finalMetadata.location
+                                location: finalMetadata.location,
+                                latitude: finalMetadata.latitude,
+                                longitude: finalMetadata.longitude
                             });
 
-                            // Fájlnév generálása metaadatokkal
+                            // ⭐ KRITIKUS: EXIF GPS metaadatok visszarakása Sharp-pal
+                            let finalImageBuffer = imageBuffer;
+
+                            if (finalMetadata.latitude && finalMetadata.longitude &&
+                                !isNaN(finalMetadata.latitude) && !isNaN(finalMetadata.longitude)) {
+
+                                console.log(`🌍 GPS koordináták hozzáadása EXIF-hez: ${finalMetadata.latitude}, ${finalMetadata.longitude}`);
+
+                                try {
+                                    // ⭐ GPS koordináták decimális → DMS konverzió
+                                    function toDegreesMinutesSeconds(decimal) {
+                                        const absolute = Math.abs(decimal);
+                                        const degrees = Math.floor(absolute);
+                                        const minutesNotTruncated = (absolute - degrees) * 60;
+                                        const minutes = Math.floor(minutesNotTruncated);
+                                        const seconds = (minutesNotTruncated - minutes) * 60;
+                                        return [degrees, minutes, seconds];
+                                    }
+
+                                    const latDMS = toDegreesMinutesSeconds(finalMetadata.latitude);
+                                    const lonDMS = toDegreesMinutesSeconds(finalMetadata.longitude);
+
+                                    // ⭐ Sharp EXIF GPS formátum
+                                    const exifData = {
+                                        IFD0: {
+                                            Make: finalMetadata.camera || 'Unknown',
+                                            Model: finalMetadata.camera || 'Unknown'
+                                        },
+                                        GPSInfo: {
+                                            GPSLatitudeRef: finalMetadata.latitude >= 0 ? 'N' : 'S',
+                                            GPSLatitude: latDMS,
+                                            GPSLongitudeRef: finalMetadata.longitude >= 0 ? 'E' : 'W',
+                                            GPSLongitude: lonDMS,
+                                            GPSVersionID: [2, 3, 0, 0]
+                                        }
+                                    };
+
+                                    console.log(`📍 GPS EXIF DMS:`, {
+                                        lat: latDMS,
+                                        latRef: exifData.GPSInfo.GPSLatitudeRef,
+                                        lon: lonDMS,
+                                        lonRef: exifData.GPSInfo.GPSLongitudeRef
+                                    });
+
+                                    // ⭐ Kép újraírása EXIF GPS metaadatokkal
+                                    finalImageBuffer = await sharp(imageBuffer)
+                                        .withExif(exifData)
+                                        .jpeg({ quality: 100 }) // 100% minőség
+                                        .toBuffer();
+
+                                    console.log(`✅ EXIF GPS metaadatok beágyazva képbe`);
+                                } catch (exifError) {
+                                    console.warn(`⚠️ EXIF GPS hozzáadása sikertelen:`, exifError.message);
+                                    finalImageBuffer = imageBuffer;
+                                }
+                            } else {
+                                console.log(`ℹ️ Nincs GPS adat - kép feltöltése GPS nélkül`);
+                            }
+
+                            // Fájlnév generálása
                             const timestamp = finalMetadata.takenDate
                                 ? new Date(finalMetadata.takenDate).getTime()
                                 : Date.now();
                             const imageFileName = `${imgObj.itemId}_${timestamp}_${index + 1}.jpg`;
 
-                            // ⭐ Feltöltés EREDETI képpel metaadatokkal (TÖMÖRÍTÉS NÉLKÜL)
+                            // ⭐ Feltöltés GPS EXIF metaadatokkal
                             const imageUploadResult = await uploadBufferToDrive(
-                                imageBuffer,  // ⭐ EREDETI kép buffer (NEM tömörített!)
+                                finalImageBuffer,  // ⭐ GPS EXIF-el ellátott kép
                                 imageFileName,
                                 pdfFolderId,
                                 'image/jpeg',
-                                finalMetadata // ⭐ Metaadatok átadása
+                                finalMetadata
                             );
 
                             const imgElapsed = ((Date.now() - imgStartTime) / 1000).toFixed(2);
