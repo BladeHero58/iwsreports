@@ -906,6 +906,8 @@ function draw(e) {
 
         // ⭐ ÚJ: Normál képfeldolgozás tömörítéssel
         function processNormalImage(file, itemId) {
+            const previewContainer = document.getElementById(`preview_${itemId}`); // ⭐ FIX: preview container lekérése
+
             const reader = new FileReader();
 
             reader.onload = function(e) {
