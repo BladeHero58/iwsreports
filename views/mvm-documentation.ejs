@@ -17,6 +17,9 @@
     <!-- ⭐ exifr - HEIC EXIF támogatással (TELJES verzió GPS parsing-gel) -->
     <script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.js"></script>
 
+    <!-- ⭐ piexifjs - GPS írásra/olvasásra optimalizált (mobil kompatibilitás) -->
+    <script src="https://cdn.jsdelivr.net/npm/piexifjs@1.0.6/piexif.min.js"></script>
+
     <!-- ⭐ EXIF metaadatok megjelenítésére CSS -->
     <style>
         .image-preview-container {
@@ -1119,9 +1122,64 @@ function draw(e) {
                                             // Néhány telefonos EXIF formátumnál az exifr library jobban működik buffer-rel
                                             const arrayBuffer = await file.arrayBuffer();
 
-                                            // ⭐ exifr.gps() ArrayBuffer-rel
-                                            const gpsData = await exifr.gps(arrayBuffer);
-                                            console.log('📍 GPS (exifr.gps) ArrayBuffer-rel:', gpsData);
+                                            // ⭐ MOBIL FIX: Próbáljuk piexifjs-t ELŐSZÖR (mobil kompatibilitás)
+                                            let piexifGPS = null;
+                                            try {
+                                                // Base64 a piexifjs számára
+                                                const base64String = originalImageData.split(',')[1];
+                                                const exifObj = piexif.load(base64String);
+
+                                                console.log('🔍 PIEXIF EXIF objektum:', exifObj);
+
+                                                if (exifObj && exifObj.GPS) {
+                                                    console.log('📍 PIEXIF GPS tag-ek:', exifObj.GPS);
+
+                                                    // GPS koordináták kinyerése
+                                                    const gpsIfd = exifObj.GPS;
+
+                                                    if (gpsIfd[piexif.GPSIFD.GPSLatitude] && gpsIfd[piexif.GPSIFD.GPSLongitude]) {
+                                                        const latDMS = gpsIfd[piexif.GPSIFD.GPSLatitude];
+                                                        const lonDMS = gpsIfd[piexif.GPSIFD.GPSLongitude];
+                                                        const latRef = gpsIfd[piexif.GPSIFD.GPSLatitudeRef];
+                                                        const lonRef = gpsIfd[piexif.GPSIFD.GPSLongitudeRef];
+
+                                                        console.log('📍 PIEXIF GPS DMS:', {
+                                                            latDMS, lonDMS, latRef, lonRef
+                                                        });
+
+                                                        // DMS → Decimális konverzió
+                                                        function piexifDMSToDecimal(dms, ref) {
+                                                            if (!dms || dms.length !== 3) return null;
+
+                                                            const deg = dms[0][0] / dms[0][1];
+                                                            const min = dms[1][0] / dms[1][1];
+                                                            const sec = dms[2][0] / dms[2][1];
+
+                                                            let decimal = deg + (min / 60) + (sec / 3600);
+
+                                                            if (ref === 'S' || ref === 'W') {
+                                                                decimal = -decimal;
+                                                            }
+
+                                                            return decimal;
+                                                        }
+
+                                                        const lat = piexifDMSToDecimal(latDMS, latRef);
+                                                        const lon = piexifDMSToDecimal(lonDMS, lonRef);
+
+                                                        if (lat !== null && lon !== null && !isNaN(lat) && !isNaN(lon)) {
+                                                            piexifGPS = { latitude: lat, longitude: lon };
+                                                            console.log('✅ PIEXIF GPS sikeres:', piexifGPS);
+                                                        }
+                                                    }
+                                                }
+                                            } catch (piexifError) {
+                                                console.warn('⚠️ piexifjs hiba:', piexifError.message);
+                                            }
+
+                                            // ⭐ exifr.gps() ArrayBuffer-rel (fallback)
+                                            const gpsData = piexifGPS || await exifr.gps(arrayBuffer);
+                                            console.log('📍 GPS (final):', gpsData);
 
                                             // ⭐ RÉSZLETES GPS DEBUG
                                             if (gpsData) {
