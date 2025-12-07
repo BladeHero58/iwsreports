@@ -864,6 +864,10 @@ function draw(e) {
                 };
 
                 try {
+                    // ⭐ KRITIKUS: exifr.gps() - direktben GPS koordinátákat ad vissza!
+                    const rawGPS = await exifr.gps(file);
+                    console.log('📍 exifr.gps() DIREKT GPS:', rawGPS);
+
                     // ⭐ exifr library használata - HEIC támogatással, MERGED output!
                     const exifrData = await exifr.parse(file, {
                         gps: true,
@@ -899,12 +903,23 @@ function draw(e) {
                                          exifrData.CreateDate ||
                                          file.lastModified;
 
-                        // ⭐ GPS kinyerése - próbáljuk a decimális koordinátákat
-                        const hasDecimalGPS = (typeof exifrData.latitude === 'number' && !isNaN(exifrData.latitude) &&
-                                              typeof exifrData.longitude === 'number' && !isNaN(exifrData.longitude));
-
-                        if (hasDecimalGPS) {
-                            // ⭐ exifr már feldolgozta és decimálissá konvertálta
+                        // ⭐ ELSŐ: rawGPS objektum (exifr.gps() direkt metódus)
+                        if (rawGPS && typeof rawGPS.latitude === 'number' && !isNaN(rawGPS.latitude)) {
+                            originalExifData = {
+                                date: photoDate,
+                                lat: rawGPS.latitude,
+                                lon: rawGPS.longitude,
+                                latRef: null,
+                                lonRef: null,
+                                make: exifrData.Make,
+                                model: exifrData.Model,
+                                isDecimal: true
+                            };
+                            console.log('✅ GPS (exifr.gps() direkt):', rawGPS.latitude, rawGPS.longitude);
+                            console.log('✅ Fénykép dátuma:', photoDate);
+                        }
+                        // ⭐ MÁSODIK: decimális GPS az exifrData-ból
+                        else if (typeof exifrData.latitude === 'number' && !isNaN(exifrData.latitude)) {
                             originalExifData = {
                                 date: photoDate,
                                 lat: exifrData.latitude,
@@ -915,10 +930,10 @@ function draw(e) {
                                 model: exifrData.Model,
                                 isDecimal: true
                             };
-                            console.log('✅ Decimális GPS (exifr):', exifrData.latitude, exifrData.longitude);
+                            console.log('✅ Decimális GPS (exifr.parse):', exifrData.latitude, exifrData.longitude);
                             console.log('✅ Fénykép dátuma:', photoDate);
                         }
-                        // ⭐ GPS tömbként (DMS format)
+                        // ⭐ HARMADIK: GPS tömbként (DMS format)
                         else if (exifrData.GPSLatitude && exifrData.GPSLongitude) {
                             originalExifData = {
                                 date: photoDate,
@@ -943,7 +958,7 @@ function draw(e) {
                                 make: exifrData.Make,
                                 model: exifrData.Model
                             };
-                            console.warn('⚠️ Nincs GPS adat');
+                            console.warn('⚠️ Nincs GPS adat sehol (rawGPS, latitude, GPSLatitude)');
                             console.log('✅ Fénykép dátuma:', photoDate);
                         }
                     }
