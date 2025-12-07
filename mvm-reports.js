@@ -592,16 +592,37 @@ router.post('/projects/:projectId/reports/documentation/export-pdf', isAuthentic
 
                             console.log(`📦 Eredeti képméret: ${(imageBuffer.length / 1024).toFixed(2)} KB`);
 
-                            // ⭐ Frontend metadata
+                            // ⭐ KRITIKUS FIX: SZERVEROLDALI EXIF BEOLVASÁS!
+                            console.log(`🔍 Szerveroldali EXIF beolvasás (base64 képből)...`);
+                            const serverExifMetadata = await extractExifMetadata(imgObj.data);
+
+                            console.log(`📋 Szerver által kinyert EXIF:`, {
+                                hasDate: serverExifMetadata.hasDate,
+                                hasGPS: serverExifMetadata.hasGPS,
+                                location: serverExifMetadata.location,
+                                latitude: serverExifMetadata.latitude,
+                                longitude: serverExifMetadata.longitude,
+                                takenDate: serverExifMetadata.takenDate
+                            });
+
+                            // ⭐ SZERVER EXIF elsőbbsége, frontend metadata fallback
                             const finalMetadata = {
-                                ...imgObj.metadata,
+                                // Ha a szerver talált GPS-t, használjuk azt
+                                takenDate: serverExifMetadata.hasDate ? serverExifMetadata.takenDate : (imgObj.metadata?.takenDate || new Date().toISOString()),
+                                location: serverExifMetadata.hasGPS ? serverExifMetadata.location : (imgObj.metadata?.location || 'Nincs GPS adat'),
+                                latitude: serverExifMetadata.hasGPS ? serverExifMetadata.latitude : (imgObj.metadata?.latitude || null),
+                                longitude: serverExifMetadata.hasGPS ? serverExifMetadata.longitude : (imgObj.metadata?.longitude || null),
+                                camera: serverExifMetadata.camera || imgObj.metadata?.camera || null,
+                                hasGPS: serverExifMetadata.hasGPS || (imgObj.metadata?.hasGPS || false),
+                                hasDate: serverExifMetadata.hasDate || (imgObj.metadata?.hasDate || false),
+                                // Kiegészítő metaadatok
                                 itemId: imgObj.itemId,
                                 serialNumber: serialNumber || 'N/A',
                                 projectName: projectName,
                                 uploadDate: new Date().toISOString()
                             };
 
-                            console.log(`📋 Kép ${index + 1} metaadatai:`, {
+                            console.log(`✅ Végső metaadatok (szerver prioritással):`, {
                                 hasDate: finalMetadata.hasDate,
                                 hasGPS: finalMetadata.hasGPS,
                                 location: finalMetadata.location,
