@@ -1119,6 +1119,19 @@ function draw(e) {
                                             const gpsData = await exifr.gps(file);
                                             console.log('📍 GPS (exifr.gps):', gpsData);
 
+                                            // ⭐ RÉSZLETES GPS DEBUG
+                                            if (gpsData) {
+                                                console.log('🔍 GPS RÉSZLETEK:', {
+                                                    'latitude': gpsData.latitude,
+                                                    'longitude': gpsData.longitude,
+                                                    'latitude típus': typeof gpsData.latitude,
+                                                    'longitude típus': typeof gpsData.longitude,
+                                                    'isNaN(lat)': isNaN(gpsData.latitude),
+                                                    'isNaN(lon)': isNaN(gpsData.longitude),
+                                                    'összes kulcs': Object.keys(gpsData)
+                                                });
+                                            }
+
                                             // ⭐ Teljes EXIF
                                             const exifrData = await exifr.parse(file, {
                                                 gps: true,
@@ -1128,6 +1141,16 @@ function draw(e) {
                                             });
 
                                             console.log('📋 EXIF (exifr):', exifrData);
+
+                                            // ⭐ EXIF GPS RÉSZLETEK
+                                            console.log('🔍 EXIF GPS MEZŐK:', {
+                                                'latitude': exifrData?.latitude,
+                                                'longitude': exifrData?.longitude,
+                                                'GPSLatitude': exifrData?.GPSLatitude,
+                                                'GPSLongitude': exifrData?.GPSLongitude,
+                                                'GPSLatitudeRef': exifrData?.GPSLatitudeRef,
+                                                'GPSLongitudeRef': exifrData?.GPSLongitudeRef
+                                            });
 
                                             const exifData = {
                                                 date: exifrData?.DateTimeOriginal || exifrData?.DateTime || file.lastModified,
