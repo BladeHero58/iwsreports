@@ -1361,7 +1361,8 @@ function draw(e) {
                             removeBtn.title = 'Kép eltávolítása';
                             removeBtn.onclick = function(e) {
                                 e.stopPropagation();
-                                const index = uploadedImages[itemId].findIndex(img => img.data === imageData);
+                                // ⭐ FIX: compressedImageData használata
+                                const index = uploadedImages[itemId].findIndex(img => img.data === compressedImageData);
                                 if (index > -1) {
                                     uploadedImages[itemId].splice(index, 1);
                                     console.log('🗑️ Kép eltávolítva:', file.name);
@@ -2614,7 +2615,9 @@ function loadSavedData(data) {
                 
                 const previewContainer = document.getElementById(`preview_${itemId}`);
                 data.images[itemId].forEach(imgObj => {
-                    const imageData = imgObj.data;
+                    // ⭐ Új formátum: {data, originalData, metadata}
+                    // ⭐ Régi formátum: {data, metadata}
+                    const imageData = imgObj.data || imgObj;
                     const metadata = imgObj.metadata || {};
                     
                     const previewItem = document.createElement('div');
@@ -2689,10 +2692,21 @@ function loadSavedData(data) {
                     const removeBtn = document.createElement('button');
                     removeBtn.className = 'image-remove-btn';
                     removeBtn.innerHTML = '&times;';
-                    removeBtn.onclick = function() {
-                        const index = uploadedImages[itemId].findIndex(img => img.data === imageData);
+                    removeBtn.title = 'Kép eltávolítása';
+                    removeBtn.onclick = function(e) {
+                        e.stopPropagation();
+                        // ⭐ FIX: Betöltött képeknél imageData a komplett objektum vagy string lehet
+                        const index = uploadedImages[itemId].findIndex(img => {
+                            // Ha img objektum (új formátum: {data, originalData, metadata})
+                            if (typeof img === 'object' && img.data) {
+                                return img.data === imageData;
+                            }
+                            // Ha img string (régi formátum)
+                            return img === imageData;
+                        });
                         if (index > -1) {
                             uploadedImages[itemId].splice(index, 1);
+                            console.log('🗑️ Mentett kép eltávolítva');
                         }
                         previewItem.remove();
                     };

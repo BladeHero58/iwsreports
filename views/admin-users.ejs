@@ -123,15 +123,92 @@
       text-align: center;
     }
 
+    @media (max-width: 992px) {
+      .container {
+        padding: 15px;
+      }
+
+      th, td {
+        padding: 12px 8px;
+        font-size: 13px;
+      }
+    }
+
     @media (max-width: 768px) {
       .header {
         flex-direction: column;
         align-items: stretch;
       }
 
+      .header h1 {
+        font-size: 24px;
+        text-align: center;
+      }
+
       th, td {
+        padding: 10px 6px;
+        font-size: 12px;
+      }
+
+      .btn, .btn-blue, .logout-btn {
+        width: 100%;
+        margin: 5px 0;
+        padding: 12px;
+      }
+
+      .table-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      table {
+        min-width: 600px;
+      }
+
+      .project-list {
+        font-size: 12px;
+      }
+    }
+
+    @media (max-width: 576px) {
+      .container {
         padding: 10px;
-        font-size: 13px;
+      }
+
+      .header h1 {
+        font-size: 20px;
+      }
+
+      th, td {
+        padding: 8px 4px;
+        font-size: 11px;
+      }
+
+      .badge {
+        font-size: 10px;
+        padding: 3px 8px;
+      }
+
+      .project-list li {
+        font-size: 11px;
+        padding: 2px 0;
+      }
+
+      .btn, .btn-blue, .logout-btn {
+        font-size: 14px;
+        padding: 10px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+      }
+
+      .no-projects {
+        font-size: 11px;
       }
     }
   </style>

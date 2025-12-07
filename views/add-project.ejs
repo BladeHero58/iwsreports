@@ -8,26 +8,153 @@
   <link rel="stylesheet" href="/css/style.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 
+  <style>
+    .project-form-container {
+      max-width: 600px;
+      margin: 30px auto;
+      padding: 30px;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 10px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    h1 {
+      text-align: center;
+      color: #5c0099;
+      margin-bottom: 30px;
+      font-size: 28px;
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    form input,
+    form textarea,
+    form select {
+      width: 100%;
+      padding: 12px 15px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      font-size: 16px;
+      font-family: "Montserrat", sans-serif;
+      transition: border-color 0.3s ease;
+      box-sizing: border-box;
+    }
+
+    form input:focus,
+    form textarea:focus,
+    form select:focus {
+      outline: none;
+      border-color: #5c0099;
+    }
+
+    form textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+
+    form label {
+      font-weight: 600;
+      color: #333;
+      margin-bottom: -10px;
+      font-size: 14px;
+    }
+
+    form .btn {
+      width: 100%;
+      margin: 10px 0 0 0;
+      padding: 12px;
+      font-size: 16px;
+    }
+
+    @media (max-width: 768px) {
+      .project-form-container {
+        margin: 20px;
+        padding: 20px;
+      }
+
+      h1 {
+        font-size: 24px;
+        margin-bottom: 20px;
+      }
+
+      form input,
+      form textarea,
+      form select {
+        padding: 10px 12px;
+        font-size: 15px;
+      }
+
+      form label {
+        font-size: 13px;
+      }
+    }
+
+    @media (max-width: 576px) {
+      .project-form-container {
+        margin: 15px;
+        padding: 15px;
+      }
+
+      h1 {
+        font-size: 20px;
+        margin-bottom: 15px;
+      }
+
+      form {
+        gap: 15px;
+      }
+
+      form input,
+      form textarea,
+      form select,
+      form .btn {
+        padding: 10px;
+        font-size: 14px;
+      }
+
+      form textarea {
+        min-height: 100px;
+      }
+    }
+
+    @media (max-width: 360px) {
+      .project-form-container {
+        margin: 10px;
+        padding: 12px;
+      }
+
+      h1 {
+        font-size: 18px;
+      }
+    }
+  </style>
+
 </head>
 <body>
-  <h1>Új projekt hozzáadása</h1>
-  <form action='/admin/projects/add' method='POST'>
-    <input type='text' name='name' placeholder='Projekt neve' required>
-    <textarea name='description' placeholder='Projekt leírása'></textarea>
+  <div class="project-form-container">
+    <h1>Új projekt hozzáadása</h1>
+    <form action='/admin/projects/add' method='POST'>
+      <input type='text' name='name' placeholder='Projekt neve' required>
+      <textarea name='description' placeholder='Projekt leírása'></textarea>
 
-    <label for="projectType">Projekt Típusa:</label>
-    <select name='projectType' id="projectType" required>
-      <option value='IWS Solutions'>IWS Solutions</option>
-      <option value='MVM Xpert'>MVM Xpert</option>
-    </select>
+      <label for="projectType">Projekt Típusa:</label>
+      <select name='projectType' id="projectType" required>
+        <option value='IWS Solutions'>IWS Solutions</option>
+        <option value='MVM Xpert'>MVM Xpert</option>
+      </select>
 
-    <label for="status">Projekt Státusza:</label>
-    <select name='status' id="status">
-      <option value='Elindítandó'>Elindítandó</option>
-      <option value='Folyamatban'>Folyamatban</option>
-    </select>
-    
-    <button type='submit' class="btn"><i class="fas fa-plus"></i> Hozzáadás</button>
-  </form>
+      <label for="status">Projekt Státusza:</label>
+      <select name='status' id="status">
+        <option value='Elindítandó'>Elindítandó</option>
+        <option value='Folyamatban'>Folyamatban</option>
+      </select>
+
+      <button type='submit' class="btn"><i class="fas fa-plus"></i> Hozzáadás</button>
+    </form>
+  </div>
 </body>
 </html>
