@@ -20,29 +20,43 @@
         /* Responsive adjustments for profile page */
         body {
             padding: 10px;
+            max-width: 1400px;
+            margin: 0 auto;
         }
 
         h1, h2, h3 {
             word-wrap: break-word;
         }
 
+        /* Profile header section */
+        .profile-header {
+            max-width: 800px;
+            margin: 0 auto 30px;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+        }
+
         #calendar {
-            max-width: 100%;
+            max-width: 1200px;
             margin: 0 auto;
         }
 
         .pdf-download-container {
             text-align: center;
-            margin: 20px 0;
+            margin: 20px auto;
+            max-width: 400px;
         }
 
         .btn-big {
-            width: auto;
+            width: 100%;
             max-width: 100%;
         }
 
         .container {
-            max-width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
             padding: 15px;
         }
 
@@ -55,6 +69,11 @@
             min-width: 600px;
         }
 
+        .notes-section {
+            max-width: 1200px;
+            margin: 20px auto;
+        }
+
         .notes-section textarea {
             width: 100%;
             box-sizing: border-box;
@@ -62,10 +81,17 @@
 
         .password-section-container {
             max-width: 600px;
-            margin: 20px auto;
-            padding: 20px;
+            margin: 40px auto 20px;
+            padding: 30px;
             background: rgba(255, 255, 255, 0.95);
             border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .password-section-container h3 {
+            text-align: center;
+            color: #5c0099;
+            margin-bottom: 20px;
         }
 
         .password-section-container form {
@@ -76,8 +102,36 @@
 
         .password-section-container input {
             width: 100%;
-            padding: 10px;
+            padding: 12px;
             box-sizing: border-box;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-family: "Montserrat", sans-serif;
+            font-size: 14px;
+        }
+
+        .password-section-container input:focus {
+            outline: none;
+            border-color: #5c0099;
+        }
+
+        .password-section-container label {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        /* Back to dashboard button - separate section */
+        .back-button-section {
+            max-width: 600px;
+            margin: 30px auto;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .back-button-section .logout-btn {
+            width: 100%;
+            max-width: 400px;
         }
 
         .modal-content {
@@ -289,17 +343,19 @@
 
 </head>
 <body>
-   <h1>Üdvözlünk, <%= user.username %>!</h1>
-<p>Email: <%= user.email %></p>
-<p>Felhasználói név: <%= user.username %></p>
+   <div class="profile-header">
+       <h1>Üdvözlünk, <%= user.username %>!</h1>
+       <p>Email: <%= user.email %></p>
+       <p>Felhasználói név: <%= user.username %></p>
+   </div>
 
 <hr>
 
-<h2>Óranyilvántartás</h2>
+<h2 style="text-align: center;">Óranyilvántartás</h2>
 
 <div id='calendar'></div>
 <div class="pdf-download-container">
-    <button id="downloadPdfButton" class="btn-big"><i class="fas fa-file-pdf"></i> PDF letöltése az aktuális hónapról</button>
+    <button id="downloadPdfButton" class="btn-big btn"><i class="fas fa-file-pdf"></i> PDF letöltése az aktuális hónapról</button>
 </div>
 <hr>
 
@@ -429,10 +485,12 @@
 
         <button type="submit" id="pwButton" class="btn"><i class="fas fa-pen-to-square"></i> Jelszó módosítása</button>
     </form>
+</div>
 
+<div class="back-button-section">
     <form action="<%= user.is_admin ? '/admin-dashboard' : '/dashboard' %>" method="GET">
-    <button type="submit" class="logout-btn" id="backToDashboardBtn"><i class="fas fa-arrow-left"></i> Vissza az irányítópultra</button>
-</form>
+        <button type="submit" class="logout-btn" id="backToDashboardBtn"><i class="fas fa-arrow-left"></i> Vissza az irányítópultra</button>
+    </form>
 </div>
 
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js'></script>

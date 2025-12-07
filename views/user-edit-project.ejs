@@ -8,32 +8,190 @@
     <link rel="stylesheet" href="/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 
+    <style>
+        .edit-project-container {
+            max-width: 700px;
+            margin: 30px auto;
+            padding: 30px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #5c0099;
+            margin-bottom: 30px;
+            font-size: 26px;
+            word-wrap: break-word;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        form label {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+            font-size: 15px;
+        }
+
+        form input,
+        form textarea,
+        form select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 15px;
+            font-family: "Montserrat", sans-serif;
+            transition: border-color 0.3s ease;
+            box-sizing: border-box;
+            margin-top: 5px;
+        }
+
+        form input:focus,
+        form textarea:focus,
+        form select:focus {
+            outline: none;
+            border-color: #5c0099;
+        }
+
+        form textarea {
+            min-height: 150px;
+            resize: vertical;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        form .btn {
+            width: 100%;
+            margin: 10px 0 0 0;
+            padding: 12px;
+            font-size: 16px;
+        }
+
+        .back-button-container {
+            max-width: 700px;
+            margin: 20px auto;
+            padding: 0 30px;
+        }
+
+        .back-button-container .logout-btn {
+            width: 100%;
+        }
+
+        @media (max-width: 768px) {
+            .edit-project-container {
+                margin: 20px;
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 22px;
+                margin-bottom: 20px;
+            }
+
+            form input,
+            form textarea,
+            form select {
+                padding: 10px 12px;
+                font-size: 14px;
+            }
+
+            form label {
+                font-size: 14px;
+            }
+
+            .back-button-container {
+                padding: 0 20px;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .edit-project-container {
+                margin: 15px;
+                padding: 15px;
+            }
+
+            h1 {
+                font-size: 20px;
+                margin-bottom: 15px;
+            }
+
+            form {
+                gap: 15px;
+            }
+
+            form input,
+            form textarea,
+            form select,
+            form .btn {
+                padding: 10px;
+                font-size: 14px;
+            }
+
+            form textarea {
+                min-height: 120px;
+            }
+
+            .back-button-container {
+                padding: 0 15px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .edit-project-container {
+                margin: 10px;
+                padding: 12px;
+            }
+
+            h1 {
+                font-size: 18px;
+            }
+        }
+    </style>
+
 </head>
 <body>
-    <h1>Projekt szerkesztése: <%= project.name %></h1>
+    <div class="edit-project-container">
+        <h1>Projekt szerkesztése: <%= project.name %></h1>
 
-    <form action="/user/projects/edit/<%= project.id %>" method="post" onsubmit="return confirm('Biztosan szeretné módosítani ezt a projektet?');">
-        <label for="name">Projekt neve:</label><br>
-        <input type="text" id="name" name="name" value="<%= project.name %>" required><br><br>
+        <form action="/user/projects/edit/<%= project.id %>" method="post" onsubmit="return confirm('Biztosan szeretné módosítani ezt a projektet?');">
+            <div class="form-group">
+                <label for="name">Projekt neve:</label>
+                <input type="text" id="name" name="name" value="<%= project.name %>" required>
+            </div>
 
-        <label for="description">Leírás:</label><br>
-        <textarea id="description" name="description" required><%= project.description %></textarea><br><br>
+            <div class="form-group">
+                <label for="description">Leírás:</label>
+                <textarea id="description" name="description" required><%= project.description %></textarea>
+            </div>
 
-        <label for="status">Állapot:</label><br>
-        <select id="status" name="status">
-            <option value="Elindítandó" <%= project.status === 'Elindítandó' ? 'selected' : '' %>>Elindítandó</option>
-            <option value="Folyamatban" <%= project.status === 'Folyamatban' ? 'selected' : '' %>>Folyamatban</option>
-            <option value="Befejezett" <%= project.status === 'Befejezett' ? 'selected' : '' %>>Befejezett</option>
-        </select><br><br>
+            <div class="form-group">
+                <label for="status">Állapot:</label>
+                <select id="status" name="status">
+                    <option value="Elindítandó" <%= project.status === 'Elindítandó' ? 'selected' : '' %>>Elindítandó</option>
+                    <option value="Folyamatban" <%= project.status === 'Folyamatban' ? 'selected' : '' %>>Folyamatban</option>
+                    <option value="Befejezett" <%= project.status === 'Befejezett' ? 'selected' : '' %>>Befejezett</option>
+                </select>
+            </div>
 
-        <button type="submit" class="btn"><i class="fas fa-save"></i> Mentés</button>
-    </form>
+            <button type="submit" class="btn"><i class="fas fa-save"></i> Mentés</button>
+        </form>
+    </div>
 
-    <br>
-    
-    <form action="/user/projects/<%= projectId %>" method="GET">
-        <button type="submit" class="logout-btn"><i class="fas fa-arrow-left"></i> Vissza a projekt részleteihez</button>
-    </form>
-    
+    <div class="back-button-container">
+        <form action="/user/projects/<%= projectId %>" method="GET">
+            <button type="submit" class="logout-btn"><i class="fas fa-arrow-left"></i> Vissza a projekt részleteihez</button>
+        </form>
+    </div>
+
 </body>
 </html>
