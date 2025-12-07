@@ -14,6 +14,9 @@
     <!-- ⭐ HEIC to JPEG konverzióhoz -->
     <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 
+    <!-- ⭐ exifr - HEIC EXIF támogatással -->
+    <script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.umd.js"></script>
+
     <!-- ⭐ EXIF metaadatok megjelenítésére CSS -->
     <style>
         .image-preview-container {
@@ -849,35 +852,59 @@ function draw(e) {
             try {
                 console.log(`🔄 HEIC konverzió indítása: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
 
-                // ⭐ KRITIKUS: EXIF metaadatok kinyerése az EREDETI HEIC fájlból KONVERZIÓ ELŐTT
-                const originalExifData = await new Promise((resolve) => {
-                    EXIF.getData(file, function() {
-                        const imageElement = this || file;
-                        const allTags = EXIF.getAllTags(imageElement);
-                        console.log('📋 Eredeti HEIC EXIF adatok:', allTags);
+                // ⭐ KRITIKUS: EXIF metaadatok kinyerése az EREDETI HEIC fájlból exifr library-vel
+                let originalExifData = {
+                    date: null,
+                    lat: null,
+                    lon: null,
+                    latRef: null,
+                    lonRef: null,
+                    make: null,
+                    model: null
+                };
 
-                        const exifData = {
-                            date: EXIF.getTag(imageElement, "DateTimeOriginal") ||
-                                  EXIF.getTag(imageElement, "DateTime") ||
-                                  null,
-                            lat: EXIF.getTag(imageElement, "GPSLatitude"),
-                            lon: EXIF.getTag(imageElement, "GPSLongitude"),
-                            latRef: EXIF.getTag(imageElement, "GPSLatitudeRef"),
-                            lonRef: EXIF.getTag(imageElement, "GPSLongitudeRef"),
-                            make: EXIF.getTag(imageElement, "Make"),
-                            model: EXIF.getTag(imageElement, "Model")
+                try {
+                    // exifr library használata - támogatja a HEIC-et!
+                    const exifrData = await exifr.parse(file, {
+                        gps: true,
+                        exif: true,
+                        ifd0: true
+                    });
+
+                    console.log('📋 Eredeti HEIC EXIF adatok (exifr):', exifrData);
+
+                    if (exifrData) {
+                        originalExifData = {
+                            date: exifrData.DateTimeOriginal || exifrData.DateTime || file.lastModified,
+                            lat: exifrData.GPSLatitude || exifrData.latitude,
+                            lon: exifrData.GPSLongitude || exifrData.longitude,
+                            latRef: exifrData.GPSLatitudeRef,
+                            lonRef: exifrData.GPSLongitudeRef,
+                            make: exifrData.Make,
+                            model: exifrData.Model
                         };
 
-                        console.log('🔍 HEIC GPS Raw adatok:', {
-                            lat: exifData.lat,
-                            lon: exifData.lon,
-                            latRef: exifData.latRef,
-                            lonRef: exifData.lonRef
+                        console.log('🔍 HEIC GPS Raw adatok (exifr):', {
+                            lat: originalExifData.lat,
+                            lon: originalExifData.lon,
+                            latRef: originalExifData.latRef,
+                            lonRef: originalExifData.lonRef,
+                            latitude: exifrData.latitude,
+                            longitude: exifrData.longitude
                         });
 
-                        resolve(exifData);
-                    });
-                });
+                        // ⭐ Ha exifr már decimális koordinátákat adott, használjuk azokat
+                        if (exifrData.latitude && exifrData.longitude) {
+                            originalExifData.lat = [exifrData.latitude, 0, 0]; // Fake DMS formátum
+                            originalExifData.lon = [exifrData.longitude, 0, 0];
+                            originalExifData.isDecimal = true; // Jelölés hogy már decimális
+                            console.log('✅ Decimális GPS koordináták:', exifrData.latitude, exifrData.longitude);
+                        }
+                    }
+                } catch (exifrError) {
+                    console.warn('⚠️ exifr hiba, fallback EXIF.js-re:', exifrError.message);
+                    // Fallback az eredeti EXIF.js-re
+                }
 
                 // ⭐ heic2any library használata
                 const convertedBlob = await heic2any({
@@ -1228,22 +1255,36 @@ function draw(e) {
 
         // ⭐ GPS DMS → DD konvertálás
         function convertDMSToDD(dms, ref) {
+            // ⭐ Ha már decimális (exifr adta vissza így)
+            if (typeof dms === 'number') {
+                console.log('✅ Már decimális koordináta:', dms);
+                return dms;
+            }
+
             if (!dms || !Array.isArray(dms) || dms.length !== 3) {
                 console.warn('⚠️ Érvénytelen GPS formátum:', dms);
                 return null;
             }
-            
+
             try {
                 const degrees = dms[0];
                 const minutes = dms[1];
                 const seconds = dms[2];
-                
+
+                // ⭐ Ha exifr decimális koordinátát adott [decimal, 0, 0] formában
+                if (minutes === 0 && seconds === 0 && Math.abs(degrees) > 0) {
+                    console.log('✅ Decimális GPS (exifr):', degrees);
+                    return degrees; // Már decimális, nem kell konvertálni
+                }
+
+                // ⭐ Normál DMS konverzió
                 let dd = degrees + minutes/60 + seconds/3600;
-                
+
                 if (ref === "S" || ref === "W") {
                     dd = dd * -1;
                 }
-                
+
+                console.log('✅ DMS→DD konverzió:', { dms, ref, result: dd });
                 return dd;
             } catch (e) {
                 console.error('❌ GPS konvertálási hiba:', e);
