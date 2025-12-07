@@ -10,7 +10,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.min.js"></script>
     <!-- ⭐ EXIF.js - újabb verzió mobilos kompatibilitással -->
     <script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.min.js"></script>
-    
+
+    <!-- ⭐ HEIC to JPEG konverzióhoz -->
+    <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+
     <!-- ⭐ EXIF metaadatok megjelenítésére CSS -->
     <style>
         .image-preview-container {
@@ -841,67 +844,91 @@ function draw(e) {
             event.target.value = '';
         }
 
-        // ⭐ ÚJ: HEIC → JPEG konverzió Canvas segítségével
-        function convertHEICtoJPEG(file, itemId) {
-            const reader = new FileReader();
+        // ⭐ JAVÍTOTT: HEIC → JPEG konverzió heic2any library-val
+        async function convertHEICtoJPEG(file, itemId) {
+            try {
+                console.log(`🔄 HEIC konverzió indítása: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
 
-            reader.onload = function(e) {
-                const img = new Image();
-                img.onload = function() {
-                    // Canvas létrehozása
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
+                // ⭐ heic2any library használata
+                const convertedBlob = await heic2any({
+                    blob: file,
+                    toType: 'image/jpeg',
+                    quality: 0.7 // 70% minőség
+                });
 
-                    // ⭐ Képtömörítés már itt - max 1600px szélesség
-                    let width = img.width;
-                    let height = img.height;
-                    const maxWidth = 1600;
+                // Ha több blob jön vissza (pl. burst photo), csak az elsőt használjuk
+                const finalBlob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
 
-                    if (width > maxWidth) {
-                        height = (height * maxWidth) / width;
-                        width = maxWidth;
+                console.log(`✅ HEIC konvertálva: ${file.name} → JPEG (${(finalBlob.size / 1024).toFixed(2)} KB)`);
+
+                // Blob → File object
+                const convertedFile = new File(
+                    [finalBlob],
+                    file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'),
+                    {
+                        type: 'image/jpeg',
+                        lastModified: file.lastModified
                     }
+                );
 
-                    canvas.width = width;
-                    canvas.height = height;
+                // Feldolgozás mint normál kép
+                processNormalImage(convertedFile, itemId);
 
-                    // Kép rajzolása canvas-ra
-                    ctx.drawImage(img, 0, 0, width, height);
+            } catch (error) {
+                console.error('❌ HEIC konverzió hiba:', error);
+                console.warn('🔄 Fallback: Próbálkozás Canvas API-val...');
 
-                    // ⭐ JPEG-be konvertálás 70% minőséggel (kisebb fájlméret)
-                    canvas.toBlob(function(blob) {
-                        if (blob) {
-                            console.log(`✅ HEIC konvertálva: ${file.name} → JPEG (${(blob.size / 1024).toFixed(2)} KB)`);
+                // Fallback: Canvas API próbálkozás
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
 
-                            // Blob → File object
-                            const convertedFile = new File([blob], file.name.replace(/\.heic$/i, '.jpg'), {
-                                type: 'image/jpeg',
-                                lastModified: file.lastModified
-                            });
+                        let width = img.width;
+                        let height = img.height;
+                        const maxWidth = 1600;
 
-                            // Feldolgozás mint normál kép
-                            processNormalImage(convertedFile, itemId);
-                        } else {
-                            console.error('❌ HEIC konverzió sikertelen:', file.name);
-                            alert(`⚠️ Nem sikerült konvertálni: ${file.name}\nPróbáld meg más képformátumban menteni.`);
+                        if (width > maxWidth) {
+                            height = (height * maxWidth) / width;
+                            width = maxWidth;
                         }
-                    }, 'image/jpeg', 0.7); // ⭐ 70% minőség = kisebb fájl
+
+                        canvas.width = width;
+                        canvas.height = height;
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        canvas.toBlob(function(blob) {
+                            if (blob) {
+                                console.log(`✅ Fallback konverzió sikeres: ${file.name}`);
+                                const convertedFile = new File([blob], file.name.replace(/\.heic$/i, '.jpg'), {
+                                    type: 'image/jpeg',
+                                    lastModified: file.lastModified
+                                });
+                                processNormalImage(convertedFile, itemId);
+                            } else {
+                                console.error('❌ Fallback konverzió is sikertelen');
+                                alert(`⚠️ Ez a kép nem támogatott formátumban van.\n\nKérlek próbáld meg:\n1. JPEG/PNG formátumban újra menteni\n2. Másik képet feltölteni\n3. Más eszközről feltölteni`);
+                            }
+                        }, 'image/jpeg', 0.7);
+                    };
+
+                    img.onerror = function() {
+                        console.error('❌ Fallback is sikertelen - kép nem betölthető');
+                        alert(`⚠️ "${file.name}" nem tölthető be.\n\nEz a HEIC fájl nem kompatibilis a böngészővel.\n\nMegoldás:\n• Állítsd át a telefon beállításait JPEG formátumra\n• Vagy használj kép konvertáló alkalmazást`);
+                    };
+
+                    img.src = e.target.result;
                 };
 
-                img.onerror = function() {
-                    console.error('❌ Kép betöltési hiba:', file.name);
-                    alert(`⚠️ Nem sikerült betölteni: ${file.name}`);
+                reader.onerror = function() {
+                    console.error('❌ Fájl olvasási hiba');
+                    alert(`⚠️ Nem sikerült beolvasni a fájlt: ${file.name}`);
                 };
 
-                img.src = e.target.result;
-            };
-
-            reader.onerror = function() {
-                console.error('❌ Fájl olvasási hiba:', file.name);
-                alert(`⚠️ Nem sikerült olvasni: ${file.name}`);
-            };
-
-            reader.readAsDataURL(file);
+                reader.readAsDataURL(file);
+            }
         }
 
         // ⭐ ÚJ: Normál képfeldolgozás tömörítéssel
