@@ -26,6 +26,7 @@ const PORT = process.env.PORT || 3000;
 const { router: reportsRouter, initializationPromise } = require('./reports'); // Betöltjük a reports.js fájlt
 //Importáljuk az MVM-specifikus routert
 const mvmReportsRouter = require('./mvm-reports');
+const { createProjectFolder, initializeDrive } = require('./mvm-reports');
 
 
 
@@ -295,8 +296,8 @@ app.get('/admin/projects/add', isAdmin, (req, res) => {
 
 // Admin: Új projekt hozzáadása POST - KNEX-re alakítva
 app.post('/admin/projects/add', isAdmin, async (req, res) => {
-  // 1. BEOLVASSUK az új 'projectType' mezőt a body-ból
-  const { name, description, status, projectType } = req.body;
+  // 1. BEOLVASSUK az új 'projectType' és 'serialPrefix' mezőt a body-ból
+  const { name, description, status, projectType, serialPrefix } = req.body;
 
   // 2. Érvényesség ellenőrzés (opcionális, de ajánlott)
   const allowedTypes = ['IWS Solutions', 'MVM Xpert'];
@@ -315,14 +316,27 @@ app.post('/admin/projects/add', isAdmin, async (req, res) => {
       throw new Error('Az external_id már létezik. Próbálja újra.');
     }
 
+    // Google Drive mappa létrehozása a projekthez
+    let driveFolderId = null;
+    try {
+      await initializeDrive(); // Drive inicializálása, ha még nem történt meg
+      driveFolderId = await createProjectFolder(name);
+      console.log(`📁 Google Drive projekt mappa létrehozva: ${driveFolderId}`);
+    } catch (driveError) {
+      console.error('Hiba a Drive mappa létrehozásakor:', driveError);
+      // Folytatjuk a projekt létrehozását, még ha a Drive mappa nem is sikerült
+    }
+
     // Adatbázisba mentés KNEX-szel
-    // 3. HOZZÁADJUK az új 'project_type' mezőt a beszúráshoz
+    // 3. HOZZÁADJUK az új 'project_type' és 'serial_prefix' mezőt a beszúráshoz
     const [newProject] = await knex('projects').insert({
       name: name,
       description: description,
       status: status,
       external_id: externalId,
-      project_type: projectType // Ezt mentjük el
+      project_type: projectType, // Ezt mentjük el
+      serial_prefix: serialPrefix || null, // MVM Xpert projekteknél lesz érték
+      drive_folder_id: driveFolderId // Google Drive mappa ID
     }).returning(['id', 'name']); // Visszaadja az id-t és a nevet
 
     console.log('Új projekt hozzáadva:', newProject);

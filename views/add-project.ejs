@@ -139,13 +139,26 @@
     <h1>Új projekt hozzáadása</h1>
     <form action='/admin/projects/add' method='POST'>
       <input type='text' name='name' placeholder='Projekt neve' required>
-      <textarea name='description' placeholder='Projekt leírása'></textarea>
+
+      <label for="description">Projekt leírása:</label>
+      <textarea id='description' name='description' placeholder='Projekt leírása'>Építésvezető/k neve, telefonszáma:
+
+Terület megközelíthetősége:
+
+Heti meeting időpont:
+</textarea>
 
       <label for="projectType">Projekt Típusa:</label>
-      <select name='projectType' id="projectType" required>
+      <select name='projectType' id="projectType" required onchange="toggleSerialPrefix()">
         <option value='IWS Solutions'>IWS Solutions</option>
         <option value='MVM Xpert'>MVM Xpert</option>
       </select>
+
+      <div id="serialPrefixContainer" style="display: none;">
+        <label for="serialPrefix">Sorszám eleje (ennél a projektnél mindig ez legyen):</label>
+        <input type='text' name='serialPrefix' id="serialPrefix" placeholder='Pl.: IWS/BCS/'>
+        <p style="font-size: 12px; color: #666; margin-top: -10px;">A sorszám automatikusan ebből a prefixből + dátumból fog állni (pl.: IWS/SK/20251209)</p>
+      </div>
 
       <label for="status">Projekt Státusza:</label>
       <select name='status' id="status">
@@ -156,5 +169,21 @@
       <button type='submit' class="btn"><i class="fas fa-plus"></i> Hozzáadás</button>
     </form>
   </div>
+
+  <script>
+    function toggleSerialPrefix() {
+      const projectType = document.getElementById('projectType').value;
+      const serialPrefixContainer = document.getElementById('serialPrefixContainer');
+
+      if (projectType === 'MVM Xpert') {
+        serialPrefixContainer.style.display = 'block';
+      } else {
+        serialPrefixContainer.style.display = 'none';
+      }
+    }
+
+    // Betöltéskor ellenőrizzük
+    document.addEventListener('DOMContentLoaded', toggleSerialPrefix);
+  </script>
 </body>
 </html>

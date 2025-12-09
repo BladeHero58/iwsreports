@@ -140,6 +140,18 @@
     <p><strong>Állapot:</strong> <%= project.status %></p>
     <p><strong>Projekt ID:</strong> <%= project.id %></p>
 
+    <!-- Google Drive mappa gomb -->
+    <% if (project.drive_folder_id) { %>
+        <div style="margin-top: 15px; margin-bottom: 15px;">
+            <a href="https://drive.google.com/drive/folders/<%= project.drive_folder_id %>"
+               target="_blank"
+               class="btn-drive"
+               style="display: inline-block; padding: 10px 20px; background-color: #4285f4; color: white; text-decoration: none; border-radius: 5px; font-weight: 600;">
+                <i class="fab fa-google-drive"></i> Projekt Drive mappa megnyitása
+            </a>
+        </div>
+    <% } %>
+
     <section>
         <!-- Szerkesztés gomb -->
         <a href="/user/projects/edit/<%= project.id %>">

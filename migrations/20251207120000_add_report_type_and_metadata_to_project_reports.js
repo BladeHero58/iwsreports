@@ -2,13 +2,20 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = function(knex) {
-    return knex.schema.table('project_reports', function(table) {
-        // Hozzáadjuk a report_type oszlopot (VARCHAR típusú, alapértelmezett érték: 'IWS Solutions')
-        table.string('report_type', 50).defaultTo('IWS Solutions');
+exports.up = async function(knex) {
+    const hasReportType = await knex.schema.hasColumn('project_reports', 'report_type');
+    const hasMetadata = await knex.schema.hasColumn('project_reports', 'metadata');
 
-        // Hozzáadjuk a metadata oszlopot (JSONB típusú, lehet NULL)
-        table.jsonb('metadata');
+    return knex.schema.table('project_reports', function(table) {
+        // Hozzáadjuk a report_type oszlopot, ha még nem létezik
+        if (!hasReportType) {
+            table.string('report_type', 50).defaultTo('IWS Solutions');
+        }
+
+        // Hozzáadjuk a metadata oszlopot, ha még nem létezik
+        if (!hasMetadata) {
+            table.jsonb('metadata');
+        }
     });
 };
 

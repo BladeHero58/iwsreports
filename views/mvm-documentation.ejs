@@ -249,18 +249,21 @@ const backUrl = isAdmin
             </div>
 
             <div class="form-group" style="margin-bottom: 15px;">
+                <label for="inspectionDate"><strong>Dátum:</strong></label>
+                <input type="date" id="inspectionDate" name="inspectionDate" onchange="updateSerialNumber()" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 15px;">
                 <label for="serialNumber"><strong>Sorszám:</strong></label>
                 <input type="text" id="serialNumber" name="serialNumber" placeholder="Pl. IWS/BCS/20251201" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+                <% if (project.serial_prefix) { %>
+                    <p style="font-size: 11px; color: #666; margin-top: 5px;">A sorszám automatikusan generálódik a dátum kiválasztása alapján</p>
+                <% } %>
             </div>
 
             <div class="form-group" style="margin-bottom: 15px;">
                 <label for="inspectorPerson"><strong>Ellenőrző személy:</strong></label>
                 <input type="text" id="inspectorPerson" name="inspectorPerson" value="<%= user.name %>" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
-            </div>
-
-            <div class="form-group" style="margin-bottom: 15px;">
-                <label for="inspectionDate"><strong>Dátum:</strong></label>
-                <input type="date" id="inspectionDate" name="inspectionDate" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
             </div>
 
             <p style="font-size: 13px; color: #999; margin-top: 10px;">
@@ -336,58 +339,38 @@ const backUrl = isAdmin
                     <input type="hidden" name="responsible_signature" id="responsibleSignature">
                 </div>
 
-                <!-- Tanúk konténer -->
-                <div id="witnessesContainer">
-                    <div class="witness-group" data-witness-index="0">
-                        <label>Tanú</label>
-                        <div class="two-column">
-                            <input type="text" name="witness_name_0" placeholder="Név">
-                            <input type="text" name="witness_position_0" placeholder="Beosztás">
-                        </div>
-                        
-                        <div class="signature-container">
-                            <div class="signature-preview" id="witnessPreview_0" onclick="openSignatureModal('witness_0')">
-                                <span><i class="fas fa-pen"></i> Kattintson ide az aláírás hozzáadásához</span>
-                            </div>
-                            <div class="signature-buttons">
-                                <button type="button" class="add-button" onclick="openSignatureModal('witness_0')">
-                                    <i class="fas fa-signature"></i> Aláírás hozzáadása
-                                </button>
-                                <button type="button" class="clear-signature" onclick="clearSignature('witness_0')" style="display: none;" id="witness_0Clear">
-                                    <i class="fas fa-trash"></i> Törlés
-                                </button>
-                            </div>
-                        </div>
-                        <input type="hidden" name="witness_signature_0" id="witness_0Signature">
-                    </div>
+                <!-- Tanúk - Alapból elrejtve -->
+                <div id="witnessToggleButton" style="margin-bottom: 15px;">
+                    <button type="button" class="add-button" onclick="showWitnesses()" style="background-color: #e53e3e; width: 100%;">
+                        <i class="fas fa-user-times"></i> Aláírást megtagadta
+                    </button>
                 </div>
 
-                <button type="button" class="add-button-secondary" onclick="addWitness()">
-                    <i class="fas fa-user-plus"></i> További tanú hozzáadása
-                </button>
+                <div id="witnessSection" style="display: none;">
+                    <div id="witnessesContainer"></div>
+
+                    <div style="margin-top: 15px; padding: 10px; background-color: #f8f9fa; border-radius: 6px;">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" id="noWitnessAvailable" onchange="toggleNoWitness()" style="margin-right: 10px; width: 18px; height: 18px;">
+                            <span style="font-weight: 500;">Nem áll rendelkezésre Tanú</span>
+                        </label>
+                    </div>
+                </div>
 
                 <!-- Alvállalkozói lánc -->
                 <div class="form-group">
                     <label>Alvállalkozói lánc</label>
-                    <div class="two-column">
-                        <input type="text" name="subcontractor_name" placeholder="Alvállalkozó cég neve">
-                        <input type="text" name="subcontractor_representative" placeholder="Felelős személy neve">
-                    </div>
-                    
-                    <div class="signature-container">
-                        <div class="signature-preview" id="subcontractorPreview" onclick="openSignatureModal('subcontractor')">
-                            <span><i class="fas fa-pen"></i> Kattintson ide az aláírás hozzáadásához</span>
+                    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 10px;">
+                        <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                            <span style="font-weight: 600; color: #2c5282; margin-right: 10px;">1.</span>
+                            <input type="text" value="MVM Xpert Zrt." readonly
+                                   style="flex: 1; background-color: #e8f4f8; border: 2px solid #bee3f8; padding: 8px 12px; border-radius: 6px; font-weight: 500;">
                         </div>
-                        <div class="signature-buttons">
-                            <button type="button" class="add-button" onclick="openSignatureModal('subcontractor')">
-                                <i class="fas fa-signature"></i> Aláírás hozzáadása
-                            </button>
-                            <button type="button" class="clear-signature" onclick="clearSignature('subcontractor')" style="display: none;" id="subcontractorClear">
-                                <i class="fas fa-trash"></i> Törlés
-                            </button>
-                        </div>
+                        <div id="subcontractorsList"></div>
+                        <button type="button" class="add-button" onclick="addSubcontractor()" style="margin-top: 10px; width: 100%;">
+                            <i class="fas fa-plus"></i> Alvállalkozó cég hozzáadása
+                        </button>
                     </div>
-                    <input type="hidden" name="subcontractor_signature" id="subcontractorSignature">
                 </div>
             </div>
 
@@ -398,16 +381,38 @@ const backUrl = isAdmin
                 
                 <div class="radio-options">
                     <div class="radio-option success">
-                        <input type="radio" id="item_1_1_m" name="item_1_1" value="megfelelő">
+                        <input type="radio" id="item_1_1_m" name="item_1_1" value="megfelelő" onchange="toggleSeverity('1_1')">
                         <label for="item_1_1_m">Megfelelt</label>
                     </div>
                     <div class="radio-option danger">
-                        <input type="radio" id="item_1_1_nm" name="item_1_1" value="nem_megfelelő">
+                        <input type="radio" id="item_1_1_nm" name="item_1_1" value="nem_megfelelő" onchange="toggleSeverity('1_1')">
                         <label for="item_1_1_nm">Nem megfelelt</label>
                     </div>
+                    <div class="radio-option info">
+                        <input type="radio" id="item_1_1_ft" name="item_1_1" value="felszólítás_után" onchange="toggleSeverity('1_1')">
+                        <label for="item_1_1_ft">Felszólítás után teljesítve</label>
+                    </div>
                     <div class="radio-option warning">
-                        <input type="radio" id="item_1_1_nv" name="item_1_1" value="nem_vizsgált">
+                        <input type="radio" id="item_1_1_nv" name="item_1_1" value="nem_vizsgált" onchange="toggleSeverity('1_1')">
                         <label for="item_1_1_nv">Nem vonatkozik / Nem vizsgált</label>
+                    </div>
+                </div>
+
+                <div id="severity_1_1" class="severity-selector" style="display: none; margin-top: 15px; padding: 15px; background-color: #f7fafc; border-radius: 8px;">
+                    <label style="font-weight: 600; display: block; margin-bottom: 10px;">Hiba súlyossága:</label>
+                    <div class="radio-options">
+                        <div class="radio-option" style="border-color: #FFFF00;">
+                            <input type="radio" id="item_1_1_sev_low" name="item_1_1_severity" value="alacsony">
+                            <label for="item_1_1_sev_low" style="color: #000000;">🟡Alacsony</label>
+                        </div>
+                        <div class="radio-option" style="border-color: #ED7D31;">
+                            <input type="radio" id="item_1_1_sev_medium" name="item_1_1_severity" value="közepes">
+                            <label for="item_1_1_sev_medium" style="color: #000000;">🟠Közepes</label>
+                        </div>
+                        <div class="radio-option" style="border-color: #FF0000;">
+                            <input type="radio" id="item_1_1_sev_high" name="item_1_1_severity" value="magas">
+                            <label for="item_1_1_sev_high" style="color: #000000;">🔴Magas</label>
+                        </div>
                     </div>
                 </div>
 
@@ -430,16 +435,38 @@ const backUrl = isAdmin
                 
                 <div class="radio-options">
                     <div class="radio-option success">
-                        <input type="radio" id="item_1_2_m" name="item_1_2" value="megfelelő">
+                        <input type="radio" id="item_1_2_m" name="item_1_2" value="megfelelő" onchange="toggleSeverity('1_2')">
                         <label for="item_1_2_m">Megfelelt</label>
                     </div>
                     <div class="radio-option danger">
-                        <input type="radio" id="item_1_2_nm" name="item_1_2" value="nem_megfelelő">
+                        <input type="radio" id="item_1_2_nm" name="item_1_2" value="nem_megfelelő" onchange="toggleSeverity('1_2')">
                         <label for="item_1_2_nm">Nem megfelelt</label>
                     </div>
+                    <div class="radio-option info">
+                        <input type="radio" id="item_1_2_ft" name="item_1_2" value="felszólítás_után" onchange="toggleSeverity('1_2')">
+                        <label for="item_1_2_ft">Felszólítás után teljesítve</label>
+                    </div>
                     <div class="radio-option warning">
-                        <input type="radio" id="item_1_2_nv" name="item_1_2" value="nem_vizsgált">
+                        <input type="radio" id="item_1_2_nv" name="item_1_2" value="nem_vizsgált" onchange="toggleSeverity('1_2')">
                         <label for="item_1_2_nv">Nem vonatkozik / Nem vizsgált</label>
+                    </div>
+                </div>
+
+                <div id="severity_1_2" class="severity-selector" style="display: none; margin-top: 15px; padding: 15px; background-color: #f7fafc; border-radius: 8px;">
+                    <label style="font-weight: 600; display: block; margin-bottom: 10px;">Hiba súlyossága:</label>
+                    <div class="radio-options">
+                        <div class="radio-option" style="border-color: #FFFF00;">
+                            <input type="radio" id="item_1_2_sev_low" name="item_1_2_severity" value="alacsony">
+                            <label for="item_1_2_sev_low" style="color: #000000;">🟡Alacsony</label>
+                        </div>
+                        <div class="radio-option" style="border-color: #ED7D31;">
+                            <input type="radio" id="item_1_2_sev_medium" name="item_1_2_severity" value="közepes">
+                            <label for="item_1_2_sev_medium" style="color: #000000;">🟠Közepes</label>
+                        </div>
+                        <div class="radio-option" style="border-color: #FF0000;">
+                            <input type="radio" id="item_1_2_sev_high" name="item_1_2_severity" value="magas">
+                            <label for="item_1_2_sev_high" style="color: #000000;">🔴Magas</label>
+                        </div>
                     </div>
                 </div>
 
@@ -459,16 +486,38 @@ const backUrl = isAdmin
                 
                 <div class="radio-options">
                     <div class="radio-option success">
-                        <input type="radio" id="item_1_3_m" name="item_1_3" value="megfelelő">
+                        <input type="radio" id="item_1_3_m" name="item_1_3" value="megfelelő" onchange="toggleSeverity('1_3')">
                         <label for="item_1_3_m">Megfelelt</label>
                     </div>
                     <div class="radio-option danger">
-                        <input type="radio" id="item_1_3_nm" name="item_1_3" value="nem_megfelelő">
+                        <input type="radio" id="item_1_3_nm" name="item_1_3" value="nem_megfelelő" onchange="toggleSeverity('1_3')">
                         <label for="item_1_3_nm">Nem megfelelt</label>
                     </div>
+                    <div class="radio-option info">
+                        <input type="radio" id="item_1_3_ft" name="item_1_3" value="felszólítás_után" onchange="toggleSeverity('1_3')">
+                        <label for="item_1_3_ft">Felszólítás után teljesítve</label>
+                    </div>
                     <div class="radio-option warning">
-                        <input type="radio" id="item_1_3_nv" name="item_1_3" value="nem_vizsgált">
+                        <input type="radio" id="item_1_3_nv" name="item_1_3" value="nem_vizsgált" onchange="toggleSeverity('1_3')">
                         <label for="item_1_3_nv">Nem vonatkozik / Nem vizsgált</label>
+                    </div>
+                </div>
+
+                <div id="severity_1_3" class="severity-selector" style="display: none; margin-top: 15px; padding: 15px; background-color: #f7fafc; border-radius: 8px;">
+                    <label style="font-weight: 600; display: block; margin-bottom: 10px;">Hiba súlyossága:</label>
+                    <div class="radio-options">
+                        <div class="radio-option" style="border-color: #FFFF00;">
+                            <input type="radio" id="item_1_3_sev_low" name="item_1_3_severity" value="alacsony">
+                            <label for="item_1_3_sev_low" style="color: #000000;">🟡Alacsony</label>
+                        </div>
+                        <div class="radio-option" style="border-color: #ED7D31;">
+                            <input type="radio" id="item_1_3_sev_medium" name="item_1_3_severity" value="közepes">
+                            <label for="item_1_3_sev_medium" style="color: #000000;">🟠Közepes</label>
+                        </div>
+                        <div class="radio-option" style="border-color: #FF0000;">
+                            <input type="radio" id="item_1_3_sev_high" name="item_1_3_severity" value="magas">
+                            <label for="item_1_3_sev_high" style="color: #000000;">🔴Magas</label>
+                        </div>
                     </div>
                 </div>
 
@@ -485,19 +534,41 @@ const backUrl = isAdmin
             <div class="checklist-item">
                 <div class="checklist-header">1.4 Szükséges tervdokumentációk, jegyzőkönyvek</div>
                 <div class="checklist-description">BET; EBK terv; organizációs terv stb.</div>
-                
+
                 <div class="radio-options">
                     <div class="radio-option success">
-                        <input type="radio" id="item_1_4_m" name="item_1_4" value="megfelelő">
+                        <input type="radio" id="item_1_4_m" name="item_1_4" value="megfelelő" onchange="toggleSeverity('1_4')">
                         <label for="item_1_4_m">Megfelelt</label>
                     </div>
                     <div class="radio-option danger">
-                        <input type="radio" id="item_1_4_nm" name="item_1_4" value="nem_megfelelő">
+                        <input type="radio" id="item_1_4_nm" name="item_1_4" value="nem_megfelelő" onchange="toggleSeverity('1_4')">
                         <label for="item_1_4_nm">Nem megfelelt</label>
                     </div>
+                    <div class="radio-option info">
+                        <input type="radio" id="item_1_4_ft" name="item_1_4" value="felszólítás_után" onchange="toggleSeverity('1_4')">
+                        <label for="item_1_4_ft">Felszólítás után teljesítve </label>
+                    </div>
                     <div class="radio-option warning">
-                        <input type="radio" id="item_1_4_nv" name="item_1_4" value="nem_vizsgált">
+                        <input type="radio" id="item_1_4_nv" name="item_1_4" value="nem_vizsgált" onchange="toggleSeverity('1_4')">
                         <label for="item_1_4_nv">Nem vonatkozik / Nem vizsgált</label>
+                    </div>
+                </div>
+
+                <div id="severity_1_4" class="severity-selector" style="display: none; margin-top: 15px; padding: 15px; background-color: #f7fafc; border-radius: 8px;">
+                    <label style="font-weight: 600; display: block; margin-bottom: 10px;">Hiba súlyossága:</label>
+                    <div class="radio-options">
+                        <div class="radio-option" style="border-color: #FFFF00;">
+                            <input type="radio" id="item_1_4_sev_low" name="item_1_4_severity" value="alacsony">
+                            <label for="item_1_4_sev_low" style="color: #000000;">🟡Alacsony</label>
+                        </div>
+                        <div class="radio-option" style="border-color: #ED7D31;">
+                            <input type="radio" id="item_1_4_sev_medium" name="item_1_4_severity" value="közepes">
+                            <label for="item_1_4_sev_medium" style="color: #000000;">🟠Közepes</label>
+                        </div>
+                        <div class="radio-option" style="border-color: #FF0000;">
+                            <input type="radio" id="item_1_4_sev_high" name="item_1_4_severity" value="magas">
+                            <label for="item_1_4_sev_high" style="color: #000000;">🔴Magas</label>
+                        </div>
                     </div>
                 </div>
 
@@ -515,61 +586,79 @@ const backUrl = isAdmin
                 <h3>Szankciós lista - Dokumentáció kategória vonatkozó pontjai</h3>
                 
                 <div class="price-item">
-                    <input type="checkbox" id="price_1" name="sanction_1" value="100000">
+                    <input type="checkbox" id="price_1" name="sanction_1" value="100000" onchange="calculateTotal()">
                     <label for="price_1">1 MVM XPert munka-, tűz-, vagy környezetvédelmi szabályainak megsértése</label>
+                    <input type="number" name="sanction_1_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
                     <span class="price">100,000 Ft</span>
                 </div>
 
                 <div class="price-item">
-                    <input type="checkbox" id="price_2" name="sanction_2" value="50000">
+                    <input type="checkbox" id="price_2" name="sanction_2" value="50000" onchange="calculateTotal()">
                     <label for="price_2">6 Munkabiztonságot jelentősen befolyásoló eszközök, jelzések, biztonsági berendezések mellőzése, kiiktatása</label>
+                    <input type="number" name="sanction_2_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
                     <span class="price">50,000 Ft</span>
                 </div>
 
                 <div class="price-item">
-                    <input type="checkbox" id="price_3" name="sanction_3" value="50000">
+                    <input type="checkbox" id="price_3" name="sanction_3" value="50000" onchange="calculateTotal()">
                     <label for="price_3">9 Veszélyes munkaeszköz üzembehelyezésének és időszakos biztonsági felülvizsgálat elvégzésének hiánya</label>
+                    <input type="number" name="sanction_3_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
                     <span class="price">50,000 Ft</span>
                 </div>
 
                 <div class="price-item">
-                    <input type="checkbox" id="price_4" name="sanction_4" value="30000">
+                    <input type="checkbox" id="price_4" name="sanction_4" value="30000" onchange="calculateTotal()">
                     <label for="price_4">10 A munkavégzéshez használt időszakos felülvizsgálatra kötelezett gépek, berendezések, munkaeszközök nem azonosíthatók</label>
+                    <input type="number" name="sanction_4_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
                     <span class="price">30,000 Ft</span>
                 </div>
 
                 <div class="price-item">
-                    <input type="checkbox" id="price_5" name="sanction_5" value="50000">
+                    <input type="checkbox" id="price_5" name="sanction_5" value="50000" onchange="calculateTotal()">
                     <label for="price_5">15 Egyéb jogosulatlan munkavégzés (pl: gépkezelői jogosultságok)</label>
+                    <input type="number" name="sanction_5_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
                     <span class="price">50,000 Ft</span>
                 </div>
 
                 <div class="price-item">
-                    <input type="checkbox" id="price_6" name="sanction_6" value="100000">
+                    <input type="checkbox" id="price_6" name="sanction_6" value="100000" onchange="calculateTotal()">
                     <label for="price_6">16 Időszakos biztonsági és egyéb jogszabályban meghatározott felülvizsgálatok hiánya</label>
+                    <input type="number" name="sanction_6_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
                     <span class="price">100,000 Ft</span>
                 </div>
 
                 <div class="price-item">
-                    <input type="checkbox" id="price_7" name="sanction_7" value="100000">
+                    <input type="checkbox" id="price_7" name="sanction_7" value="100000" onchange="calculateTotal()">
                     <label for="price_7">26 Írásos engedélyhez kötött tevékenység végzése engedély nélkül</label>
+                    <input type="number" name="sanction_7_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
                     <span class="price">100,000 Ft</span>
                 </div>
 
                 <div class="price-item">
-                    <input type="checkbox" id="price_8" name="sanction_8" value="100000">
+                    <input type="checkbox" id="price_8" name="sanction_8" value="100000" onchange="calculateTotal()">
                     <label for="price_8">27 Emelési terv köteles tevékenység engedély nélküli végzése</label>
+                    <input type="number" name="sanction_8_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
                     <span class="price">100,000 Ft</span>
                 </div>
 
                 <div class="price-item">
-                    <input type="checkbox" id="price_9" name="sanction_9" value="100000">
+                    <input type="checkbox" id="price_9" name="sanction_9" value="100000" onchange="calculateTotal()">
                     <label for="price_9">39 Megrendelő felé jelentendő EBK esemény jelentésének elmulasztása</label>
+                    <input type="number" name="sanction_9_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
                     <span class="price">100,000 Ft</span>
                 </div>
 
                 <div class="total-price">
-                    <span>Összesített bírság:</span>
+                    <span>Kiszabható összesített bírság:</span>
                     <span id="totalPrice">0 Ft</span>
                 </div>
             </div>
@@ -622,6 +711,24 @@ const backUrl = isAdmin
     </div>
 
     <script>
+        // Projekt serial prefix EJS változóból
+        const projectSerialPrefix = '<%= project.serial_prefix || "" %>';
+
+        // Sorszám automatikus frissítése
+        function updateSerialNumber() {
+            const dateInput = document.getElementById('inspectionDate');
+            const serialInput = document.getElementById('serialNumber');
+
+            // Ha van serial prefix és dátum ki van választva
+            if (projectSerialPrefix && dateInput.value) {
+                // Közvetlenül a string értékből dolgozunk, hogy elkerüljük az UTC konverziót
+                const dateStr = dateInput.value.replace(/-/g, ''); // YYYY-MM-DD -> YYYYMMDD
+
+                // Sorszám generálása
+                serialInput.value = `${projectSerialPrefix}${dateStr}`;
+            }
+        }
+
         // Globális változók
         let canvas, ctx;
         let isDrawing = false;
@@ -666,7 +773,8 @@ const backUrl = isAdmin
         };
 
         // Tanúk számláló
-        let witnessCounter = 1;
+        let witnessCounter = 0;
+        let witnessesVisible = false;
 
         // Inicializálás
         document.addEventListener('DOMContentLoaded', async function() {
@@ -710,52 +818,163 @@ const backUrl = isAdmin
     }
 });
 
-        // Tanú hozzáadása
-        function addWitness() {
+        // Tanúk megjelenítése (2 tanú automatikusan)
+        function showWitnesses() {
+            if (witnessesVisible) return;
+
+            witnessesVisible = true;
+            document.getElementById('witnessToggleButton').style.display = 'none';
+            document.getElementById('witnessSection').style.display = 'block';
+
+            // 2 tanú automatikus létrehozása
+            createWitness(0);
+            createWitness(1);
+        }
+
+        // Tanú létrehozása
+        function createWitness(index) {
             const container = document.getElementById('witnessesContainer');
-            const witnessIndex = witnessCounter++;
-            
+
             const witnessGroup = document.createElement('div');
             witnessGroup.className = 'witness-group';
-            witnessGroup.setAttribute('data-witness-index', witnessIndex);
-            
+            witnessGroup.setAttribute('data-witness-index', index);
+            witnessGroup.style.cssText = 'margin-bottom: 25px; padding: 25px; background-color: #fff; border: 2px solid #e2e8f0; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);';
+
             witnessGroup.innerHTML = `
-                <button type="button" class="remove-witness-btn" onclick="removeWitness(${witnessIndex})">×</button>
-                <label>Tanú ${witnessIndex + 1}</label>
-                <div class="two-column">
-                    <input type="text" name="witness_name_${witnessIndex}" placeholder="Név">
-                    <input type="text" name="witness_position_${witnessIndex}" placeholder="Beosztás">
+                <label style="font-weight: 700; font-size: 16px; color: #2d3748; margin-bottom: 15px; display: block; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">Tanú ${index + 1}</label>
+
+                <div class="two-column" style="margin-bottom: 15px;">
+                    <input type="text" name="witness_name_${index}" placeholder="Név" style="padding: 12px; font-size: 15px;">
+                    <input type="text" name="witness_position_${index}" placeholder="Beosztás" style="padding: 12px; font-size: 15px;">
                 </div>
-                
+
+                <div class="two-column" style="margin-bottom: 15px;">
+                    <input type="text" name="witness_id_number_${index}" placeholder="Személyigazolvány szám" style="padding: 12px; font-size: 15px;">
+                    <input type="text" name="witness_address_${index}" placeholder="Lakcím" style="padding: 12px; font-size: 15px;">
+                </div>
+
                 <div class="signature-container">
-                    <div class="signature-preview" id="witnessPreview_${witnessIndex}" onclick="openSignatureModal('witness_${witnessIndex}')">
+                    <div class="signature-preview" id="witnessPreview_${index}" onclick="openSignatureModal('witness_${index}')">
                         <span><i class="fas fa-pen"></i> Kattintson ide az aláírás hozzáadásához</span>
                     </div>
                     <div class="signature-buttons">
-                        <button type="button" class="add-button" onclick="openSignatureModal('witness_${witnessIndex}')">
+                        <button type="button" class="add-button" onclick="openSignatureModal('witness_${index}')">
                             <i class="fas fa-signature"></i> Aláírás hozzáadása
                         </button>
-                        <button type="button" class="clear-signature" onclick="clearSignature('witness_${witnessIndex}')" style="display: none;" id="witness_${witnessIndex}Clear">
+                        <button type="button" class="clear-signature" onclick="clearSignature('witness_${index}')" style="display: none;" id="witness_${index}Clear">
                             <i class="fas fa-trash"></i> Törlés
                         </button>
                     </div>
                 </div>
-                <input type="hidden" name="witness_signature_${witnessIndex}" id="witness_${witnessIndex}Signature">
+                <input type="hidden" name="witness_signature_${index}" id="witness_${index}Signature">
             `;
-            
+
             container.appendChild(witnessGroup);
-            
+
             // Aláírás inicializálása
-            signatures[`witness_${witnessIndex}`] = null;
+            signatures[`witness_${index}`] = null;
+            witnessCounter = Math.max(witnessCounter, index + 1);
         }
 
-        // Tanú eltávolítása
-        function removeWitness(index) {
-            const witnessGroup = document.querySelector(`.witness-group[data-witness-index="${index}"]`);
-            if (witnessGroup) {
-                delete signatures[`witness_${index}`];
-                witnessGroup.remove();
+        // "Nem áll rendelkezésre Tanú" checkbox kezelése
+        function toggleNoWitness() {
+            const checkbox = document.getElementById('noWitnessAvailable');
+            const container = document.getElementById('witnessesContainer');
+
+            if (checkbox.checked) {
+                // Letiltjuk a tanú mezőket
+                container.style.opacity = '0.5';
+                container.style.pointerEvents = 'none';
+            } else {
+                // Engedélyezzük a tanú mezőket
+                container.style.opacity = '1';
+                container.style.pointerEvents = 'auto';
             }
+        }
+
+        // Hiba súlyosság megjelenítése/elrejtése
+        function toggleSeverity(itemId) {
+            const severityDiv = document.getElementById(`severity_${itemId}`);
+            const selectedValue = document.querySelector(`input[name="item_${itemId}"]:checked`)?.value;
+
+            if (severityDiv) {
+                // Megjelenítjük, ha "nem_megfelelő" vagy "felszólítás_után" van kiválasztva
+                if (selectedValue === 'nem_megfelelő' || selectedValue === 'felszólítás_után') {
+                    severityDiv.style.display = 'block';
+                } else {
+                    severityDiv.style.display = 'none';
+                    // Töröljük a severity kiválasztást ha elrejtjük
+                    const severityRadios = severityDiv.querySelectorAll('input[type="radio"]');
+                    severityRadios.forEach(radio => radio.checked = false);
+                }
+            }
+        }
+
+        // Alvállalkozók kezelése
+        let subcontractorCounter = 0;
+
+        function addSubcontractor() {
+            const container = document.getElementById('subcontractorsList');
+            const index = subcontractorCounter++;
+
+            const subcontractorDiv = document.createElement('div');
+            subcontractorDiv.className = 'subcontractor-item';
+            subcontractorDiv.setAttribute('data-subcontractor-index', index);
+            subcontractorDiv.style.cssText = 'display: flex; align-items: center; margin-bottom: 8px;';
+
+            subcontractorDiv.innerHTML = `
+                <span style="font-weight: 600; color: #2c5282; margin-right: 10px;">${index + 2}.</span>
+                <input type="text" name="subcontractor_${index}" placeholder="Alvállalkozó cég neve"
+                       style="flex: 1; padding: 8px 12px; border: 1px solid #cbd5e0; border-radius: 6px; margin-right: 8px;">
+                <button type="button" onclick="removeSubcontractor(${index})"
+                        style="background-color: #e53e3e; color: white; border: none; border-radius: 4px; padding: 8px 12px; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                    <i class="fas fa-trash"></i>
+                </button>
+            `;
+
+            container.appendChild(subcontractorDiv);
+        }
+
+        function removeSubcontractor(index) {
+            const item = document.querySelector(`.subcontractor-item[data-subcontractor-index="${index}"]`);
+            if (item) {
+                item.remove();
+                updateSubcontractorNumbers();
+            }
+        }
+
+        function updateSubcontractorNumbers() {
+            const items = document.querySelectorAll('.subcontractor-item');
+            items.forEach((item, idx) => {
+                const numberSpan = item.querySelector('span');
+                if (numberSpan) {
+                    numberSpan.textContent = `${idx + 2}.`;
+                }
+            });
+        }
+
+        function getSubcontractorChain() {
+            const chain = ['MVM Xpert Zrt.'];
+            const items = document.querySelectorAll('.subcontractor-item');
+            items.forEach(item => {
+                const input = item.querySelector('input');
+                if (input && input.value.trim()) {
+                    chain.push(input.value.trim());
+                }
+            });
+            return chain;
+        }
+
+        function generatePdfFileName() {
+            const serialNumber = document.getElementById('serialNumber').value || 'Sorszam_nelkul';
+            const chain = getSubcontractorChain();
+            const lastCompany = chain[chain.length - 1] || 'Ismeretlen';
+
+            // Fájlnév friendly formátum (csak betűk, számok, szóköz, kötőjel)
+            const cleanSerial = serialNumber.replace(/[^\w\s-]/g, '-');
+            const cleanCompany = lastCompany.replace(/[^\w\s-]/g, '-');
+
+            return `${cleanSerial} - ${cleanCompany}.pdf`;
         }
 
         // Aláírás modal megnyitása
@@ -1805,7 +2024,11 @@ function handleTouchEnd(e) {
             let total = 0;
             priceCheckboxes.forEach(checkbox => {
                 if (checkbox.checked) {
-                    total += parseInt(checkbox.value);
+                    const basePrice = parseInt(checkbox.value);
+                    const sanctionName = checkbox.name; // pl: "sanction_1"
+                    const countInput = document.querySelector(`input[name="${sanctionName}_count"]`);
+                    const count = countInput ? parseInt(countInput.value) || 1 : 1;
+                    total += basePrice * count;
                 }
             });
             totalPriceElement.textContent = total.toLocaleString('hu-HU') + ' Ft';
@@ -1830,7 +2053,14 @@ document.getElementById('documentationForm').addEventListener('submit', function
     // Bírság összeg hozzáadása
     data.total_fine = calculateTotal();
     data.total_fine_formatted = totalPriceElement.textContent;
-    
+
+    // Alvállalkozói lánc hozzáadása
+    data.subcontractors = getSubcontractorChain();
+
+    // Tanúk állapot mentése
+    data.witnessesVisible = witnessesVisible;
+    data.noWitnessAvailable = document.getElementById('noWitnessAvailable')?.checked || false;
+
     // ⭐ Képek hozzáadása metaadatokkal
     data.images = uploadedImages;
     
@@ -1912,6 +2142,9 @@ async function startNewInspection() {
                 data[key] = value;
             }
 
+            // Alvállalkozói lánc hozzáadása
+            data.subcontractors = getSubcontractorChain();
+
             // Logók betöltése base64-ként
             async function imageToBase64(url) {
                 try {
@@ -1935,14 +2168,14 @@ async function startNewInspection() {
             // PDF dokumentum definíció
 const docDefinition = {
     pageSize: 'A4',
-    pageMargins: [40, 60, 40, 60],
+    pageMargins: [40, 40, 40, 40],
     content: [
         // Logók
         {
             columns: [
                 {
                     image: 'mvmLogo',
-                    width: 100,
+                    width: 80,
                     alignment: 'left'
                 },
                 {
@@ -1951,24 +2184,24 @@ const docDefinition = {
                 },
                 {
                     image: 'iwsLogo',
-                    width: 100,
+                    width: 80,
                     alignment: 'right'
                 }
             ],
-            margin: [0, 0, 0, 20]
+            margin: [0, 0, 0, 10]
         },
         // Fejléc
         {
             text: 'MUNKAVÉDELMI ELLENŐRZÉSI JEGYZŐKÖNYV',
             style: 'mainHeader',
             alignment: 'center',
-            margin: [0, 0, 0, 10]
+            margin: [0, 0, 0, 5]
         },
         {
             text: '1. DOKUMENTÁCIÓ',
             style: 'categoryHeader',
             alignment: 'center',
-            margin: [0, 0, 0, 20]
+            margin: [0, 0, 0, 10]
         },
 
         // Projekt információk
@@ -2003,20 +2236,21 @@ const docDefinition = {
                 vLineWidth: function () { return 0; },
                 hLineColor: function () { return '#e0e0e0'; }
             },
-            margin: [0, 0, 0, 30]
+            margin: [0, 0, 0, 15],
+            unbreakable: true
         },
 
         // Résztvevők szekció
         {
             text: 'ELLENŐRZÉS RÉSZTVEVŐI',
             style: 'sectionHeader',
-            margin: [0, 0, 0, 15]
+            margin: [0, 0, 0, 8]
         },
 
         // Ellenőrzést végző
         {
             columns: [
-                { 
+                {
                     width: '*',
                     stack: [
                         { text: 'Ellenőrzést végző', style: 'participantLabel' },
@@ -2032,9 +2266,9 @@ const docDefinition = {
                             width: 120,
                             alignment: 'center',
                             margin: [0, 5, 0, 0]
-                        } : { 
-                            text: '[Aláírás hiányzik]', 
-                            italics: true, 
+                        } : {
+                            text: '[Aláírás hiányzik]',
+                            italics: true,
                             color: '#999',
                             fontSize: 9,
                             alignment: 'center',
@@ -2043,13 +2277,14 @@ const docDefinition = {
                     ]
                 }
             ],
-            margin: [0, 0, 0, 15]
+            margin: [0, 0, 0, 10],
+            unbreakable: true
         },
 
         // Munkaterületért felelős
         {
             columns: [
-                { 
+                {
                     width: '*',
                     stack: [
                         { text: 'Munkaterületért felelős', style: 'participantLabel' },
@@ -2065,9 +2300,9 @@ const docDefinition = {
                             width: 120,
                             alignment: 'center',
                             margin: [0, 5, 0, 0]
-                        } : { 
-                            text: '[Aláírás hiányzik]', 
-                            italics: true, 
+                        } : {
+                            text: '[Aláírás hiányzik]',
+                            italics: true,
                             color: '#999',
                             fontSize: 9,
                             alignment: 'center',
@@ -2076,7 +2311,8 @@ const docDefinition = {
                     ]
                 }
             ],
-            margin: [0, 0, 0, 15]
+            margin: [0, 0, 0, 10],
+            unbreakable: true
         },
 
         // Tanúk
@@ -2084,42 +2320,26 @@ const docDefinition = {
 
         // Alvállalkozói lánc
         {
-            columns: [
-                { 
-                    width: '*',
-                    stack: [
-                        { text: 'Alvállalkozói lánc', style: 'participantLabel' },
-                        { text: data.subcontractor_name || 'N/A', style: 'participantName' },
-                        { text: data.subcontractor_representative || '', style: 'participantPosition' }
-                    ]
-                },
+            stack: [
+                { text: 'Alvállalkozói lánc', style: 'participantLabel', margin: [0, 0, 0, 8] },
                 {
-                    width: 150,
-                    stack: [
-                        signatures.subcontractor ? {
-                            image: signatures.subcontractor,
-                            width: 120,
-                            alignment: 'center',
-                            margin: [0, 5, 0, 0]
-                        } : { 
-                            text: '[Aláírás hiányzik]', 
-                            italics: true, 
-                            color: '#999',
-                            fontSize: 9,
-                            alignment: 'center',
-                            margin: [0, 20, 0, 0]
-                        }
-                    ]
+                    ol: getSubcontractorChain().map(company => ({
+                        text: company,
+                        style: 'participantName',
+                        margin: [0, 2, 0, 2]
+                    })),
+                    margin: [0, 0, 0, 0]
                 }
             ],
-            margin: [0, 0, 0, 30]
+            margin: [0, 0, 0, 15],
+            unbreakable: true
         },
 
         // Ellenőrzési pontok
         {
             text: 'ELLENŐRZÉSI PONTOK',
             style: 'sectionHeader',
-            margin: [0, 0, 0, 20],
+            margin: [0, 10, 0, 10],
             pageBreak: 'before'
         },
 
@@ -2132,7 +2352,8 @@ const docDefinition = {
                 stack: [
                     { text: '1.1 Munkaterületért felelős beazonosítása', style: 'checklistTitle' },
                     { text: 'Átadás átvétel jegyzőkönyv fellelhetősége, munkaengedély, stb.', style: 'checklistDesc' },
-                    { text: `Értékelés: ${getStatusText(data.item_1_1)}`, style: getStatusStyle(data.item_1_1), margin: [0, 8, 0, 0] },
+                    { text: `Értékelés: ${getStatusText(data.item_1_1)}`, style: getStatusStyle(data.item_1_1), margin: [0, 5, 0, 0] },
+                    getSeverityBadge('1_1', data) || {},
                     data.notes_1_1 ? { text: `Megjegyzés: ${data.notes_1_1}`, style: 'notes' } : {}
                 ],
                 border: [true, true, true, true],
@@ -2146,7 +2367,8 @@ const docDefinition = {
         hLineWidth: function() { return 1; },
         vLineWidth: function() { return 1; }
     },
-    margin: [0, 0, 0, 10]
+    margin: [0, 0, 0, 8],
+    unbreakable: true
 },
         ...getImagesForPDF('1_1'),
 
@@ -2159,7 +2381,8 @@ const docDefinition = {
                         stack: [
                             { text: '1.2 Egyéb dokumentációk', style: 'checklistTitle' },
                             { text: 'Építési napló, hulladék nyilvántartólap stb.', style: 'checklistDesc' },
-                            { text: `Értékelés: ${getStatusText(data.item_1_2)}`, style: getStatusStyle(data.item_1_2), margin: [0, 8, 0, 0] },
+                            { text: `Értékelés: ${getStatusText(data.item_1_2)}`, style: getStatusStyle(data.item_1_2), margin: [0, 5, 0, 0] },
+                            getSeverityBadge('1_2', data) || {},
                             data.notes_1_2 ? { text: `Megjegyzés: ${data.notes_1_2}`, style: 'notes' } : {}
                         ],
                         border: [true, true, true, true],
@@ -2169,11 +2392,12 @@ const docDefinition = {
             },
             layout: {
                 hLineColor: '#333',
-        vLineColor: '#333', 
+        vLineColor: '#333',
                 hLineWidth: function() { return 1; },
                 vLineWidth: function() { return 1; }
             },
-            margin: [0, 0, 0, 10]
+            margin: [0, 0, 0, 8],
+            unbreakable: true
         },
         ...getImagesForPDF('1_2'),
 
@@ -2186,7 +2410,8 @@ const docDefinition = {
                         stack: [
                             { text: '1.3 Szükséges engedélyek', style: 'checklistTitle' },
                             { text: 'Tűzgyújtási, beszállási, feszültség ment., emelési terv stb.', style: 'checklistDesc' },
-                            { text: `Értékelés: ${getStatusText(data.item_1_3)}`, style: getStatusStyle(data.item_1_3), margin: [0, 8, 0, 0] },
+                            { text: `Értékelés: ${getStatusText(data.item_1_3)}`, style: getStatusStyle(data.item_1_3), margin: [0, 5, 0, 0] },
+                            getSeverityBadge('1_3', data) || {},
                             data.notes_1_3 ? { text: `Megjegyzés: ${data.notes_1_3}`, style: 'notes' } : {}
                         ],
                         border: [true, true, true, true],
@@ -2196,11 +2421,12 @@ const docDefinition = {
             },
             layout: {
                 hLineColor: '#333',
-        vLineColor: '#333', 
+        vLineColor: '#333',
                 hLineWidth: function() { return 1; },
                 vLineWidth: function() { return 1; }
             },
-            margin: [0, 0, 0, 10]
+            margin: [0, 0, 0, 8],
+            unbreakable: true
         },
         ...getImagesForPDF('1_3'),
 
@@ -2213,7 +2439,8 @@ const docDefinition = {
                         stack: [
                             { text: '1.4 Szükséges tervdokumentációk, jegyzőkönyvek', style: 'checklistTitle' },
                             { text: 'BET; EBK terv; organizációs terv stb.', style: 'checklistDesc' },
-                            { text: `Értékelés: ${getStatusText(data.item_1_4)}`, style: getStatusStyle(data.item_1_4), margin: [0, 8, 0, 0] },
+                            { text: `Értékelés: ${getStatusText(data.item_1_4)}`, style: getStatusStyle(data.item_1_4), margin: [0, 5, 0, 0] },
+                            getSeverityBadge('1_4', data) || {},
                             data.notes_1_4 ? { text: `Megjegyzés: ${data.notes_1_4}`, style: 'notes' } : {}
                         ],
                         border: [true, true, true, true],
@@ -2223,41 +2450,17 @@ const docDefinition = {
             },
             layout: {
                 hLineColor: '#333',
-        vLineColor: '#333', 
+        vLineColor: '#333',
                 hLineWidth: function() { return 1; },
                 vLineWidth: function() { return 1; }
             },
-            margin: [0, 0, 0, 10]
+            margin: [0, 0, 0, 8],
+            unbreakable: true
         },
         ...getImagesForPDF('1_4'),
 
-        // Szankciók
-        {
-            text: 'SZANKCIÓS LISTA',
-            style: 'sectionHeader',
-            margin: [0, 30, 0, 15],
-            pageBreak: 'before'
-        },
-        {
-            text: 'Dokumentáció kategória vonatkozó pontjai',
-            style: 'sanctionsSubtitle',
-            margin: [0, 0, 0, 15]
-        },
-        ...getAppliedSanctionsForPDF(data),
-        {
-            table: {
-        widths: ['*', 'auto'],
-        body: [[
-            { text: 'Összesített bírság:', bold: true, fontSize: 14, alignment: 'right', border: [false, true, false, false], margin: [0, 10, 0, 10] },
-            { text: totalPriceElement.textContent, bold: true, fontSize: 16, color: '#dc3545', alignment: 'right', border: [false, true, false, false], margin: [0, 10, 0, 10] }
-        ]]
-    },
-    layout: {
-        hLineColor: '#333',
-        hLineWidth: function() { return 2; }
-    },
-    margin: [0, 10, 0, 0]
-}
+        // Szankciók - csak akkor jelenik meg, ha van bejelölve szankció
+        ...getSanctionsSectionForPDF(data)
     ],
 
     styles: {
@@ -2320,20 +2523,30 @@ const docDefinition = {
     },
     statusOk: {
         fontSize: 11,
-        color: '#28a745',
+        color: '#000000',
         bold: true,
+        background: '#66FF66',
         margin: [5, 0, 5, 5]
     },
     statusFail: {
         fontSize: 11,
-        color: '#dc3545',
+        color: '#000000',
         bold: true,
+        background: '#FF0000',
+        margin: [5, 0, 5, 5]
+    },
+    statusFT: {
+        fontSize: 11,
+        color: '#000000',
+        bold: true,
+        background: '#3b82f6',
         margin: [5, 0, 5, 5]
     },
     statusNA: {
         fontSize: 11,
-        color: '#ffc107',
+        color: '#92400e',
         bold: true,
+        background: '#fef3c7',
         margin: [5, 0, 5, 5]
     },
     notes: {
@@ -2385,6 +2598,8 @@ pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
         updateUploadProgress(20, `PDF és ${imageCount} kép feltöltése a szerverre...`);
         console.log('🌐 Fetch kezdés - PDF és képek feltöltése...');
 
+        const pdfFileName = generatePdfFileName();
+
         const response = await fetch('/projects/<%= project.id %>/reports/documentation/export-pdf', {
             method: 'POST',
             headers: {
@@ -2394,6 +2609,7 @@ pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
                 pdfData: `data:application/pdf;base64,${pdfBase64}`,
                 serialNumber: serialNumber,
                 projectName: projectName,
+                fileName: pdfFileName,
                 images: uploadedImages
             })
         });
@@ -2435,7 +2651,7 @@ pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
         }
 
         // ⭐ JAVÍTOTT LETÖLTÉS MOBILRA ÉS ASZTALRA
-        const fileName = `Dokumentacio_${serialNumber.replace(/\//g, '-')}_${Date.now()}.pdf`;
+        const fileName = pdfFileName;
 
         // Mobilos böngésző detektálása
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -2539,7 +2755,7 @@ pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
         // Próbáljunk helyi letöltést biztonsági mentésként
         console.log('🔄 Próbálkozás helyi PDF letöltéssel...');
         try {
-            const fileName = `Dokumentacio_${serialNumber.replace(/\//g, '-')}_${Date.now()}.pdf`;
+            const fileName = generatePdfFileName();
             pdfMake.createPdf(docDefinition).download(fileName);
             console.log('✅ Helyi letöltés sikerült');
         } catch (downloadError) {
@@ -2554,6 +2770,7 @@ pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
             switch(status) {
                 case 'megfelelő': return 'MEGFELELŐ (M)';
                 case 'nem_megfelelő': return 'NEM MEGFELELŐ (NM)';
+                case 'felszólítás_után': return 'FELSZÓLÍTÁS UTÁN TELJESÍTVE (FT)';
                 case 'nem_vizsgált': return 'NEM VIZSGÁLT (NV)';
                 default: return 'Nincs értékelve';
             }
@@ -2563,50 +2780,106 @@ pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
             switch(status) {
                 case 'megfelelő': return 'statusOk';
                 case 'nem_megfelelő': return 'statusFail';
+                case 'felszólítás_után': return 'statusFT';
                 case 'nem_vizsgált': return 'statusNA';
                 default: return 'statusNA';
             }
         }
 
+        function getSeverityBadge(itemId, data) {
+            const severity = data[`item_${itemId}_severity`];
+            if (!severity) return null;
+
+            const severityConfig = {
+                'alacsony': { text: 'Hiba súlyossága: 🟡 ALACSONY', color: '#000000', bg: '#FFFF00' },
+                'közepes': { text: 'Hiba súlyossága: 🟠 KÖZEPES', color: '#000000', bg: '#ED7D31' },
+                'magas': { text: 'Hiba súlyossága: 🔴 MAGAS', color: '#000000', bg: '#FF0000' }
+            };
+
+            const config = severityConfig[severity];
+            if (!config) return null;
+
+            return {
+                text: config.text,
+                bold: true,
+                fontSize: 10,
+                color: config.color,
+                background: config.bg,
+                margin: [0, 5, 0, 0]
+            };
+        }
+
         // Tanúk PDF-hez
         function getWitnessesForPDF(data) {
             const result = [];
-            
-            for (let i = 0; i < witnessCounter; i++) {
+
+            // Ha "Nem áll rendelkezésre Tanú" checkbox be van pipálva
+            const noWitnessCheckbox = document.getElementById('noWitnessAvailable');
+            if (noWitnessCheckbox && noWitnessCheckbox.checked) {
+                result.push({
+                    text: 'Tanúk',
+                    style: 'participantLabel',
+                    margin: [0, 0, 0, 5]
+                });
+                result.push({
+                    text: 'Nem áll rendelkezésre Tanú',
+                    style: 'participantName',
+                    italics: true,
+                    color: '#999',
+                    margin: [0, 0, 0, 15]
+                });
+                return result;
+            }
+
+            // Ha nincsenek tanúk megjelenítve
+            if (!witnessesVisible || witnessCounter === 0) {
+                return result;
+            }
+
+            // 2 tanú megjelenítése
+            for (let i = 0; i < 2; i++) {
                 const witnessName = data[`witness_name_${i}`];
                 const witnessPosition = data[`witness_position_${i}`];
+                const witnessIdNumber = data[`witness_id_number_${i}`];
+                const witnessAddress = data[`witness_address_${i}`];
                 const witnessSignature = signatures[`witness_${i}`];
-                
-                if (witnessName && witnessName.trim() !== '') {
-                    result.push({
-                        text: `Tanú ${i === 0 ? '' : i + 1}`,
-                        style: 'participantTitle'
-                    });
-                    
-                    result.push({
-                        columns: [
-                            { width: '*', text: `Név: ${witnessName}` },
-                            { width: '*', text: `Beosztás: ${witnessPosition || 'N/A'}` }
-                        ],
-                        margin: [0, 5, 0, 5]
-                    });
-                    
-                    if (witnessSignature) {
-                        result.push({
-                            image: witnessSignature,
+
+                result.push({
+                    columns: [
+                        {
+                            width: '*',
+                            stack: [
+                                { text: `Tanú ${i + 1}`, style: 'participantLabel' },
+                                { text: witnessName || 'N/A', style: 'participantName' },
+                                { text: witnessPosition || '', style: 'participantPosition' },
+                                { text: `Személyi szám: ${witnessIdNumber || 'N/A'}`, fontSize: 9, margin: [0, 3, 0, 0] },
+                                { text: `Lakcím: ${witnessAddress || 'N/A'}`, fontSize: 9, margin: [0, 2, 0, 0] }
+                            ]
+                        },
+                        {
                             width: 150,
-                            margin: [0, 10, 0, 20]
-                        });
-                    } else {
-                        result.push({
-                            text: '[Aláírás hiányzik]',
-                            italics: true,
-                            margin: [0, 10, 0, 20]
-                        });
-                    }
-                }
+                            stack: [
+                                witnessSignature ? {
+                                    image: witnessSignature,
+                                    width: 120,
+                                    alignment: 'center',
+                                    margin: [0, 5, 0, 0]
+                                } : {
+                                    text: '[Aláírás hiányzik]',
+                                    italics: true,
+                                    color: '#999',
+                                    fontSize: 9,
+                                    alignment: 'center',
+                                    margin: [0, 20, 0, 0]
+                                }
+                            ]
+                        }
+                    ],
+                    margin: [0, 0, 0, 10],
+                    unbreakable: true
+                });
             }
-            
+
             return result;
         }
 
@@ -2624,46 +2897,87 @@ pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
                 sanction_9: '39 Megrendelő felé jelentendő EBK esemény jelentésének elmulasztása'
             };
 
-            const sanctionPrices = {
-                sanction_1: '100,000 Ft',
-                sanction_2: '50,000 Ft',
-                sanction_3: '50,000 Ft',
-                sanction_4: '30,000 Ft',
-                sanction_5: '50,000 Ft',
-                sanction_6: '100,000 Ft',
-                sanction_7: '100,000 Ft',
-                sanction_8: '100,000 Ft',
-                sanction_9: '100,000 Ft'
+            const sanctionPricesRaw = {
+                sanction_1: 100000,
+                sanction_2: 50000,
+                sanction_3: 50000,
+                sanction_4: 30000,
+                sanction_5: 50000,
+                sanction_6: 100000,
+                sanction_7: 100000,
+                sanction_8: 100000,
+                sanction_9: 100000
             };
 
             const result = [];
             let hasAny = false;
 
             const checkboxes = document.querySelectorAll('.price-item input[type="checkbox"]');
-            
+
             checkboxes.forEach(checkbox => {
                 if (checkbox.checked) {
                     const sanctionKey = checkbox.name;
                     hasAny = true;
-                    
+
+                    // Darabszám lekérése
+                    const countInput = document.querySelector(`input[name="${sanctionKey}_count"]`);
+                    const count = countInput ? parseInt(countInput.value) || 1 : 1;
+                    const basePrice = sanctionPricesRaw[sanctionKey];
+                    const totalPrice = basePrice * count;
+                    const formattedPrice = totalPrice.toLocaleString('hu-HU') + ' Ft';
+
+                    // Ha több mint 1 db, megjelenitjuk a mennyiséget
+                    const countText = count > 1 ? ` (${count}x)` : '';
+
                     result.push({
-                        text: `• ${sanctionLabels[sanctionKey]} - ${sanctionPrices[sanctionKey]}`,
+                        text: `• ${sanctionLabels[sanctionKey]}${countText} - ${formattedPrice}`,
                         style: 'sanctions',
                         margin: [0, 3, 0, 3]
                     });
                 }
             });
 
-            if (!hasAny) {
-                result.push({
-                    text: 'Nincs alkalmazott szankció.',
-                    style: 'sanctions',
-                    italics: true,
-                    color: '#999'
-                });
+            // Ha nincs szankció, üres tömböt adunk vissza
+            return { sanctions: result, hasAny: hasAny };
+        }
+
+        // Szankciós lista teljes szekciója - csak akkor jelenik meg, ha van szankció
+        function getSanctionsSectionForPDF(data) {
+            const sanctionsData = getAppliedSanctionsForPDF(data);
+
+            // Ha nincs szankció, üres tömböt adunk vissza
+            if (!sanctionsData.hasAny) {
+                return [];
             }
 
-            return result;
+            // Ha van szankció, visszaadjuk a teljes szekciót
+            return [
+                {
+                    text: 'SZANKCIÓS LISTA',
+                    style: 'sectionHeader',
+                    margin: [0, 15, 0, 10]
+                },
+                {
+                    text: 'Dokumentáció kategória vonatkozó pontjai',
+                    style: 'sanctionsSubtitle',
+                    margin: [0, 0, 0, 10]
+                },
+                ...sanctionsData.sanctions,
+                {
+                    table: {
+                        widths: ['*', 'auto'],
+                        body: [[
+                            { text: 'Kiszabható összesített bírság:', bold: true, fontSize: 14, alignment: 'right', border: [false, true, false, false], margin: [0, 10, 0, 10] },
+                            { text: totalPriceElement.textContent, bold: true, fontSize: 16, color: '#dc3545', alignment: 'right', border: [false, true, false, false], margin: [0, 10, 0, 10] }
+                        ]]
+                    },
+                    layout: {
+                        hLineColor: '#333',
+                        hLineWidth: function() { return 2; }
+                    },
+                    margin: [0, 10, 0, 0]
+                }
+            ];
         }
 
         // ⭐ MÓDOSÍTOTT: Képek PDF-hez metaadatokkal
@@ -2689,7 +3003,7 @@ pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
                 // ⭐ Kép megjelenítése (már tömörítve 70% minőség, max 1600px)
                 result.push({
                     image: imageData,
-                    width: 400, // PDF-ben 400px széles
+                    width: 300, // PDF-ben 300px széles
                     alignment: 'center',
                     margin: [0, 5, 0, 5]
                 });
@@ -2793,60 +3107,96 @@ function loadSavedData(data) {
         document.getElementById('responsiblePreview').innerHTML = `<img src="${data.responsible_signature}" alt="Aláírás">`;
         document.getElementById('responsibleClear').style.display = 'block';
     }
-    
-    if (data.subcontractor_signature) {
-        signatures.subcontractor = data.subcontractor_signature;
-        document.getElementById('subcontractorSignature').value = data.subcontractor_signature;
-        document.getElementById('subcontractorPreview').innerHTML = `<img src="${data.subcontractor_signature}" alt="Aláírás">`;
-        document.getElementById('subcontractorClear').style.display = 'block';
-    }
-    
-    // Tanúk betöltése
-    let witnessIndex = 0;
-    while (data[`witness_name_${witnessIndex}`]) {
-        if (witnessIndex > 0) {
-            addWitness();
-        }
-        
+
+    // Tanúk betöltése - ha van mentett tanú adat, megjelenítjük a szekciót
+    if (data.witness_name_0 || data.witness_name_1 || data.witnessesVisible) {
+        showWitnesses();
+
         setTimeout(() => {
-            const nameInput = document.querySelector(`input[name="witness_name_${witnessIndex}"]`);
-            const positionInput = document.querySelector(`input[name="witness_position_${witnessIndex}"]`);
-            
-            if (nameInput && data[`witness_name_${witnessIndex}`]) {
-                nameInput.value = data[`witness_name_${witnessIndex}`];
+            // 2 tanú betöltése
+            for (let i = 0; i < 2; i++) {
+                const nameInput = document.querySelector(`input[name="witness_name_${i}"]`);
+                const positionInput = document.querySelector(`input[name="witness_position_${i}"]`);
+                const idNumberInput = document.querySelector(`input[name="witness_id_number_${i}"]`);
+                const addressInput = document.querySelector(`input[name="witness_address_${i}"]`);
+
+                if (nameInput && data[`witness_name_${i}`]) {
+                    nameInput.value = data[`witness_name_${i}`];
+                }
+                if (positionInput && data[`witness_position_${i}`]) {
+                    positionInput.value = data[`witness_position_${i}`];
+                }
+                if (idNumberInput && data[`witness_id_number_${i}`]) {
+                    idNumberInput.value = data[`witness_id_number_${i}`];
+                }
+                if (addressInput && data[`witness_address_${i}`]) {
+                    addressInput.value = data[`witness_address_${i}`];
+                }
+
+                if (data[`witness_signature_${i}`]) {
+                    signatures[`witness_${i}`] = data[`witness_signature_${i}`];
+                    const sigInput = document.getElementById(`witness_${i}Signature`);
+                    const preview = document.getElementById(`witnessPreview_${i}`);
+                    const clearBtn = document.getElementById(`witness_${i}Clear`);
+
+                    if (sigInput) sigInput.value = data[`witness_signature_${i}`];
+                    if (preview) preview.innerHTML = `<img src="${data[`witness_signature_${i}`]}" alt="Aláírás">`;
+                    if (clearBtn) clearBtn.style.display = 'block';
+                }
             }
-            if (positionInput && data[`witness_position_${witnessIndex}`]) {
-                positionInput.value = data[`witness_position_${witnessIndex}`];
+
+            // "Nem áll rendelkezésre Tanú" checkbox betöltése
+            if (data.noWitnessAvailable) {
+                document.getElementById('noWitnessAvailable').checked = true;
+                toggleNoWitness();
             }
-            
-            if (data[`witness_signature_${witnessIndex}`]) {
-                signatures[`witness_${witnessIndex}`] = data[`witness_signature_${witnessIndex}`];
-                const sigInput = document.getElementById(`witness_${witnessIndex}Signature`);
-                const preview = document.getElementById(`witnessPreview_${witnessIndex}`);
-                const clearBtn = document.getElementById(`witness_${witnessIndex}Clear`);
-                
-                if (sigInput) sigInput.value = data[`witness_signature_${witnessIndex}`];
-                if (preview) preview.innerHTML = `<img src="${data[`witness_signature_${witnessIndex}`]}" alt="Aláírás">`;
-                if (clearBtn) clearBtn.style.display = 'block';
-            }
-        }, 100 * witnessIndex);
-        
-        witnessIndex++;
+        }, 200);
     }
     
-    // Alvállalkozó
-    if (data.subcontractor_name) {
-        document.querySelector('input[name="subcontractor_name"]').value = data.subcontractor_name;
-    }
-    if (data.subcontractor_representative) {
-        document.querySelector('input[name="subcontractor_representative"]').value = data.subcontractor_representative;
+    // Alvállalkozók betöltése (új formátum)
+    if (data.subcontractors && Array.isArray(data.subcontractors)) {
+        // Az új formátum: tömb a cégnevekkel (MVM Xpert Zrt. nélkül, mert az fix)
+        data.subcontractors.forEach(companyName => {
+            if (companyName && companyName !== 'MVM Xpert Zrt.') {
+                addSubcontractor();
+                const items = document.querySelectorAll('.subcontractor-item');
+                const lastItem = items[items.length - 1];
+                if (lastItem) {
+                    const input = lastItem.querySelector('input');
+                    if (input) input.value = companyName;
+                }
+            }
+        });
+    } else {
+        // Régi formátum kompatibilitás (ha van subcontractor_name)
+        if (data.subcontractor_name && data.subcontractor_name !== 'MVM Xpert Zrt.') {
+            addSubcontractor();
+            const items = document.querySelectorAll('.subcontractor-item');
+            const lastItem = items[items.length - 1];
+            if (lastItem) {
+                const input = lastItem.querySelector('input');
+                if (input) input.value = data.subcontractor_name;
+            }
+        }
     }
     
     // Ellenőrzési pontok
     ['item_1_1', 'item_1_2', 'item_1_3', 'item_1_4'].forEach(itemName => {
         if (data[itemName]) {
             const radio = document.querySelector(`input[name="${itemName}"][value="${data[itemName]}"]`);
-            if (radio) radio.checked = true;
+            if (radio) {
+                radio.checked = true;
+                // Severity megjelenítése ha szükséges
+                const itemId = itemName.replace('item_', '');
+                toggleSeverity(itemId);
+            }
+        }
+
+        // Severity értékek betöltése
+        const severityKey = `${itemName}_severity`;
+        if (data[severityKey]) {
+            const severityRadio = document.querySelector(`input[name="${severityKey}"][value="${data[severityKey]}"]`);
+            if (severityRadio) severityRadio.checked = true;
         }
     });
     
@@ -2976,6 +3326,16 @@ function loadSavedData(data) {
     checkboxes.forEach(checkbox => {
         if (data[checkbox.name] === 'on' || data[checkbox.name] === checkbox.value) {
             checkbox.checked = true;
+        }
+
+        // Darabszám betöltése
+        const sanctionKey = checkbox.name;
+        const countKey = `${sanctionKey}_count`;
+        if (data[countKey]) {
+            const countInput = document.querySelector(`input[name="${countKey}"]`);
+            if (countInput) {
+                countInput.value = data[countKey];
+            }
         }
     });
     calculateTotal();

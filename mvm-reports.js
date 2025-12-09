@@ -201,6 +201,40 @@ async function getOrCreateDailyPdfFolder(folderName, parentFolderId) {
     }
 }
 
+// Projekt specifikus mappa létrehozása a főmappában
+async function createProjectFolder(projectName, parentFolderId = '1gjd1pzRCnD5ajAK9qXDP0Lw8xBCY3XOK') {
+    try {
+        // Ellenőrizzük, hogy létezik-e már a mappa
+        const existingFolders = await driveService.files.list({
+            q: `name='${projectName}' and parents in '${parentFolderId}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+            fields: 'files(id, name)',
+        });
+
+        if (existingFolders.data.files.length > 0) {
+            console.log(`📁 Projekt mappa már létezik: ${projectName}`);
+            return existingFolders.data.files[0].id;
+        }
+
+        // Mappa létrehozása
+        const folderMetadata = {
+            name: projectName,
+            mimeType: 'application/vnd.google-apps.folder',
+            parents: [parentFolderId],
+        };
+
+        const folder = await driveService.files.create({
+            resource: folderMetadata,
+            fields: 'id',
+        });
+
+        console.log(`📁 Új projekt mappa létrehozva: ${projectName}`);
+        return folder.data.id;
+    } catch (error) {
+        console.error(`Hiba a projekt mappa létrehozásakor:`, error.message);
+        throw error;
+    }
+}
+
 async function getOrCreateFolder(folderName, parentFolderId) {
     try {
         const existingFolders = await driveService.files.list({
@@ -244,6 +278,35 @@ async function uploadPdfWithVersionControl(pdfBuffer, fileName, folderId) {
         const pdfFiles = existingPdfs.data.files || [];
         console.log(`📄 Jelenlegi PDF-ek száma: ${pdfFiles.length}`);
 
+        // Duplikáció kezelés: ha már létezik ugyanazzal a névvel
+        const baseFileName = fileName.replace(/\.pdf$/i, '');
+        const existingWithSameName = pdfFiles.filter(file => {
+            const name = file.name.replace(/\.pdf$/i, '');
+            // Ellenőrizzük: ugyanaz a név VAGY ugyanaz a név (szám) formában
+            return name === baseFileName || name.match(new RegExp(`^${baseFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\(\\d+\\)$`));
+        });
+
+        let finalFileName = fileName;
+        if (existingWithSameName.length > 0) {
+            // Van már ilyen nevű fájl, keressük meg a következő szabad számot
+            let counter = 2;
+            let foundUnique = false;
+
+            while (!foundUnique) {
+                const testName = `${baseFileName} (${counter}).pdf`;
+                const exists = pdfFiles.some(file => file.name === testName);
+
+                if (!exists) {
+                    finalFileName = testName;
+                    foundUnique = true;
+                } else {
+                    counter++;
+                }
+            }
+            console.log(`📝 Duplikáció észlelve, új fájlnév: ${finalFileName}`);
+        }
+
+        // 12 PDF limit kezelés (legrégebbi törlése)
         if (pdfFiles.length >= 12) {
             const oldestPdf = pdfFiles[0];
             console.log(`🗑️ 12 PDF elérve, legrégebbi törlése: ${oldestPdf.name}`);
@@ -252,12 +315,9 @@ async function uploadPdfWithVersionControl(pdfBuffer, fileName, folderId) {
             });
         }
 
-        const version = pdfFiles.length >= 12 ? 12 : pdfFiles.length + 1;
-        const versionedFileName = `v${version}_${fileName}`;
+        const uploadResult = await uploadBufferToDrive(pdfBuffer, finalFileName, folderId, 'application/pdf');
+        console.log(`✅ PDF feltöltve: ${finalFileName}`);
 
-        const uploadResult = await uploadBufferToDrive(pdfBuffer, versionedFileName, folderId, 'application/pdf');
-        console.log(`✅ PDF feltöltve verzióval: ${versionedFileName}`);
-        
         return uploadResult;
     } catch (error) {
         console.error('Hiba a PDF verziókezelésnél:', error);
@@ -474,13 +534,14 @@ router.delete('/projects/:projectId/reports/documentation', isAuthenticated, asy
 router.post('/projects/:projectId/reports/documentation/export-pdf', isAuthenticated, async (req, res) => {
     const projectId = req.params.projectId;
     const userId = req.user.id;
-    const { pdfData, serialNumber, projectName, images } = req.body;
+    const { pdfData, serialNumber, projectName, fileName, images } = req.body;
 
     console.log('📥 PDF export request érkezett:', {
         projectId,
         userId,
         serialNumber,
         projectName,
+        fileName,
         hasImages: !!images,
         imageCount: images ? Object.keys(images).reduce((sum, key) => sum + (images[key]?.length || 0), 0) : 0
     });
@@ -501,13 +562,16 @@ router.post('/projects/:projectId/reports/documentation/export-pdf', isAuthentic
         }
 
         const safeProjectName = sanitizeFolderName(projectName);
-        const safeFolderName = (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A') 
+        const safeFolderName = (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A')
             ? sanitizeFolderName(serialNumber)
             : safeProjectName;
 
-        const pdfFileName = (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A') 
-            ? `${sanitizeFolderName(serialNumber)}.pdf`
-            : `${safeProjectName}.pdf`;
+        // Használjuk a kliens által generált fájlnevet, ha van
+        const pdfFileName = fileName || (
+            (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A')
+                ? `${sanitizeFolderName(serialNumber)}.pdf`
+                : `${safeProjectName}.pdf`
+        );
 
         console.log(`📄 PDF export kezdés: ${pdfFileName}`);
 
@@ -822,3 +886,5 @@ router.get('/projects/:projectId/images-metadata', isAuthenticated, async (req, 
 });
 
 module.exports = router;
+module.exports.createProjectFolder = createProjectFolder;
+module.exports.initializeDrive = initializeGoogleDrive;
