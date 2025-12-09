@@ -753,11 +753,11 @@ router.post('/projects/:projectId/reports/documentation/export-pdf', isAuthentic
                                 console.log(`ℹ️ Nincs GPS adat - kép feltöltése GPS nélkül`);
                             }
 
-                            // Fájlnév generálása
-                            const timestamp = finalMetadata.takenDate
-                                ? new Date(finalMetadata.takenDate).getTime()
-                                : Date.now();
-                            const imageFileName = `${imgObj.itemId}_${timestamp}_${index + 1}.jpg`;
+                            // Fájlnév generálása a PDF neve alapján
+                            const pdfBaseName = pdfFileName.replace(/\.pdf$/i, ''); // PDF név .pdf kiterjesztés nélkül
+                            const imageFileName = allImages.length > 1
+                                ? `${pdfBaseName} (${index + 1}).jpg`
+                                : `${pdfBaseName}.jpg`;
 
                             // ⭐ Feltöltés GPS EXIF metaadatokkal
                             const imageUploadResult = await uploadBufferToDrive(
