@@ -455,4 +455,75 @@
                 font-size: 9px;
             }
         }
-    
+        .project-action-section {
+    display: flex;
+    justify-content: space-between;
+    gap: 15px;
+    /* a margin most inline van a HTML-ben, de ide is tehető ha szeretnéd */
+}
+
+.submit-button {
+    flex: 1;
+    background-color: #f6ee48;
+    color: #202020;
+    border: none;
+    padding: 16px;
+    border-radius: 10px;
+    font-family: "Montserrat", sans-serif;
+    font-weight: 400;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    font-size: 16px;
+    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    text-decoration: none;
+}
+
+.submit-button:hover {
+    background-color: #5c0099;
+    color: white;
+    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.preview-button {
+    flex: 1;
+    background: #5c0099;
+    color: white;
+    border: none;
+    padding: 16px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+    transition: background 0.3s;
+    text-align: center;
+    text-decoration: none;
+}
+
+.preview-button:hover {
+    background: #004494;
+}
+/* Mobilnézet (tablet és kisebb) */
+@media (max-width: 768px) {
+    .project-action-section {
+        flex-direction: column;
+    }
+
+    .submit-button, .preview-button {
+        width: 100%;
+    }
+}
+
+/* Nagyon kis képernyők (pl. mobil) */
+@media (max-width: 480px) {
+    .project-action-section {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .submit-button, .preview-button {
+        width: 100%;
+        font-size: 14px;
+        padding: 12px;
+    }
+}

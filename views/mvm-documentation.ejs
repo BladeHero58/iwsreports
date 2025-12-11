@@ -21,206 +21,6 @@
     <script src="https://cdn.jsdelivr.net/npm/piexifjs@1.0.6/piexif.min.js"></script>
 
     <!-- ⭐ EXIF metaadatok megjelenítésére CSS -->
-    <style>
-        .image-preview-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            margin-top: 15px;
-        }
-
-        .image-preview-item {
-            position: relative;
-            width: 250px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            transition: transform 0.2s;
-            background: white;
-        }
-
-        /* ⭐ Mobilos optimalizálás */
-        @media (max-width: 768px) {
-            .image-preview-container {
-                gap: 10px;
-            }
-
-            .image-preview-item {
-                width: 100%;
-                max-width: 100%;
-            }
-
-            .image-meta-info {
-                font-size: 10px;
-                padding: 8px 10px;
-            }
-
-            .meta-item {
-                gap: 4px;
-            }
-        }
-
-        .image-preview-item:hover {
-            transform: scale(1.02);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-        }
-
-        .image-preview-item img {
-            width: 100%;
-            height: 200px;
-            object-fit: cover;
-            display: block;
-        }
-
-        .image-meta-info {
-            background: linear-gradient(to top, rgba(0,0,0,0.95), rgba(0,0,0,0.7));
-            padding: 10px 12px;
-            color: white;
-            font-size: 11px;
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-        }
-
-        .meta-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            margin: 4px 0;
-            line-height: 1.4;
-        }
-
-        .meta-item i {
-            width: 14px;
-            text-align: center;
-            color: #4CAF50;
-            flex-shrink: 0;
-        }
-
-        .meta-item span {
-            flex: 1;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .map-link {
-            color: #4CAF50;
-            text-decoration: none;
-            font-weight: bold;
-        }
-
-        .map-link:hover {
-            text-decoration: underline;
-            color: #66BB6A;
-        }
-
-        .image-remove-btn {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            background: rgba(220, 53, 69, 0.95);
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            cursor: pointer;
-            font-size: 18px;
-            line-height: 1;
-            z-index: 10;
-            transition: all 0.2s;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
-
-        .image-remove-btn:hover {
-            background: #dc3545;
-            transform: scale(1.1);
-        }
-
-        .no-metadata-warning {
-            background: rgba(255, 193, 7, 0.2);
-            border-left: 3px solid #ffc107;
-            padding: 6px 8px;
-            margin-top: 5px;
-            font-size: 10px;
-            color: #f0f0f0;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .no-metadata-warning i {
-            color: #ffc107;
-        }
-
-        /* ⭐ Progress bar feltöltéshez */
-        .upload-progress-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.8);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-        }
-
-        .upload-progress-container {
-            background: white;
-            border-radius: 12px;
-            padding: 30px;
-            max-width: 400px;
-            width: 90%;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-        }
-
-        .upload-progress-title {
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 15px;
-            text-align: center;
-            color: #333;
-        }
-
-        .upload-progress-bar-container {
-            background: #e0e0e0;
-            border-radius: 10px;
-            height: 30px;
-            overflow: hidden;
-            margin-bottom: 15px;
-            position: relative;
-        }
-
-        .upload-progress-bar {
-            background: linear-gradient(90deg, #4CAF50, #66BB6A);
-            height: 100%;
-            width: 0%;
-            transition: width 0.3s ease;
-            border-radius: 10px;
-        }
-
-        .upload-progress-text {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-weight: bold;
-            color: #333;
-            font-size: 14px;
-        }
-
-        .upload-progress-status {
-            text-align: center;
-            color: #666;
-            font-size: 13px;
-            min-height: 40px;
-        }
-    </style>
    
 </head>
 <body>
@@ -340,11 +140,15 @@ const backUrl = isAdmin
                 </div>
 
                 <!-- Tanúk - Alapból elrejtve -->
-                <div id="witnessToggleButton" style="margin-bottom: 15px;">
-                    <button type="button" class="add-button" onclick="showWitnesses()" style="background-color: #e53e3e; width: 100%;">
-                        <i class="fas fa-user-times"></i> Aláírást megtagadta
-                    </button>
-                </div>
+        <div id="witnessToggleButton" style="margin-bottom: 15px; text-align: center;">
+    <button 
+        type="button" 
+        class="add-button witness-button" 
+        onclick="showWitnesses()"
+    >
+        <i class="fas fa-user-times"></i> Aláírást megtagadta
+    </button>
+</div>
 
                 <div id="witnessSection" style="display: none;">
                     <div id="witnessesContainer"></div>
@@ -416,14 +220,28 @@ const backUrl = isAdmin
                     </div>
                 </div>
 
-                <div class="form-group" style="margin-top: 15px;">
-                    <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
-                    <p style="font-size: 11px; color: #4CAF50; margin: 5px 0;">
-                        <i class="fas fa-check-circle"></i> Minden képformátum támogatott (HEIC is) • Automatikus tömörítés
-                    </p>
-                    <input type="file" id="photos_1_1" multiple onchange="handleImageUpload(event, '1_1')" style="margin-bottom: 10px;">
-                    <div id="preview_1_1" class="image-preview-container"></div>
-                </div>
+              <div class="form-group" style="margin-top: 15px;">
+    <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
+    <p style="font-size: 11px; color: #4CAF50; margin: 5px 0;">
+        <i class="fas fa-check-circle"></i> Minden képformátum támogatott (HEIC is) • Automatikus tömörítés
+    </p>
+
+    <!-- Rejtett file input -->
+    <input 
+        type="file" 
+        id="photos_1_1" 
+        multiple 
+        onchange="handleImageUpload(event, '1_1')" 
+        style="display: none;"
+    >
+
+    <!-- Szép gomb -->
+    <button type="button" class="upload-btn" onclick="document.getElementById('photos_1_1').click()">
+        <i class="fas fa-upload"></i> Fájlok feltöltése
+    </button>
+
+    <div id="preview_1_1" class="image-preview-container"></div>
+</div>
 
                 <textarea class="notes-textarea" name="notes_1_1" placeholder="Megjegyzés..."></textarea>
             </div>
@@ -471,10 +289,28 @@ const backUrl = isAdmin
                 </div>
 
                 <div class="form-group" style="margin-top: 15px;">
-                    <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
-                    <input type="file" id="photos_1_2" multiple onchange="handleImageUpload(event, '1_2')" style="margin-bottom: 10px;">
-                    <div id="preview_1_2" class="image-preview-container"></div>
-                </div>
+    <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
+
+    <!-- Rejtett file input -->
+    <input 
+        type="file" 
+        id="photos_1_2" 
+        multiple 
+        onchange="handleImageUpload(event, '1_2')" 
+        style="display: none;"
+    >
+
+    <!-- Stílusos gomb -->
+    <button 
+        type="button" 
+        class="upload-btn" 
+        onclick="document.getElementById('photos_1_2').click()"
+    >
+        <i class="fas fa-upload"></i> Fájlok feltöltése
+    </button>
+
+    <div id="preview_1_2" class="image-preview-container"></div>
+</div>
 
                 <textarea class="notes-textarea" name="notes_1_2" placeholder="Megjegyzés..."></textarea>
             </div>
@@ -520,12 +356,29 @@ const backUrl = isAdmin
                         </div>
                     </div>
                 </div>
+<div class="form-group" style="margin-top: 15px;">
+    <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
 
-                <div class="form-group" style="margin-top: 15px;">
-                    <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
-                    <input type="file" id="photos_1_3" multiple onchange="handleImageUpload(event, '1_3')" style="margin-bottom: 10px;">
-                    <div id="preview_1_3" class="image-preview-container"></div>
-                </div>
+    <!-- Rejtett file input -->
+    <input 
+        type="file" 
+        id="photos_1_3" 
+        multiple 
+        onchange="handleImageUpload(event, '1_3')" 
+        style="display: none;"
+    >
+
+    <!-- Stílusos gomb -->
+    <button 
+        type="button" 
+        class="upload-btn" 
+        onclick="document.getElementById('photos_1_3').click()"
+    >
+        <i class="fas fa-upload"></i> Fájlok feltöltése
+    </button>
+
+    <div id="preview_1_3" class="image-preview-container"></div>
+</div>
 
                 <textarea class="notes-textarea" name="notes_1_3" placeholder="Megjegyzés..."></textarea>
             </div>
@@ -572,11 +425,29 @@ const backUrl = isAdmin
                     </div>
                 </div>
 
-                <div class="form-group" style="margin-top: 15px;">
-                    <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
-                    <input type="file" id="photos_1_4" multiple onchange="handleImageUpload(event, '1_4')" style="margin-bottom: 10px;">
-                    <div id="preview_1_4" class="image-preview-container"></div>
-                </div>
+               <div class="form-group" style="margin-top: 15px;">
+    <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
+
+    <!-- Rejtett file input -->
+    <input 
+        type="file" 
+        id="photos_1_4" 
+        multiple 
+        onchange="handleImageUpload(event, '1_4')" 
+        style="display: none;"
+    >
+
+    <!-- Stílusos gomb -->
+    <button 
+        type="button" 
+        class="upload-btn" 
+        onclick="document.getElementById('photos_1_4').click()"
+    >
+        <i class="fas fa-upload"></i> Fájlok feltöltése
+    </button>
+
+    <div id="preview_1_4" class="image-preview-container"></div>
+</div>
 
                 <textarea class="notes-textarea" name="notes_1_4" placeholder="Megjegyzés..."></textarea>
             </div>
@@ -704,7 +575,7 @@ const backUrl = isAdmin
                     <i class="fas fa-trash"></i> Törlés
                 </button>
                 <button class="btn-save" onclick="saveSignature()">
-                    <i class="fas fa-check"></i> Mentés
+                    <i class="fas fa-save"></i></i> Mentés
                 </button>
             </div>
         </div>

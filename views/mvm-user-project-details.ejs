@@ -24,25 +24,21 @@
             <p><strong>Leírás:</strong></p>
             <div class="project-description"><%= project.description %></div>
 
-            <!-- Google Drive mappa gomb -->
-            <% if (project.drive_folder_id) { %>
-                <div style="margin-top: 15px;">
-                    <a href="https://drive.google.com/drive/folders/<%= project.drive_folder_id %>"
-                       target="_blank"
-                       class="btn-drive"
-                       style="display: inline-block; padding: 10px 20px; background-color: #4285f4; color: white; text-decoration: none; border-radius: 5px; font-weight: 600;">
-                        <i class="fab fa-google-drive"></i> Projekt Drive mappa megnyitása
-                    </a>
-                </div>
-            <% } %>
-        </div>
+<!-- Projekt szerkesztése és Google Drive gombok -->
+<div class="project-action-section" style="margin: 3% 0 7% 0;">
+    <a href="/admin/projects/edit/<%= project.id %>" class="submit-button">
+        <i class="fas fa-pen-to-square"></i> Projekt szerkesztése
+    </a>
 
-        <!-- Szerkesztés gomb -->
-        <div class="edit-section">
-            <a href="/user/projects/edit/<%= project.id %>" class="btn-edit">
-                <i class="fas fa-pen-to-square"></i> Projekt szerkesztése
-            </a>
-        </div>
+    <% if (project.drive_folder_id) { %>
+        <a href="https://drive.google.com/drive/folders/<%= project.drive_folder_id %>"
+           target="_blank"
+           class="preview-button"
+        >
+            <i class="fab fa-google-drive"></i> Projekt Drive mappa megnyitása
+        </a>
+    <% } %>
+</div>
 
         <!-- Kategóriák -->
         <div class="categories-section">
