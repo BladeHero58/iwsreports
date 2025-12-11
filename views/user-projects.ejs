@@ -5,35 +5,51 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Projektek</title>
 
-    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/pages/user-projects.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" 1  href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet"> 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
-    <h1>A Projektjeid</h1>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-folder"></i> A projektjeid</h1>
+        </div>
 
-    <% if (projects.length === 0) { %>
-        <p><%= message %></p>
-    <% } else { %>
-        <ul>
-            <% projects.forEach(project => { %>
-                <li>
-                    <strong><%= project.name %></strong><br>
-                    Állapot: <%= project.status %><br>
-                    <form action="/user/projects/<%= project.id %>" method="GET">
-                        <button type="submit" class="btn"><i class="fas fa-list-check"></i> Projekt részletei</button>
-                    </form>
-                </li>
-            <% }); %>
-        </ul>
-    <% } %>
+        <% if (projects.length === 0) { %>
+            <div class="empty-state">
+                <i class="fas fa-folder-open"></i>
+                <h2><%= message %></h2>
+            </div>
+        <% } else { %>
+            <div class="projects-grid">
+                <% projects.forEach(project => { %>
+                    <div class="project-card">
+                        <div class="project-header">
+                            <div class="project-name"><%= project.name %></div>
+                            <span class="project-status <%= project.status.toLowerCase() %>">
+                                <%= project.status %>
+                            </span>
+                        </div>
+                        
+                        <div class="project-actions">
+                            <form action="/user/projects/<%= project.id %>" method="GET" style="width: 100%;">
+                                <button type="submit" class="btn btn-details">
+                                    <i class="fas fa-list-check"></i> Projekt részletei
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                <% }); %>
+            </div>
+        <% } %>
 
-    <form action="/dashboard" method="GET">
-        <button type="submit" class="logout-btn"><i class="fas fa-arrow-left"></i> Vissza az írányítópultra</button>
-    </form>
-
+        <form action="/dashboard" method="GET">
+            <button type="submit" class="back-button">
+                <i class="fas fa-arrow-left"></i> Vissza az irányítópultra
+            </button>
+        </form>
+    </div>
 </body>
 </html>
-

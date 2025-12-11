@@ -80,7 +80,7 @@
         }
 
         .password-section-container {
-            max-width: 600px;
+            max-width: 1200px;
             margin: 40px auto 20px;
             padding: 30px;
             background: rgba(255, 255, 255, 0.95);
@@ -90,15 +90,19 @@
 
         .password-section-container h3 {
             text-align: center;
-            color: #5c0099;
+            color: #020202;
             margin-bottom: 20px;
         }
 
         .password-section-container form {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    
+    /* VÁLTOZÁS: Középre igazítás */
+    margin: 0 auto; 
+}
 
         .password-section-container input {
             width: 100%;
@@ -119,6 +123,26 @@
             font-weight: 600;
             color: #333;
             font-size: 14px;
+        }
+
+        .edit-btn {
+        background-color: #f6ee48;
+        color: #020202;
+        }
+
+        .edit-btn:hover {
+            background-color: #5c0099;
+        color: #ffffff;
+        }
+
+        .save-btn {
+            background-color: #f6ee48;
+        color: #020202;
+        }
+
+        .save-btn:hover {
+              background-color: #5c0099;
+        color: #ffffff;
         }
 
         /* Back to dashboard button - separate section */

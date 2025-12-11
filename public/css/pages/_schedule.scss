@@ -154,17 +154,7 @@ form button:hover {
 }
 
 
-// --- AKCIÓ GOMBOK (Ezek specifikusak, ezért itt maradnak) ---
-.action-buttons button {
-    background-color: #28a745; /* Edit */
-    margin-right: 5px;
-}
-.action-buttons button.delete-btn {
-    background-color: #dc3545; /* Delete */
-}
-.action-buttons button:hover {
-    opacity: 0.9;
-}
+
 // Az alábbi .logout-btn stílus duplikáció, felülírná a fentit. Ezért töröltük.
 // .logout-btn { background-color: #6c757d; }
 // .logout-btn:hover { background-color: #5a6268; }

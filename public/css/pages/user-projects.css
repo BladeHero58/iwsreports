@@ -1,0 +1,297 @@
+@charset "UTF-8";
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #ffffff;
+  background-image: url("/images/IWS.jpg");
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  font-family: "Montserrat", sans-serif;
+  padding: 20px;
+  min-height: 100vh;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.header {
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  margin-bottom: 30px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.header h1 {
+  font-size: 32px;
+  color: #020202;
+  margin: 0;
+}
+
+.message {
+  background: #d4edda;
+  color: #155724;
+  padding: 15px 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border-left: 4px solid #28a745;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  font-weight: 500;
+}
+
+.btn {
+  background-color: #f6ee48;
+  color: #202020;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 50px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.btn:hover {
+  background-color: #5c0099;
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.4);
+}
+
+.btn i {
+  font-size: 16px;
+}
+
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 25px;
+  margin-bottom: 30px;
+}
+
+.project-card {
+  background: white;
+  border-radius: 12px;
+  padding: 25px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  border-left: 4px solid #5c0099;
+}
+
+.project-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+}
+
+.project-header {
+  margin-bottom: 15px;
+}
+
+.project-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.project-status {
+  display: inline-block;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  background: #f0f0f0;
+  color: #666;
+}
+
+.project-status.active {
+  background: #d4edda;
+  color: #155724;
+}
+
+.project-status.completed {
+  background: #cce5ff;
+  color: #004085;
+}
+
+.project-status.pending {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.project-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.project-actions .btn {
+  flex: 1;
+  min-width: 120px;
+  justify-content: center;
+}
+
+.btn-delete {
+  background-color: #5c0099;
+  color: white;
+  flex: 1;
+}
+
+.btn-delete:hover {
+  background-color: #202020;
+}
+
+.btn-details {
+  background-color: #f6ee48;
+  color: #020202;
+  flex: 2;
+}
+
+.btn-details:hover {
+  background-color: #5c0099;
+}
+
+.back-button {
+  background-color: #5c0099;
+  color: white;
+  border: none;
+  padding: 14px 28px;
+  border-radius: 50px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  text-decoration: none;
+}
+
+.back-button:hover {
+  background-color: #202020;
+  transform: translateY(-2px);
+  box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.4);
+}
+
+.empty-state {
+  background: white;
+  padding: 60px 30px;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.empty-state i {
+  font-size: 64px;
+  color: #ddd;
+  margin-bottom: 20px;
+}
+
+.empty-state h2 {
+  font-size: 24px;
+  color: #666;
+  margin-bottom: 10px;
+}
+
+.empty-state p {
+  color: #999;
+  margin-bottom: 30px;
+}
+
+/* Tablet nézet */
+@media (max-width: 768px) {
+  body {
+    padding: 15px;
+  }
+  .header {
+    padding: 20px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .header h1 {
+    font-size: 26px;
+  }
+  .projects-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .project-card {
+    padding: 20px;
+  }
+  .project-name {
+    font-size: 18px;
+  }
+  .project-actions {
+    flex-direction: column;
+  }
+  .project-actions .btn {
+    width: 100%;
+    min-width: auto;
+  }
+}
+/* Mobil nézet */
+@media (max-width: 480px) {
+  body {
+    padding: 10px;
+  }
+  .header {
+    padding: 15px;
+  }
+  .header h1 {
+    font-size: 22px;
+  }
+  .btn {
+    padding: 10px 20px;
+    font-size: 13px;
+  }
+  .back-button {
+    padding: 12px 24px;
+    font-size: 14px;
+  }
+  .project-card {
+    padding: 18px;
+  }
+  .project-name {
+    font-size: 17px;
+  }
+  .project-status {
+    font-size: 12px;
+    padding: 5px 14px;
+  }
+  .message {
+    padding: 12px 15px;
+    font-size: 14px;
+  }
+  .empty-state {
+    padding: 40px 20px;
+  }
+  .empty-state i {
+    font-size: 48px;
+  }
+  .empty-state h2 {
+    font-size: 20px;
+  }
+}
+
+/*# sourceMappingURL=user-projects.css.map */
