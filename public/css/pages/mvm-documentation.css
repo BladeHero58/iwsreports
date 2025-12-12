@@ -106,10 +106,10 @@ h1, h2, h3, h4, h5, h6, p, li, a, button {
 
 .form-group label {
   display: block;
-  font-size: 14px;
+  font-size: 17px;
   color: #333;
   margin-bottom: 8px;
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .form-group input[type=text],
@@ -691,8 +691,9 @@ input[type=file]:hover {
     margin-bottom: 15px;
   }
   .form-group label {
-    font-size: 13px;
+    font-size: 15px;
     margin-bottom: 6px;
+    font-weight: 700;
   }
   .form-group input[type=text],
   .form-group input[type=date],

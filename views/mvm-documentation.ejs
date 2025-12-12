@@ -63,7 +63,7 @@ const backUrl = isAdmin
 
             <div class="form-group" style="margin-bottom: 15px;">
                 <label for="inspectorPerson"><strong>Ellenőrző személy:</strong></label>
-                <input type="text" id="inspectorPerson" name="inspectorPerson" value="<%= user.name %>" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+                <input type="text" id="inspectorPerson" name="inspectorPerson" value="<%= user.username %>" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
             </div>
 
             <p style="font-size: 13px; color: #999; margin-top: 10px;">
@@ -95,7 +95,7 @@ const backUrl = isAdmin
                 <div class="form-group">
                     <label>Ellenőrzést végző</label>
                     <div class="two-column">
-                        <input type="text" name="inspector_name" placeholder="Név">
+                        <input type="text" name="inspector_name" placeholder="Név" value="<%= user.username %>">
                         <input type="text" name="inspector_position" placeholder="Beosztás">
                     </div>
                     
@@ -673,6 +673,9 @@ const backUrl = isAdmin
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('inspectionDate').value = today;
 
+    // Sorszám automatikus generálása, ha van serial prefix
+    updateSerialNumber();
+
     // Mentett adatok betöltése 
     try {
         const response = await fetch('/projects/<%= project.id %>/reports/documentation');
@@ -841,9 +844,10 @@ const backUrl = isAdmin
             const chain = getSubcontractorChain();
             const lastCompany = chain[chain.length - 1] || 'Ismeretlen';
 
-            // Fájlnév friendly formátum (csak betűk, számok, szóköz, kötőjel)
-            const cleanSerial = serialNumber.replace(/[^\w\s-]/g, '-');
-            const cleanCompany = lastCompany.replace(/[^\w\s-]/g, '-');
+            // Fájlnév friendly formátum - ékezetes karakterek megengedettek
+            // Csak a tiltott fájlnév karaktereket távolítjuk el: / \ : * ? " < > |
+            const cleanSerial = serialNumber.replace(/[\/\\:*?"<>|]/g, '-');
+            const cleanCompany = lastCompany.replace(/[\/\\:*?"<>|]/g, '-');
 
             return `${cleanSerial} - ${cleanCompany}.pdf`;
         }
