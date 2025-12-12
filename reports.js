@@ -16,7 +16,7 @@ const mime = require('mime-types');
 //const { getOrCreateFolder, uploadPdfToDrive, driveService, uploadImagesToDrive, createDailyFolder } = require('./googleDrive');
 const axios = require('axios');
 const { google } = require('googleapis')
-const MAIN_DRIVE_FOLDER_ID = '1yc0G2dryo4XZeHmZ3FzV4yG4Gxjj2w7j'; // Állítsd be a saját főmappa ID-t!
+const MAIN_DRIVE_FOLDER_ID = '1AeSJXJN1ZGyHTY0kAGNCJa7al9i7-Xx-'; // Jegyzőkönyvek almappa ID-je
 
 const { Storage } = require('@google-cloud/storage');
 

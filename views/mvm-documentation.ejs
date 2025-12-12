@@ -1,3 +1,4 @@
+<!--Dokumentáció --->
 <!DOCTYPE html>
 <html lang="hu">
 <head>
@@ -2495,6 +2496,15 @@ pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
         if (!response.ok) {
             hideUploadProgress();
             throw new Error(`HTTP hiba! Státusz: ${response.status}`);
+        }
+
+        // Ellenőrizzük a Content-Type-ot, hogy tényleg JSON-t kapunk-e
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            hideUploadProgress();
+            const responseText = await response.text();
+            console.error('❌ Nem JSON válasz érkezett:', responseText.substring(0, 500));
+            throw new Error('A szerver nem JSON választ küldött. Lehet, hogy ki vagy jelentkezve vagy szerver hiba történt.');
         }
 
         updateUploadProgress(60, 'Adatok feldolgozása...');

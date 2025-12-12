@@ -1,0 +1,2180 @@
+<!--Személyi feltételek --->
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2. Személyi feltételek - <%= project.name %></title>
+     <link rel="stylesheet" href="/css/pages/mvm-documentation.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.min.js"></script>
+    <!-- ⭐ EXIF.js - újabb verzió mobilos kompatibilitással -->
+    <script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.min.js"></script>
+
+    <!-- ⭐ HEIC to JPEG konverzióhoz -->
+    <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+
+    <!-- ⭐ exifr - HEIC EXIF támogatással (TELJES verzió GPS parsing-gel) -->
+    <script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.js"></script>
+
+    <!-- ⭐ piexifjs - GPS írásra/olvasásra optimalizált (mobil kompatibilitás) -->
+    <script src="https://cdn.jsdelivr.net/npm/piexifjs@1.0.6/piexif.min.js"></script>
+
+    <!-- ⭐ EXIF metaadatok megjelenítésére CSS -->
+
+</head>
+<body>
+
+    <%
+// Eldöntjük hogy admin vagy user oldal kell
+const isAdmin = user.isAdmin || false;
+const backUrl = isAdmin
+    ? `/admin/projects/${project.id}`
+    : `/user/projects/${project.id}`;
+%>
+
+<a href="<%= backUrl %>" class="back-button">
+    <i class="fas fa-arrow-left"></i> Vissza a kategóriákhoz
+</a>
+
+    <div class="container">
+
+        <!-- Projekt információk -->
+        <div class="project-info">
+            <h3><i class="fas fa-project-diagram"></i> Projekt részletek</h3>
+
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="projectName"><strong>Projekt neve:</strong></label>
+                <input type="text" id="projectName" name="projectName" value="<%= project.name %>" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="inspectionDate"><strong>Dátum:</strong></label>
+                <input type="date" id="inspectionDate" name="inspectionDate" onchange="updateSerialNumber()" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="serialNumber"><strong>Sorszám:</strong></label>
+                <input type="text" id="serialNumber" name="serialNumber" placeholder="Pl. IWS/BCS/20251201" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+                <% if (project.serial_prefix) { %>
+                    <p style="font-size: 11px; color: #666; margin-top: 5px;">A sorszám automatikusan generálódik a dátum kiválasztása alapján</p>
+                <% } %>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="inspectorPerson"><strong>Ellenőrző személy:</strong></label>
+                <input type="text" id="inspectorPerson" name="inspectorPerson" value="<%= user.username %>" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+            </div>
+
+            <p style="font-size: 13px; color: #999; margin-top: 10px;">
+                <em>Projekt típus: <%= project.project_type %></em>
+            </p>
+
+            <!--  ÚJ ellenőrzés GOMB -->
+<div style="text-align: center; margin: 20px 0;">
+    <button type="button" class="add-button" onclick="startNewInspection()" style="width: auto; padding: 12px 30px;">
+        <i class="fas fa-plus"></i> Új ellenőrzés indítása
+    </button>
+</div>
+
+        </div>
+
+        <!-- Header -->
+        <div class="header">
+            <h1>2. Személyi feltételek</h1>
+            <p>Munkavállalók oktatása, képzettsége és alkalmasságának ellenőrzése</p>
+        </div>
+
+        <form id="documentationForm" method="POST" action="/projects/<%= project.id %>/reports/personnel-conditions">
+
+            <!-- Ellenőrzés résztvevői -->
+            <div class="form-section">
+                <div class="section-title">Ellenőrzés résztvevői</div>
+
+                <!-- Ellenőrzést végző -->
+                <div class="form-group">
+                    <label>Ellenőrzést végző</label>
+                    <div class="two-column">
+                        <input type="text" name="inspector_name" placeholder="Név" value="<%= user.username %>">
+                        <input type="text" name="inspector_position" placeholder="Beosztás">
+                    </div>
+
+                    <div class="signature-container">
+                        <div class="signature-preview" id="inspectorPreview" onclick="openSignatureModal('inspector')">
+                            <span><i class="fas fa-pen"></i> Kattintson ide az aláírás hozzáadásához</span>
+                        </div>
+                        <div class="signature-buttons">
+                            <button type="button" class="add-button" onclick="openSignatureModal('inspector')">
+                                <i class="fas fa-signature"></i> Aláírás hozzáadása
+                            </button>
+                            <button type="button" class="clear-signature" onclick="clearSignature('inspector')" style="display: none;" id="inspectorClear">
+                                <i class="fas fa-trash"></i> Törlés
+                            </button>
+                        </div>
+                    </div>
+                    <input type="hidden" name="inspector_signature" id="inspectorSignature">
+                </div>
+
+                <!-- Munkaterületért felelős -->
+                <div class="form-group">
+                    <label>Munkaterületért felelős</label>
+                    <div class="two-column">
+                        <input type="text" name="responsible_name" placeholder="Munkaterületért felelős neve">
+                        <input type="text" name="responsible_position" placeholder="Beosztás">
+                    </div>
+
+                    <div class="signature-container">
+                        <div class="signature-preview" id="responsiblePreview" onclick="openSignatureModal('responsible')">
+                            <span><i class="fas fa-pen"></i> Kattintson ide az aláírás hozzáadásához</span>
+                        </div>
+                        <div class="signature-buttons">
+                            <button type="button" class="add-button" onclick="openSignatureModal('responsible')">
+                                <i class="fas fa-signature"></i> Aláírás hozzáadása
+                            </button>
+                            <button type="button" class="clear-signature" onclick="clearSignature('responsible')" style="display: none;" id="responsibleClear">
+                                <i class="fas fa-trash"></i> Törlés
+                            </button>
+                        </div>
+                    </div>
+                    <input type="hidden" name="responsible_signature" id="responsibleSignature">
+                </div>
+
+                <!-- Tanúk - Alapból elrejtve -->
+        <div id="witnessToggleButton" style="margin-bottom: 15px; text-align: center;">
+    <button
+        type="button"
+        class="add-button witness-button"
+        onclick="showWitnesses()"
+    >
+        <i class="fas fa-user-times"></i> Aláírást megtagadta
+    </button>
+</div>
+
+                <div id="witnessSection" style="display: none;">
+                    <div id="witnessesContainer"></div>
+
+                    <div style="margin-top: 15px; padding: 10px; background-color: #f8f9fa; border-radius: 6px;">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" id="noWitnessAvailable" onchange="toggleNoWitness()" style="margin-right: 10px; width: 18px; height: 18px;">
+                            <span style="font-weight: 500;">Nem áll rendelkezésre Tanú</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Alvállalkozói lánc -->
+                <div class="form-group">
+                    <label>Alvállalkozói lánc</label>
+                    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 10px;">
+                        <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                            <span style="font-weight: 600; color: #2c5282; margin-right: 10px;">1.</span>
+                            <input type="text" value="MVM Xpert Zrt." readonly
+                                   style="flex: 1; background-color: #e8f4f8; border: 2px solid #bee3f8; padding: 8px 12px; border-radius: 6px; font-weight: 500;">
+                        </div>
+                        <div id="subcontractorsList"></div>
+                        <button type="button" class="add-button" onclick="addSubcontractor()" style="margin-top: 10px; width: 100%;">
+                            <i class="fas fa-plus"></i> Alvállalkozó cég hozzáadása
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2.1 XPert munkavállalók munkavédelmi oktatása -->
+            <div class="checklist-item">
+                <div class="checklist-header">2.1 XPert munkavállalók munkavédelmi oktatása és azok dokumentáltsága</div>
+                <div class="checklist-description">Munkavédelmi oktatási dokumentumok fellelhetősége, naprakészsége</div>
+
+                <div class="radio-options">
+                    <div class="radio-option success">
+                        <input type="radio" id="item_2_1_m" name="item_2_1" value="megfelelő" onchange="toggleSeverity('2_1')">
+                        <label for="item_2_1_m">Megfelelt</label>
+                    </div>
+                    <div class="radio-option danger">
+                        <input type="radio" id="item_2_1_nm" name="item_2_1" value="nem_megfelelő" onchange="toggleSeverity('2_1')">
+                        <label for="item_2_1_nm">Nem megfelelt</label>
+                    </div>
+                    <div class="radio-option info">
+                        <input type="radio" id="item_2_1_ft" name="item_2_1" value="felszólítás_után" onchange="toggleSeverity('2_1')">
+                        <label for="item_2_1_ft">Felszólítás után teljesítve</label>
+                    </div>
+                    <div class="radio-option warning">
+                        <input type="radio" id="item_2_1_nv" name="item_2_1" value="nem_vizsgált" onchange="toggleSeverity('2_1')">
+                        <label for="item_2_1_nv">Nem vonatkozik / Nem vizsgált</label>
+                    </div>
+                </div>
+
+                <div id="severity_2_1" class="severity-selector" style="display: none; margin-top: 15px; padding: 15px; background-color: #f7fafc; border-radius: 8px;">
+                    <label style="font-weight: 600; display: block; margin-bottom: 10px;">Hiba súlyossága:</label>
+                    <div class="radio-options">
+                        <div class="radio-option" style="border-color: #FFFF00;">
+                            <input type="radio" id="item_2_1_sev_low" name="item_2_1_severity" value="alacsony">
+                            <label for="item_2_1_sev_low" style="color: #000000;">🟡Alacsony</label>
+                        </div>
+                        <div class="radio-option" style="border-color: #ED7D31;">
+                            <input type="radio" id="item_2_1_sev_medium" name="item_2_1_severity" value="közepes">
+                            <label for="item_2_1_sev_medium" style="color: #000000;">🟠Közepes</label>
+                        </div>
+                        <div class="radio-option" style="border-color: #FF0000;">
+                            <input type="radio" id="item_2_1_sev_high" name="item_2_1_severity" value="magas">
+                            <label for="item_2_1_sev_high" style="color: #000000;">🔴Magas</label>
+                        </div>
+                    </div>
+                </div>
+
+              <div class="form-group" style="margin-top: 15px;">
+    <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
+    <p style="font-size: 11px; color: #4CAF50; margin: 5px 0;">
+        <i class="fas fa-check-circle"></i> Minden képformátum támogatott (HEIC is) • Automatikus tömörítés
+    </p>
+
+    <!-- Rejtett file input -->
+    <input
+        type="file"
+        id="photos_2_1"
+        multiple
+        onchange="handleImageUpload(event, '2_1')"
+        style="display: none;"
+    >
+
+    <!-- Szép gomb -->
+    <button type="button" class="upload-btn" onclick="document.getElementById('photos_2_1').click()">
+        <i class="fas fa-upload"></i> Fájlok feltöltése
+    </button>
+
+    <div id="preview_2_1" class="image-preview-container"></div>
+</div>
+
+                <textarea class="notes-textarea" name="notes_2_1" placeholder="Megjegyzés..."></textarea>
+            </div>
+
+            <!-- 2.2 Alvállalkozók munkavédelmi oktatása -->
+            <div class="checklist-item">
+                <div class="checklist-header">2.2 Alvállalkozók munkavédelmi oktatása és azok dokumentáltsága</div>
+                <div class="checklist-description">Alvállalkozói munkavállalók oktatási dokumentumai</div>
+
+                <div class="radio-options">
+                    <div class="radio-option success">
+                        <input type="radio" id="item_2_2_m" name="item_2_2" value="megfelelő" onchange="toggleSeverity('2_2')">
+                        <label for="item_2_2_m">Megfelelt</label>
+                    </div>
+                    <div class="radio-option danger">
+                        <input type="radio" id="item_2_2_nm" name="item_2_2" value="nem_megfelelő" onchange="toggleSeverity('2_2')">
+                        <label for="item_2_2_nm">Nem megfelelt</label>
+                    </div>
+                    <div class="radio-option info">
+                        <input type="radio" id="item_2_2_ft" name="item_2_2" value="felszólítás_után" onchange="toggleSeverity('2_2')">
+                        <label for="item_2_2_ft">Felszólítás után teljesítve</label>
+                    </div>
+                    <div class="radio-option warning">
+                        <input type="radio" id="item_2_2_nv" name="item_2_2" value="nem_vizsgált" onchange="toggleSeverity('2_2')">
+                        <label for="item_2_2_nv">Nem vonatkozik / Nem vizsgált</label>
+                    </div>
+                </div>
+
+                <div id="severity_2_2" class="severity-selector" style="display: none; margin-top: 15px; padding: 15px; background-color: #f7fafc; border-radius: 8px;">
+                    <label style="font-weight: 600; display: block; margin-bottom: 10px;">Hiba súlyossága:</label>
+                    <div class="radio-options">
+                        <div class="radio-option" style="border-color: #FFFF00;">
+                            <input type="radio" id="item_2_2_sev_low" name="item_2_2_severity" value="alacsony">
+                            <label for="item_2_2_sev_low" style="color: #000000;">🟡Alacsony</label>
+                        </div>
+                        <div class="radio-option" style="border-color: #ED7D31;">
+                            <input type="radio" id="item_2_2_sev_medium" name="item_2_2_severity" value="közepes">
+                            <label for="item_2_2_sev_medium" style="color: #000000;">🟠Közepes</label>
+                        </div>
+                        <div class="radio-option" style="border-color: #FF0000;">
+                            <input type="radio" id="item_2_2_sev_high" name="item_2_2_severity" value="magas">
+                            <label for="item_2_2_sev_high" style="color: #000000;">🔴Magas</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 15px;">
+    <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
+
+    <!-- Rejtett file input -->
+    <input
+        type="file"
+        id="photos_2_2"
+        multiple
+        onchange="handleImageUpload(event, '2_2')"
+        style="display: none;"
+    >
+
+    <!-- Stílusos gomb -->
+    <button
+        type="button"
+        class="upload-btn"
+        onclick="document.getElementById('photos_2_2').click()"
+    >
+        <i class="fas fa-upload"></i> Fájlok feltöltése
+    </button>
+
+    <div id="preview_2_2" class="image-preview-container"></div>
+</div>
+
+                <textarea class="notes-textarea" name="notes_2_2" placeholder="Megjegyzés..."></textarea>
+            </div>
+
+            <!-- 2.3 Szükséges oktatás/végzettség/alkalmasság -->
+            <div class="checklist-item">
+                <div class="checklist-header">2.3 A tevékenység/feladat végzéséhez szükséges oktatás/végzettség/alkalmasság megléte</div>
+                <div class="checklist-description">Munkára képes állapot, tűzvédelmi szakvizsga, kötözői, gépkezelői stb.</div>
+
+                <div class="radio-options">
+                    <div class="radio-option success">
+                        <input type="radio" id="item_2_3_m" name="item_2_3" value="megfelelő" onchange="toggleSeverity('2_3')">
+                        <label for="item_2_3_m">Megfelelt</label>
+                    </div>
+                    <div class="radio-option danger">
+                        <input type="radio" id="item_2_3_nm" name="item_2_3" value="nem_megfelelő" onchange="toggleSeverity('2_3')">
+                        <label for="item_2_3_nm">Nem megfelelt</label>
+                    </div>
+                    <div class="radio-option info">
+                        <input type="radio" id="item_2_3_ft" name="item_2_3" value="felszólítás_után" onchange="toggleSeverity('2_3')">
+                        <label for="item_2_3_ft">Felszólítás után teljesítve</label>
+                    </div>
+                    <div class="radio-option warning">
+                        <input type="radio" id="item_2_3_nv" name="item_2_3" value="nem_vizsgált" onchange="toggleSeverity('2_3')">
+                        <label for="item_2_3_nv">Nem vonatkozik / Nem vizsgált</label>
+                    </div>
+                </div>
+
+                <div id="severity_2_3" class="severity-selector" style="display: none; margin-top: 15px; padding: 15px; background-color: #f7fafc; border-radius: 8px;">
+                    <label style="font-weight: 600; display: block; margin-bottom: 10px;">Hiba súlyossága:</label>
+                    <div class="radio-options">
+                        <div class="radio-option" style="border-color: #FFFF00;">
+                            <input type="radio" id="item_2_3_sev_low" name="item_2_3_severity" value="alacsony">
+                            <label for="item_2_3_sev_low" style="color: #000000;">🟡Alacsony</label>
+                        </div>
+                        <div class="radio-option" style="border-color: #ED7D31;">
+                            <input type="radio" id="item_2_3_sev_medium" name="item_2_3_severity" value="közepes">
+                            <label for="item_2_3_sev_medium" style="color: #000000;">🟠Közepes</label>
+                        </div>
+                        <div class="radio-option" style="border-color: #FF0000;">
+                            <input type="radio" id="item_2_3_sev_high" name="item_2_3_severity" value="magas">
+                            <label for="item_2_3_sev_high" style="color: #000000;">🔴Magas</label>
+                        </div>
+                    </div>
+                </div>
+<div class="form-group" style="margin-top: 15px;">
+    <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
+
+    <!-- Rejtett file input -->
+    <input
+        type="file"
+        id="photos_2_3"
+        multiple
+        onchange="handleImageUpload(event, '2_3')"
+        style="display: none;"
+    >
+
+    <!-- Stílusos gomb -->
+    <button
+        type="button"
+        class="upload-btn"
+        onclick="document.getElementById('photos_2_3').click()"
+    >
+        <i class="fas fa-upload"></i> Fájlok feltöltése
+    </button>
+
+    <div id="preview_2_3" class="image-preview-container"></div>
+</div>
+
+                <textarea class="notes-textarea" name="notes_2_3" placeholder="Megjegyzés..."></textarea>
+            </div>
+
+            <!-- 2.4 Munkáltatói megbízás -->
+            <div class="checklist-item">
+                <div class="checklist-header">2.4 Munkáltatói megbízás</div>
+                <div class="checklist-description">Veszélyes gép, építésvezetői, munkairányítói stb.</div>
+
+                <div class="radio-options">
+                    <div class="radio-option success">
+                        <input type="radio" id="item_2_4_m" name="item_2_4" value="megfelelő" onchange="toggleSeverity('2_4')">
+                        <label for="item_2_4_m">Megfelelt</label>
+                    </div>
+                    <div class="radio-option danger">
+                        <input type="radio" id="item_2_4_nm" name="item_2_4" value="nem_megfelelő" onchange="toggleSeverity('2_4')">
+                        <label for="item_2_4_nm">Nem megfelelt</label>
+                    </div>
+                    <div class="radio-option info">
+                        <input type="radio" id="item_2_4_ft" name="item_2_4" value="felszólítás_után" onchange="toggleSeverity('2_4')">
+                        <label for="item_2_4_ft">Felszólítás után teljesítve </label>
+                    </div>
+                    <div class="radio-option warning">
+                        <input type="radio" id="item_2_4_nv" name="item_2_4" value="nem_vizsgált" onchange="toggleSeverity('2_4')">
+                        <label for="item_2_4_nv">Nem vonatkozik / Nem vizsgált</label>
+                    </div>
+                </div>
+
+                <div id="severity_2_4" class="severity-selector" style="display: none; margin-top: 15px; padding: 15px; background-color: #f7fafc; border-radius: 8px;">
+                    <label style="font-weight: 600; display: block; margin-bottom: 10px;">Hiba súlyossága:</label>
+                    <div class="radio-options">
+                        <div class="radio-option" style="border-color: #FFFF00;">
+                            <input type="radio" id="item_2_4_sev_low" name="item_2_4_severity" value="alacsony">
+                            <label for="item_2_4_sev_low" style="color: #000000;">🟡Alacsony</label>
+                        </div>
+                        <div class="radio-option" style="border-color: #ED7D31;">
+                            <input type="radio" id="item_2_4_sev_medium" name="item_2_4_severity" value="közepes">
+                            <label for="item_2_4_sev_medium" style="color: #000000;">🟠Közepes</label>
+                        </div>
+                        <div class="radio-option" style="border-color: #FF0000;">
+                            <input type="radio" id="item_2_4_sev_high" name="item_2_4_severity" value="magas">
+                            <label for="item_2_4_sev_high" style="color: #000000;">🔴Magas</label>
+                        </div>
+                    </div>
+                </div>
+
+               <div class="form-group" style="margin-top: 15px;">
+    <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
+
+    <!-- Rejtett file input -->
+    <input
+        type="file"
+        id="photos_2_4"
+        multiple
+        onchange="handleImageUpload(event, '2_4')"
+        style="display: none;"
+    >
+
+    <!-- Stílusos gomb -->
+    <button
+        type="button"
+        class="upload-btn"
+        onclick="document.getElementById('photos_2_4').click()"
+    >
+        <i class="fas fa-upload"></i> Fájlok feltöltése
+    </button>
+
+    <div id="preview_2_4" class="image-preview-container"></div>
+</div>
+
+                <textarea class="notes-textarea" name="notes_2_4" placeholder="Megjegyzés..."></textarea>
+            </div>
+
+            <!-- 2.5 Orvosi alkalmassági vizsgálatok -->
+            <div class="checklist-item">
+                <div class="checklist-header">2.5 Előzetes és időszakos orvosi alkalmassági vizsgálatok megléte, igazolhatósága</div>
+                <div class="checklist-description">Érvényes orvosi alkalmassági vizsgálatok dokumentumai</div>
+
+                <div class="radio-options">
+                    <div class="radio-option success">
+                        <input type="radio" id="item_2_5_m" name="item_2_5" value="megfelelő" onchange="toggleSeverity('2_5')">
+                        <label for="item_2_5_m">Megfelelt</label>
+                    </div>
+                    <div class="radio-option danger">
+                        <input type="radio" id="item_2_5_nm" name="item_2_5" value="nem_megfelelő" onchange="toggleSeverity('2_5')">
+                        <label for="item_2_5_nm">Nem megfelelt</label>
+                    </div>
+                    <div class="radio-option info">
+                        <input type="radio" id="item_2_5_ft" name="item_2_5" value="felszólítás_után" onchange="toggleSeverity('2_5')">
+                        <label for="item_2_5_ft">Felszólítás után teljesítve </label>
+                    </div>
+                    <div class="radio-option warning">
+                        <input type="radio" id="item_2_5_nv" name="item_2_5" value="nem_vizsgált" onchange="toggleSeverity('2_5')">
+                        <label for="item_2_5_nv">Nem vonatkozik / Nem vizsgált</label>
+                    </div>
+                </div>
+
+                <div id="severity_2_5" class="severity-selector" style="display: none; margin-top: 15px; padding: 15px; background-color: #f7fafc; border-radius: 8px;">
+                    <label style="font-weight: 600; display: block; margin-bottom: 10px;">Hiba súlyossága:</label>
+                    <div class="radio-options">
+                        <div class="radio-option" style="border-color: #FFFF00;">
+                            <input type="radio" id="item_2_5_sev_low" name="item_2_5_severity" value="alacsony">
+                            <label for="item_2_5_sev_low" style="color: #000000;">🟡Alacsony</label>
+                        </div>
+                        <div class="radio-option" style="border-color: #ED7D31;">
+                            <input type="radio" id="item_2_5_sev_medium" name="item_2_5_severity" value="közepes">
+                            <label for="item_2_5_sev_medium" style="color: #000000;">🟠Közepes</label>
+                        </div>
+                        <div class="radio-option" style="border-color: #FF0000;">
+                            <input type="radio" id="item_2_5_sev_high" name="item_2_5_severity" value="magas">
+                            <label for="item_2_5_sev_high" style="color: #000000;">🔴Magas</label>
+                        </div>
+                    </div>
+                </div>
+
+               <div class="form-group" style="margin-top: 15px;">
+    <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
+
+    <!-- Rejtett file input -->
+    <input
+        type="file"
+        id="photos_2_5"
+        multiple
+        onchange="handleImageUpload(event, '2_5')"
+        style="display: none;"
+    >
+
+    <!-- Stílusos gomb -->
+    <button
+        type="button"
+        class="upload-btn"
+        onclick="document.getElementById('photos_2_5').click()"
+    >
+        <i class="fas fa-upload"></i> Fájlok feltöltése
+    </button>
+
+    <div id="preview_2_5" class="image-preview-container"></div>
+</div>
+
+                <textarea class="notes-textarea" name="notes_2_5" placeholder="Megjegyzés..."></textarea>
+            </div>
+
+            <!-- Szankciós lista -->
+            <div class="price-section">
+                <h3>Szankciós lista - Személyi feltételek kategória vonatkozó pontjai</h3>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_1" name="sanction_1" value="100000" onchange="calculateTotal()">
+                    <label for="price_1">1. MVM XPert munka-, tűz-, vagy környezetvédelmi szabályainak (szerződésben rögzített, illetve a BET-ben szereplő, és itt nem részletezett) megsértése</label>
+                    <input type="number" name="sanction_1_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
+                    <span class="price">100,000 Ft</span>
+                </div>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_2" name="sanction_13" value="100000" onchange="calculateTotal()">
+                    <label for="price_2">13. Képzettség nélküli emelőgép, munkagép kezelése</label>
+                    <input type="number" name="sanction_13_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
+                    <span class="price">100,000 Ft</span>
+                </div>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_3" name="sanction_15" value="50000" onchange="calculateTotal()">
+                    <label for="price_3">15. Egyéb jogosulatlan munkavégzés (pl: gépkezelői jogosultságok, emelőgép kezelői megbízás, teherkötözői vizsga, tűzvédelmi szakvizsga, stb.)</label>
+                    <input type="number" name="sanction_15_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
+                    <span class="price">50,000 Ft</span>
+                </div>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_4" name="sanction_23" value="20000" onchange="calculateTotal()">
+                    <label for="price_4">23. Az alvállalkozó munkavállaló a munkaterületen nem azonosítható (fényképes okmány bemutatása), munkakörre vonatkozó érvényes orvosi alkalmasság, a munkaterületre vonatkozó munkabiztonsági oktatás helyszínen nem igazolható</label>
+                    <input type="number" name="sanction_23_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
+                    <span class="price">20,000 Ft</span>
+                </div>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_5" name="sanction_37" value="100000" onchange="calculateTotal()">
+                    <label for="price_5">37. Alkohol vagy drog befolyása alatti munkavégzés (a "munkára képes állapot" hiánya miatt)</label>
+                    <input type="number" name="sanction_37_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
+                    <span class="price">100,000 Ft + aznapi kitiltás</span>
+                </div>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_6" name="sanction_41" value="100000" onchange="calculateTotal()">
+                    <label for="price_6">41. Az alvállalkozó munkairányítója nincs a helyszínen, illetve nincs kijelölve munkairányító</label>
+                    <input type="number" name="sanction_41_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
+                    <span class="price">100,000 Ft</span>
+                </div>
+
+                <div class="total-section">
+                    <label for="totalPrice">Kiszabható összesített bírság:</label>
+                    <span id="totalPrice" class="total-price">0 Ft</span>
+                </div>
+            </div>
+
+            <!-- Submit gombok -->
+            <div class="submit-section">
+                <button type="button" class="submit-button" onclick="exportToPDF()">
+                    <i class="fas fa-file-pdf"></i> PDF exportálása
+                </button>
+                <button type="submit" class="preview-button">
+                    <i class="fas fa-save"></i> Ellenőrzés mentése
+                </button>
+            </div>
+
+        </form>
+    </div>
+
+    <!-- Aláírás Modal -->
+    <div id="signatureModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeSignatureModal()">&times;</span>
+            <h2>Aláírás létrehozása</h2>
+
+            <!-- Tab buttons -->
+            <div class="tab-buttons">
+                <button class="tab-btn active" onclick="switchTab('draw')">
+                    <i class="fas fa-pencil-alt"></i> Rajzolás
+                </button>
+                <button class="tab-btn" onclick="switchTab('upload')">
+                    <i class="fas fa-upload"></i> Képfeltöltés
+                </button>
+            </div>
+
+            <!-- Rajzolás tab -->
+            <div id="drawTab" class="tab-content active">
+                <canvas id="signatureCanvas" width="600" height="200"></canvas>
+                <div class="signature-controls">
+                    <button type="button" class="btn-clear" onclick="clearCanvas()">
+                        <i class="fas fa-eraser"></i> Törlés
+                    </button>
+                    <button type="button" class="btn-save" onclick="saveSignature()">
+                        <i class="fas fa-check"></i> Mentés
+                    </button>
+                </div>
+            </div>
+
+            <!-- Feltöltés tab -->
+            <div id="uploadTab" class="tab-content">
+                <div class="upload-area">
+                    <input type="file" id="signatureUpload" accept="image/*" onchange="handleSignatureUpload(event)">
+                    <label for="signatureUpload">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Kattintson vagy húzza ide az aláírás képét</p>
+                    </label>
+                </div>
+                <canvas id="uploadedSignatureCanvas" width="600" height="200" style="display: none;"></canvas>
+                <div class="signature-controls" id="uploadControls" style="display: none;">
+                    <button type="button" class="btn-clear" onclick="clearUploadedSignature()">
+                        <i class="fas fa-eraser"></i> Törlés
+                    </button>
+                    <button type="button" class="btn-save" onclick="saveUploadedSignature()">
+                        <i class="fas fa-check"></i> Mentés
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadedImages = {};
+        const signatures = {};
+        let currentSignatureType = '';
+        let canvas, ctx;
+        let isDrawing = false;
+        let witnessesVisible = false;
+        let witnessCounter = 0;
+
+        // Canvas inicializálás az oldal betöltésekor
+        document.addEventListener('DOMContentLoaded', async function() {
+            canvas = document.getElementById('signatureCanvas');
+            if (canvas) {
+                ctx = canvas.getContext('2d');
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'round';
+
+                // Rajzolás események
+                canvas.addEventListener('mousedown', startDrawing);
+                canvas.addEventListener('mousemove', draw);
+                canvas.addEventListener('mouseup', stopDrawing);
+                canvas.addEventListener('mouseout', stopDrawing);
+
+                // Touch események mobilra
+                canvas.addEventListener('touchstart', handleTouch);
+                canvas.addEventListener('touchmove', handleTouch);
+                canvas.addEventListener('touchend', stopDrawing);
+            }
+
+            // Aktuális dátum beállítása alapértelmezettnek
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('inspectionDate').value = today;
+
+            // Sorszám generálás inicializálása
+            updateSerialNumber();
+
+            // Mentett adatok betöltése szerverről
+            try {
+                const response = await fetch('/projects/<%= project.id %>/reports/personal-conditions');
+                const result = await response.json();
+
+                if (result.success && result.data) {
+                    console.log('Mentett adatok betöltve:', result.data);
+                    loadSavedData(result.data);
+                } else {
+                    console.log('Nincs mentett adat ehhez a projekthez/kategóriához');
+                }
+            } catch (error) {
+                console.error('Hiba a mentett adatok betöltésekor:', error);
+            }
+        });
+
+        // ========================================
+        // SORSZÁM GENERÁLÁS
+        // ========================================
+        function updateSerialNumber() {
+            const dateInput = document.getElementById('inspectionDate');
+            const serialInput = document.getElementById('serialNumber');
+            const serialPrefix = '<%= project.serial_prefix || "" %>';
+
+            if (!dateInput.value || !serialPrefix) return;
+
+            const selectedDate = new Date(dateInput.value + 'T00:00:00');
+            const year = selectedDate.getFullYear();
+            const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+            const day = String(selectedDate.getDate()).padStart(2, '0');
+
+            const generatedSerial = `${serialPrefix}/${year}${month}${day}`;
+            serialInput.value = generatedSerial;
+
+            console.log('✓ Sorszám generálva:', generatedSerial);
+        }
+
+        // ========================================
+        // TANÚK KEZELÉSE
+        // ========================================
+        function showWitnesses() {
+            const section = document.getElementById('witnessSection');
+            const button = document.getElementById('witnessToggleButton');
+
+            if (section.style.display === 'none') {
+                section.style.display = 'block';
+                button.style.display = 'none';
+                witnessesVisible = true;
+
+                // 2 tanú mező hozzáadása
+                if (witnessCounter === 0) {
+                    for (let i = 0; i < 2; i++) {
+                        addWitness();
+                    }
+                }
+            }
+        }
+
+        function addWitness() {
+            const container = document.getElementById('witnessesContainer');
+            const witnessIndex = witnessCounter;
+
+            const witnessDiv = document.createElement('div');
+            witnessDiv.className = 'form-group witness-group';
+            witnessDiv.id = `witness_${witnessIndex}`;
+
+            witnessDiv.innerHTML = `
+                <label>Tanú ${witnessIndex + 1}</label>
+                <div class="two-column">
+                    <input type="text" name="witness_name_${witnessIndex}" placeholder="Név">
+                    <input type="text" name="witness_position_${witnessIndex}" placeholder="Beosztás">
+                </div>
+                <div class="two-column" style="margin-top: 10px;">
+                    <input type="text" name="witness_id_number_${witnessIndex}" placeholder="Személyi szám">
+                    <input type="text" name="witness_address_${witnessIndex}" placeholder="Lakcím">
+                </div>
+
+                <div class="signature-container">
+                    <div class="signature-preview" id="witnessPreview_${witnessIndex}" onclick="openSignatureModal('witness_${witnessIndex}')">
+                        <span><i class="fas fa-pen"></i> Kattintson ide az aláírás hozzáadásához</span>
+                    </div>
+                    <div class="signature-buttons">
+                        <button type="button" class="add-button" onclick="openSignatureModal('witness_${witnessIndex}')">
+                            <i class="fas fa-signature"></i> Aláírás hozzáadása
+                        </button>
+                        <button type="button" class="clear-signature" onclick="clearSignature('witness_${witnessIndex}')" style="display: none;" id="witness_${witnessIndex}Clear">
+                            <i class="fas fa-trash"></i> Törlés
+                        </button>
+                    </div>
+                </div>
+                <input type="hidden" name="witness_signature_${witnessIndex}" id="witness_${witnessIndex}Signature">
+            `;
+
+            container.appendChild(witnessDiv);
+            witnessCounter++;
+        }
+
+        function toggleNoWitness() {
+            const checkbox = document.getElementById('noWitnessAvailable');
+            const witnessGroups = document.querySelectorAll('.witness-group');
+
+            witnessGroups.forEach(group => {
+                const inputs = group.querySelectorAll('input[type="text"]');
+                inputs.forEach(input => {
+                    input.disabled = checkbox.checked;
+                    if (checkbox.checked) {
+                        input.style.backgroundColor = '#f0f0f0';
+                    } else {
+                        input.style.backgroundColor = '';
+                    }
+                });
+            });
+        }
+
+        // ========================================
+        // ALVÁLLALKOZÓK KEZELÉSE
+        // ========================================
+        let subcontractorCounter = 0;
+
+        function addSubcontractor() {
+            subcontractorCounter++;
+            const container = document.getElementById('subcontractorsList');
+            const div = document.createElement('div');
+            div.className = 'subcontractor-item';
+            div.style.cssText = 'display: flex; align-items: center; margin-bottom: 8px;';
+
+            div.innerHTML = `
+                <span style="font-weight: 600; color: #2c5282; margin-right: 10px; min-width: 20px;">${subcontractorCounter + 1}.</span>
+                <input type="text"
+                       name="subcontractor_${subcontractorCounter}"
+                       placeholder="Alvállalkozó cég neve"
+                       style="flex: 1; padding: 8px 12px; border: 2px solid #cbd5e0; border-radius: 6px;">
+                <button type="button"
+                        onclick="removeSubcontractor(this)"
+                        style="margin-left: 8px; padding: 6px 12px; background-color: #fc8181; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+
+            container.appendChild(div);
+        }
+
+        function removeSubcontractor(button) {
+            const item = button.closest('.subcontractor-item');
+            item.remove();
+            renumberSubcontractors();
+        }
+
+        function renumberSubcontractors() {
+            const items = document.querySelectorAll('.subcontractor-item');
+            subcontractorCounter = 0;
+            items.forEach((item, index) => {
+                const span = item.querySelector('span');
+                span.textContent = `${index + 2}.`;
+                subcontractorCounter++;
+            });
+        }
+
+        // ========================================
+        // SÚLYOSSÁG TOGGLE
+        // ========================================
+        function toggleSeverity(itemId) {
+            const selectedValue = document.querySelector(`input[name="item_${itemId}"]:checked`)?.value;
+            const severityDiv = document.getElementById(`severity_${itemId}`);
+
+            if (selectedValue === 'nem_megfelelő' || selectedValue === 'felszólítás_után') {
+                severityDiv.style.display = 'block';
+            } else {
+                severityDiv.style.display = 'none';
+                // Súlyosság radio-k törlése
+                const severityRadios = document.querySelectorAll(`input[name="item_${itemId}_severity"]`);
+                severityRadios.forEach(radio => radio.checked = false);
+            }
+        }
+
+        // ========================================
+        // KÉPFELTÖLTÉS ÉS METAADATOK
+        // ========================================
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            return `${year}.${month}.${day}. ${hours}:${minutes}:${seconds}`;
+        }
+
+        async function handleImageUpload(event, itemId) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+
+            if (!uploadedImages[itemId]) {
+                uploadedImages[itemId] = [];
+            }
+
+            const previewContainer = document.getElementById(`preview_${itemId}`);
+
+            for (let file of files) {
+                try {
+                    console.log(`📸 Feldolgozás: ${file.name} (${file.type})`);
+
+                    let processedFile = file;
+                    let exifData = null;
+
+                    // ⭐ HEIC konverzió JPEG-re
+                    if (file.type === 'image/heic' || file.name.toLowerCase().endsWith('.heic')) {
+                        console.log('🔄 HEIC konverzió folyamatban...');
+                        try {
+                            const jpegBlob = await heic2any({
+                                blob: file,
+                                toType: 'image/jpeg',
+                                quality: 0.9
+                            });
+                            processedFile = new File([jpegBlob], file.name.replace(/\.heic$/i, '.jpg'), { type: 'image/jpeg' });
+                            console.log('✅ HEIC → JPEG konverzió sikeres');
+
+                            // ⭐ exifr-rel HEIC EXIF olvasás
+                            try {
+                                exifData = await exifr.parse(file, {
+                                    gps: true,
+                                    tiff: true,
+                                    exif: true,
+                                    iptc: false,
+                                    icc: false
+                                });
+                                console.log('📍 HEIC EXIF adatok:', exifData);
+                            } catch (exifError) {
+                                console.warn('⚠️ HEIC EXIF olvasási hiba:', exifError);
+                            }
+                        } catch (conversionError) {
+                            console.error('❌ HEIC konverzió sikertelen:', conversionError);
+                            alert(`⚠️ Ez a kép nem támogatott formátumban van.\n\nKérlek próbáld meg:\n1. JPEG/PNG formátumba konvertálni\n2. Másik alkalmazással megnyitni és újra menteni`);
+                            continue;
+                        }
+                    }
+
+                    // ⭐ JPEG/PNG EXIF olvasás (piexifjs + exifr kombinálva)
+                    if (!exifData && (processedFile.type === 'image/jpeg' || processedFile.type === 'image/png')) {
+                        try {
+                            exifData = await exifr.parse(processedFile, {
+                                gps: true,
+                                tiff: true,
+                                exif: true,
+                                iptc: false,
+                                icc: false
+                            });
+                            console.log('📍 JPEG/PNG EXIF adatok (exifr):', exifData);
+                        } catch (e) {
+                            console.warn('⚠️ exifr olvasási hiba, piexifjs próbálkozás...', e);
+                        }
+                    }
+
+                    // ⭐ Kép betöltése
+                    const reader = new FileReader();
+                    reader.onload = async function(e) {
+                        const originalDataUrl = e.target.result;
+
+                        // ⭐ Tömörítés 70% minőség, max 1600px szélesség
+                        const compressedDataUrl = await compressImage(originalDataUrl, 0.7, 1600);
+
+                        // ⭐ Metaadatok gyűjtése
+                        const metadata = {
+                            fileName: file.name,
+                            hasDate: false,
+                            hasGPS: false,
+                            takenDate: null,
+                            location: null,
+                            latitude: null,
+                            longitude: null,
+                            camera: null
+                        };
+
+                        // ⭐ Dátum feldolgozás
+                        if (exifData) {
+                            if (exifData.DateTimeOriginal) {
+                                metadata.hasDate = true;
+                                metadata.takenDate = exifData.DateTimeOriginal.toISOString();
+                            } else if (exifData.DateTime) {
+                                metadata.hasDate = true;
+                                metadata.takenDate = exifData.DateTime.toISOString();
+                            }
+
+                            // ⭐ GPS feldolgozás
+                            if (exifData.latitude && exifData.longitude) {
+                                metadata.hasGPS = true;
+                                metadata.latitude = exifData.latitude;
+                                metadata.longitude = exifData.longitude;
+                                metadata.location = `${exifData.latitude.toFixed(6)}, ${exifData.longitude.toFixed(6)}`;
+                                console.log('✅ GPS adat beágyazva:', metadata.location);
+                            }
+
+                            // ⭐ Kamera modell
+                            if (exifData.Make && exifData.Model) {
+                                metadata.camera = `${exifData.Make} ${exifData.Model}`;
+                            }
+                        }
+
+                        // ⭐ Fallback dátum (file módosítási idő)
+                        if (!metadata.hasDate) {
+                            metadata.takenDate = new Date(file.lastModified).toISOString();
+                            console.log('⚠️ EXIF dátum hiányzik, file dátum használva');
+                        }
+
+                        // ⭐ Kép hozzáadása tömbbhöz
+                        uploadedImages[itemId].push({
+                            data: compressedDataUrl,
+                            originalData: originalDataUrl,
+                            metadata: metadata
+                        });
+
+                        // ⭐ Preview elem létrehozása
+                        const previewItem = document.createElement('div');
+                        previewItem.className = 'image-preview-item';
+
+                        const img = document.createElement('img');
+                        img.src = compressedDataUrl;
+                        img.style.width = '100%';
+                        img.style.height = '200px';
+                        img.style.objectFit = 'cover';
+                        img.style.display = 'block';
+
+                        const metaInfo = document.createElement('div');
+                        metaInfo.className = 'image-meta-info';
+
+                        let metaHTML = '';
+
+                        if (metadata.hasDate && metadata.takenDate) {
+                            metaHTML += `
+                                <div class="meta-item">
+                                    <i class="fas fa-calendar"></i>
+                                    <span>${formatDate(metadata.takenDate)}</span>
+                                </div>
+                            `;
+                        }
+
+                        if (metadata.hasGPS && metadata.location) {
+                            metaHTML += `
+                                <div class="meta-item">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    <span>
+                                        <a href="https://www.google.com/maps?q=${metadata.latitude},${metadata.longitude}"
+                                           target="_blank"
+                                           rel="noopener noreferrer"
+                                           class="map-link"
+                                           style="color: #4CAF50; text-decoration: none; font-weight: bold;">
+                                           ${metadata.location}
+                                        </a>
+                                    </span>
+                                </div>
+                            `;
+                        } else {
+                            metaHTML += `
+                                <div class="meta-item">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    <span style="color: #ffc107;">Nincs GPS adat</span>
+                                </div>
+                            `;
+                        }
+
+                        if (!metadata.hasDate || !metadata.hasGPS) {
+                            metaHTML += `
+                                <div class="no-metadata-warning">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <span>Hiányos metaadatok</span>
+                                </div>
+                            `;
+                        }
+
+                        metaInfo.innerHTML = metaHTML;
+
+                        const removeBtn = document.createElement('button');
+                        removeBtn.className = 'image-remove-btn';
+                        removeBtn.innerHTML = '&times;';
+                        removeBtn.title = 'Kép eltávolítása';
+                        removeBtn.onclick = function() {
+                            const index = uploadedImages[itemId].findIndex(img => img.data === compressedDataUrl);
+                            if (index > -1) {
+                                uploadedImages[itemId].splice(index, 1);
+                                console.log('🗑️ Kép eltávolítva');
+                            }
+                            previewItem.remove();
+                        };
+
+                        previewItem.appendChild(img);
+                        previewItem.appendChild(metaInfo);
+                        previewItem.appendChild(removeBtn);
+                        previewContainer.appendChild(previewItem);
+
+                        console.log('✅ Kép feltöltve metaadatokkal:', metadata);
+                    };
+
+                    reader.readAsDataURL(processedFile);
+
+                } catch (error) {
+                    console.error('❌ Képfeldolgozási hiba:', error);
+                    alert(`Hiba a kép feldolgozása közben: ${file.name}`);
+                }
+            }
+
+            event.target.value = '';
+        }
+
+        // ⭐ Képtömörítés függvény
+        function compressImage(dataUrl, quality = 0.7, maxWidth = 1600) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > maxWidth) {
+                        height = (height * maxWidth) / width;
+                        width = maxWidth;
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    resolve(canvas.toDataURL('image/jpeg', quality));
+                };
+                img.src = dataUrl;
+            });
+        }
+
+        // ========================================
+        // SZANKCIÓK SZÁMÍTÁSA
+        // ========================================
+        function calculateTotal() {
+            const prices = {
+                sanction_1: 100000,
+                sanction_13: 100000,
+                sanction_15: 50000,
+                sanction_23: 20000,
+                sanction_37: 100000,
+                sanction_41: 100000
+            };
+
+            let total = 0;
+            const checkboxes = document.querySelectorAll('.price-item input[type="checkbox"]');
+
+            checkboxes.forEach(checkbox => {
+                if (checkbox.checked) {
+                    const sanctionKey = checkbox.name;
+                    const countInput = document.querySelector(`input[name="${sanctionKey}_count"]`);
+                    const count = countInput ? parseInt(countInput.value) || 1 : 1;
+                    const basePrice = prices[sanctionKey] || 0;
+                    total += basePrice * count;
+                }
+            });
+
+            document.getElementById('totalPrice').textContent = total.toLocaleString('hu-HU') + ' Ft';
+        }
+
+        // ========================================
+        // ALÁÍRÁS MODAL
+        // ========================================
+        function openSignatureModal(type) {
+            currentSignatureType = type;
+            document.getElementById('signatureModal').style.display = 'block';
+            switchTab('draw');
+            clearCanvas();
+        }
+
+        function closeSignatureModal() {
+            document.getElementById('signatureModal').style.display = 'none';
+            clearCanvas();
+            clearUploadedSignature();
+        }
+
+        function switchTab(tab) {
+            const drawTab = document.getElementById('drawTab');
+            const uploadTab = document.getElementById('uploadTab');
+            const drawBtn = document.querySelector('.tab-btn:nth-child(1)');
+            const uploadBtn = document.querySelector('.tab-btn:nth-child(2)');
+
+            if (tab === 'draw') {
+                drawTab.classList.add('active');
+                uploadTab.classList.remove('active');
+                drawBtn.classList.add('active');
+                uploadBtn.classList.remove('active');
+            } else {
+                uploadTab.classList.add('active');
+                drawTab.classList.remove('active');
+                uploadBtn.classList.add('active');
+                drawBtn.classList.remove('active');
+            }
+        }
+
+        function startDrawing(e) {
+            isDrawing = true;
+            const rect = canvas.getBoundingClientRect();
+            ctx.beginPath();
+            ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            const rect = canvas.getBoundingClientRect();
+            ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+            ctx.stroke();
+        }
+
+        function stopDrawing() {
+            isDrawing = false;
+        }
+
+        function handleTouch(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent(e.type === 'touchstart' ? 'mousedown' : 'mousemove', {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            canvas.dispatchEvent(mouseEvent);
+        }
+
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function saveSignature() {
+            const dataUrl = canvas.toDataURL();
+            signatures[currentSignatureType] = dataUrl;
+
+            const preview = document.getElementById(`${currentSignatureType}Preview`);
+            preview.innerHTML = `<img src="${dataUrl}" alt="Aláírás">`;
+
+            const hiddenInput = document.getElementById(`${currentSignatureType}Signature`);
+            if (hiddenInput) hiddenInput.value = dataUrl;
+
+            const clearBtn = document.getElementById(`${currentSignatureType}Clear`);
+            if (clearBtn) clearBtn.style.display = 'block';
+
+            closeSignatureModal();
+        }
+
+        function handleSignatureUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const uploadCanvas = document.getElementById('uploadedSignatureCanvas');
+                    const uploadCtx = uploadCanvas.getContext('2d');
+
+                    uploadCanvas.style.display = 'block';
+                    document.getElementById('uploadControls').style.display = 'flex';
+
+                    uploadCtx.clearRect(0, 0, uploadCanvas.width, uploadCanvas.height);
+                    uploadCtx.drawImage(img, 0, 0, uploadCanvas.width, uploadCanvas.height);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function clearUploadedSignature() {
+            const uploadCanvas = document.getElementById('uploadedSignatureCanvas');
+            const uploadCtx = uploadCanvas.getContext('2d');
+            uploadCtx.clearRect(0, 0, uploadCanvas.width, uploadCanvas.height);
+            uploadCanvas.style.display = 'none';
+            document.getElementById('uploadControls').style.display = 'none';
+            document.getElementById('signatureUpload').value = '';
+        }
+
+        function saveUploadedSignature() {
+            const uploadCanvas = document.getElementById('uploadedSignatureCanvas');
+            const dataUrl = uploadCanvas.toDataURL();
+            signatures[currentSignatureType] = dataUrl;
+
+            const preview = document.getElementById(`${currentSignatureType}Preview`);
+            preview.innerHTML = `<img src="${dataUrl}" alt="Aláírás">`;
+
+            const hiddenInput = document.getElementById(`${currentSignatureType}Signature`);
+            if (hiddenInput) hiddenInput.value = dataUrl;
+
+            const clearBtn = document.getElementById(`${currentSignatureType}Clear`);
+            if (clearBtn) clearBtn.style.display = 'block';
+
+            closeSignatureModal();
+        }
+
+        function clearSignature(type) {
+            signatures[type] = null;
+            const preview = document.getElementById(`${type}Preview`);
+            preview.innerHTML = '<span><i class="fas fa-pen"></i> Kattintson ide az aláírás hozzáadásához</span>';
+
+            const hiddenInput = document.getElementById(`${type}Signature`);
+            if (hiddenInput) hiddenInput.value = '';
+
+            const clearBtn = document.getElementById(`${type}Clear`);
+            if (clearBtn) clearBtn.style.display = 'none';
+        }
+
+        // ========================================
+        // MENTÉS ÉS BETÖLTÉS
+        // ========================================
+        // Szankciók összegének kiszámítása
+        function calculateTotalFine() {
+            const prices = {
+                sanction_1: 100000,
+                sanction_13: 100000,
+                sanction_15: 50000,
+                sanction_23: 20000,
+                sanction_37: 100000,
+                sanction_41: 100000
+            };
+
+            let total = 0;
+            const checkboxes = document.querySelectorAll('.price-item input[type="checkbox"]');
+
+            checkboxes.forEach(checkbox => {
+                if (checkbox.checked) {
+                    const sanctionKey = checkbox.name;
+                    const countInput = document.querySelector(`input[name="${sanctionKey}_count"]`);
+                    const count = countInput ? parseInt(countInput.value) || 1 : 1;
+                    const basePrice = prices[sanctionKey] || 0;
+                    total += basePrice * count;
+                }
+            });
+
+            return total;
+        }
+
+        // Alvállalkozói lánc lekérése
+        function getSubcontractorChain() {
+            const subcontractors = [];
+            const subcontractorInputs = document.querySelectorAll('[name^="subcontractor_"]');
+            subcontractorInputs.forEach(input => {
+                if (input.value.trim()) {
+                    subcontractors.push(input.value.trim());
+                }
+            });
+            return subcontractors;
+        }
+
+        // Form submit
+        document.getElementById('documentationForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            const data = {};
+
+            for (let [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+
+            // Bírság összeg hozzáadása
+            data.total_fine = calculateTotalFine();
+            data.total_fine_formatted = document.getElementById('totalPrice').textContent;
+
+            // Alvállalkozói lánc hozzáadása
+            data.subcontractors = getSubcontractorChain();
+
+            // Tanúk állapot mentése
+            data.witnessesVisible = witnessesVisible;
+            data.noWitnessAvailable = document.getElementById('noWitnessAvailable')?.checked || false;
+
+            // Képek hozzáadása metaadatokkal
+            data.images = uploadedImages;
+
+            // Projekt specifikus mezők hozzáadása
+            data.projectName = document.getElementById('projectName').value;
+            data.serialNumber = document.getElementById('serialNumber').value;
+            data.inspectorPerson = document.getElementById('inspectorPerson').value;
+            data.inspectionDate = document.getElementById('inspectionDate').value;
+
+            console.log('📤 Mentés adatokkal:', data);
+
+            fetch(this.action, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    alert('✓ Ellenőrzés sikeresen elmentve!');
+                } else {
+                    alert('✗ Hiba történt: ' + result.message);
+                }
+            })
+            .catch(error => {
+                console.error('Hiba:', error);
+                alert('✗ Hiba történt a mentés során.');
+            });
+        });
+
+        // Új ellenőrzés indítása
+        async function startNewInspection() {
+            const confirmNew = confirm('⚠️ Biztosan új ellenőrzést szeretnél indítani?\n\nEz törli a jelenlegi mentett adatokat és üres lappal kezdhetsz.');
+
+            if (!confirmNew) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/projects/<%= project.id %>/reports/personal-conditions', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('✅ Új ellenőrzés indítva! Az oldal újratöltődik.');
+                    window.location.reload();
+                } else {
+                    alert('❌ Hiba történt: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Hiba az új ellenőrzés indításakor:', error);
+                alert('❌ Hiba történt az új ellenőrzés indításakor.');
+            }
+        }
+
+        // ========================================
+        // PDF GENERÁLÁS
+        // ========================================
+        async function exportToPDF() {
+            const formData = new FormData(document.getElementById('documentationForm'));
+            const data = {};
+
+            formData.forEach((value, key) => {
+                data[key] = value;
+            });
+
+            // Projekt információk
+            data.projectName = document.getElementById('projectName').value;
+            data.serialNumber = document.getElementById('serialNumber').value;
+            data.inspectorPerson = document.getElementById('inspectorPerson').value;
+            data.inspectionDate = document.getElementById('inspectionDate').value;
+
+            // Aláírások
+            Object.keys(signatures).forEach(key => {
+                if (signatures[key]) {
+                    data[`${key}_signature`] = signatures[key];
+                }
+            });
+
+            // Alvállalkozók
+            const subcontractors = [];
+            const subcontractorInputs = document.querySelectorAll('[name^="subcontractor_"]');
+            subcontractorInputs.forEach(input => {
+                if (input.value.trim()) {
+                    subcontractors.push(input.value.trim());
+                }
+            });
+            data.subcontractors = subcontractors;
+
+            data.witnessesVisible = witnessesVisible;
+            const noWitnessCheckbox = document.getElementById('noWitnessAvailable');
+            data.noWitnessAvailable = noWitnessCheckbox ? noWitnessCheckbox.checked : false;
+
+            // Képek
+            data.images = uploadedImages;
+
+            // PDF definíció
+            const docDefinition = {
+                pageSize: 'A4',
+                pageMargins: [40, 60, 40, 60],
+                content: [
+                    { text: '2. SZEMÉLYI FELTÉTELEK', style: 'header' },
+                    { text: 'Ellenőrzési jegyzőkönyv', style: 'subheader' },
+                    { text: '\n' },
+
+                    // Projekt információk
+                    {
+                        table: {
+                            widths: ['30%', '70%'],
+                            body: [
+                                [{ text: 'Projekt neve:', bold: true }, data.projectName || 'N/A'],
+                                [{ text: 'Sorszám:', bold: true }, data.serialNumber || 'N/A'],
+                                [{ text: 'Dátum:', bold: true }, data.inspectionDate || 'N/A'],
+                                [{ text: 'Ellenőrző személy:', bold: true }, data.inspectorPerson || 'N/A']
+                            ]
+                        },
+                        layout: 'lightHorizontalLines',
+                        margin: [0, 0, 0, 20]
+                    },
+
+                    // Résztvevők
+                    ...getParticipantsForPDF(data),
+
+                    // Ellenőrzési pontok
+                    ...getChecklistItemsForPDF(data),
+
+                    // Szankciók (csak ha van)
+                    ...getSanctionsSectionForPDF(data)
+                ],
+                styles: {
+                    header: { fontSize: 20, bold: true, alignment: 'center', margin: [0, 0, 0, 10] },
+                    subheader: { fontSize: 14, alignment: 'center', margin: [0, 0, 0, 20] },
+                    sectionHeader: { fontSize: 16, bold: true, margin: [0, 15, 0, 10] },
+                    participantLabel: { fontSize: 11, bold: true, color: '#666', margin: [0, 0, 0, 3] },
+                    participantName: { fontSize: 13, bold: true, margin: [0, 0, 0, 2] },
+                    participantPosition: { fontSize: 11, color: '#666', margin: [0, 0, 0, 10] },
+                    checklistHeader: { fontSize: 14, bold: true, margin: [0, 10, 0, 5] },
+                    checklistDescription: { fontSize: 10, italics: true, color: '#666', margin: [0, 0, 0, 5] },
+                    statusBadge: { fontSize: 11, bold: true, alignment: 'center', margin: [0, 5, 0, 5] },
+                    imageTitle: { fontSize: 12, bold: true, margin: [0, 10, 0, 5] },
+                    sanctions: { fontSize: 11, margin: [0, 3, 0, 3] },
+                    sanctionsSubtitle: { fontSize: 12, italics: true, color: '#666' }
+                }
+            };
+
+            pdfMake.createPdf(docDefinition).download(`Szemelyifeltetelek_${data.serialNumber || 'dokumentum'}.pdf`);
+
+            console.log('✓ PDF generálva');
+        }
+
+        // Résztvevők PDF-hez
+        function getParticipantsForPDF(data) {
+            const result = [
+                { text: 'RÉSZTVEVŐK', style: 'sectionHeader' }
+            ];
+
+            // Ellenőrző
+            result.push({
+                columns: [
+                    {
+                        width: '*',
+                        stack: [
+                            { text: 'Ellenőrzést végző', style: 'participantLabel' },
+                            { text: data.inspector_name || 'N/A', style: 'participantName' },
+                            { text: data.inspector_position || '', style: 'participantPosition' }
+                        ]
+                    },
+                    {
+                        width: 150,
+                        stack: [
+                            signatures.inspector ? {
+                                image: signatures.inspector,
+                                width: 120,
+                                alignment: 'center',
+                                margin: [0, 5, 0, 0]
+                            } : {
+                                text: '[Aláírás hiányzik]',
+                                italics: true,
+                                color: '#999',
+                                fontSize: 9,
+                                alignment: 'center',
+                                margin: [0, 20, 0, 0]
+                            }
+                        ]
+                    }
+                ],
+                margin: [0, 0, 0, 15],
+                unbreakable: true
+            });
+
+            // Felelős
+            result.push({
+                columns: [
+                    {
+                        width: '*',
+                        stack: [
+                            { text: 'Munkaterületért felelős', style: 'participantLabel' },
+                            { text: data.responsible_name || 'N/A', style: 'participantName' },
+                            { text: data.responsible_position || '', style: 'participantPosition' }
+                        ]
+                    },
+                    {
+                        width: 150,
+                        stack: [
+                            signatures.responsible ? {
+                                image: signatures.responsible,
+                                width: 120,
+                                alignment: 'center',
+                                margin: [0, 5, 0, 0]
+                            } : {
+                                text: '[Aláírás hiányzik]',
+                                italics: true,
+                                color: '#999',
+                                fontSize: 9,
+                                alignment: 'center',
+                                margin: [0, 20, 0, 0]
+                            }
+                        ]
+                    }
+                ],
+                margin: [0, 0, 0, 15],
+                unbreakable: true
+            });
+
+            // Alvállalkozók
+            if (data.subcontractors && data.subcontractors.length > 0) {
+                result.push({
+                    text: 'Alvállalkozói lánc',
+                    style: 'participantLabel',
+                    margin: [0, 10, 0, 5]
+                });
+
+                result.push({
+                    text: '1. MVM Xpert Zrt.',
+                    fontSize: 11,
+                    margin: [0, 0, 0, 3]
+                });
+
+                data.subcontractors.forEach((company, index) => {
+                    result.push({
+                        text: `${index + 2}. ${company}`,
+                        fontSize: 11,
+                        margin: [0, 0, 0, 3]
+                    });
+                });
+
+                result.push({ text: '\n' });
+            }
+
+            // Tanúk
+            const noWitnessCheckbox = document.getElementById('noWitnessAvailable');
+            if (noWitnessCheckbox && noWitnessCheckbox.checked) {
+                result.push({
+                    text: 'Tanúk',
+                    style: 'participantLabel',
+                    margin: [0, 0, 0, 5]
+                });
+                result.push({
+                    text: 'Nem áll rendelkezésre Tanú',
+                    style: 'participantName',
+                    italics: true,
+                    color: '#999',
+                    margin: [0, 0, 0, 15]
+                });
+                return result;
+            }
+
+            if (!witnessesVisible || witnessCounter === 0) {
+                return result;
+            }
+
+            for (let i = 0; i < 2; i++) {
+                const witnessName = data[`witness_name_${i}`];
+                const witnessPosition = data[`witness_position_${i}`];
+                const witnessIdNumber = data[`witness_id_number_${i}`];
+                const witnessAddress = data[`witness_address_${i}`];
+                const witnessSignature = signatures[`witness_${i}`];
+
+                result.push({
+                    columns: [
+                        {
+                            width: '*',
+                            stack: [
+                                { text: `Tanú ${i + 1}`, style: 'participantLabel' },
+                                { text: witnessName || 'N/A', style: 'participantName' },
+                                { text: witnessPosition || '', style: 'participantPosition' },
+                                { text: `Személyi szám: ${witnessIdNumber || 'N/A'}`, fontSize: 9, margin: [0, 3, 0, 0] },
+                                { text: `Lakcím: ${witnessAddress || 'N/A'}`, fontSize: 9, margin: [0, 2, 0, 0] }
+                            ]
+                        },
+                        {
+                            width: 150,
+                            stack: [
+                                witnessSignature ? {
+                                    image: witnessSignature,
+                                    width: 120,
+                                    alignment: 'center',
+                                    margin: [0, 5, 0, 0]
+                                } : {
+                                    text: '[Aláírás hiányzik]',
+                                    italics: true,
+                                    color: '#999',
+                                    fontSize: 9,
+                                    alignment: 'center',
+                                    margin: [0, 20, 0, 0]
+                                }
+                            ]
+                        }
+                    ],
+                    margin: [0, 0, 0, 10],
+                    unbreakable: true
+                });
+            }
+
+            return result;
+        }
+
+        // Ellenőrzési pontok PDF-hez
+        function getChecklistItemsForPDF(data) {
+            const result = [
+                { text: 'ELLENŐRZÉSI PONTOK', style: 'sectionHeader' }
+            ];
+
+            const items = [
+                { id: '2_1', title: '2.1 XPert munkavállalók munkavédelmi oktatása és azok dokumentáltsága' },
+                { id: '2_2', title: '2.2 Alvállalkozók munkavédelmi oktatása és azok dokumentáltsága' },
+                { id: '2_3', title: '2.3 A tevékenység/feladat végzéséhez szükséges oktatás/végzettség/alkalmasság megléte' },
+                { id: '2_4', title: '2.4 Munkáltatói megbízás' },
+                { id: '2_5', title: '2.5 Előzetes és időszakos orvosi alkalmassági vizsgálatok megléte, igazolhatósága' }
+            ];
+
+            items.forEach(item => {
+                const status = data[`item_${item.id}`];
+                const severity = data[`item_${item.id}_severity`];
+                const notes = data[`notes_${item.id}`];
+
+                result.push({
+                    text: item.title,
+                    style: 'checklistHeader'
+                });
+
+                // Státusz
+                let statusText = 'Nem értékelt';
+                let statusColor = '#999';
+                if (status === 'megfelelő') {
+                    statusText = '✓ Megfelelt';
+                    statusColor = '#28a745';
+                } else if (status === 'nem_megfelelő') {
+                    statusText = '✗ Nem megfelelt';
+                    statusColor = '#dc3545';
+                } else if (status === 'felszólítás_után') {
+                    statusText = '⚠ Felszólítás után teljesítve';
+                    statusColor = '#17a2b8';
+                } else if (status === 'nem_vizsgált') {
+                    statusText = '○ Nem vonatkozik / Nem vizsgált';
+                    statusColor = '#ffc107';
+                }
+
+                result.push({
+                    text: statusText,
+                    color: statusColor,
+                    bold: true,
+                    fontSize: 11,
+                    margin: [0, 5, 0, 5]
+                });
+
+                // Súlyosság
+                if (severity) {
+                    let severityText = '';
+                    let severityColor = '#000';
+                    if (severity === 'alacsony') {
+                        severityText = '🟡 Alacsony súlyosságú hiba';
+                        severityColor = '#000';
+                    } else if (severity === 'közepes') {
+                        severityText = '🟠 Közepes súlyosságú hiba';
+                        severityColor = '#000';
+                    } else if (severity === 'magas') {
+                        severityText = '🔴 Magas súlyosságú hiba';
+                        severityColor = '#000';
+                    }
+
+                    result.push({
+                        text: severityText,
+                        color: severityColor,
+                        fontSize: 10,
+                        margin: [0, 0, 0, 5]
+                    });
+                }
+
+                // Megjegyzés
+                if (notes) {
+                    result.push({
+                        text: `Megjegyzés: ${notes}`,
+                        fontSize: 10,
+                        margin: [0, 5, 0, 5]
+                    });
+                }
+
+                // Képek
+                result.push(...getImagesForPDF(item.id));
+
+                result.push({ text: '\n' });
+            });
+
+            return result;
+        }
+
+        // Szankciók PDF-hez
+        function getAppliedSanctionsForPDF(data) {
+            const sanctionLabels = {
+                sanction_1: '1. MVM XPert munka-, tűz-, vagy környezetvédelmi szabályainak (szerződésben rögzített, illetve a BET-ben szereplő, és itt nem részletezett) megsértése',
+                sanction_13: '13. Képzettség nélküli emelőgép, munkagép kezelése',
+                sanction_15: '15. Egyéb jogosulatlan munkavégzés (pl: gépkezelői jogosultságok, emelőgép kezelői megbízás, teherkötözői vizsga, tűzvédelmi szakvizsga, stb.)',
+                sanction_23: '23. Az alvállalkozó munkavállaló a munkaterületen nem azonosítható (fényképes okmány bemutatása), munkakörre vonatkozó érvényes orvosi alkalmasság, a munkaterületre vonatkozó munkabiztonsági oktatás helyszínen nem igazolható',
+                sanction_37: '37. Alkohol vagy drog befolyása alatti munkavégzés (a "munkára képes állapot" hiánya miatt)',
+                sanction_41: '41. Az alvállalkozó munkairányítója nincs a helyszínen, illetve nincs kijelölve munkairányító'
+            };
+
+            const sanctionPricesRaw = {
+                sanction_1: 100000,
+                sanction_13: 100000,
+                sanction_15: 50000,
+                sanction_23: 20000,
+                sanction_37: 100000,
+                sanction_41: 100000
+            };
+
+            const result = [];
+            let hasAny = false;
+
+            const checkboxes = document.querySelectorAll('.price-item input[type="checkbox"]');
+
+            checkboxes.forEach(checkbox => {
+                if (checkbox.checked) {
+                    const sanctionKey = checkbox.name;
+                    hasAny = true;
+
+                    const countInput = document.querySelector(`input[name="${sanctionKey}_count"]`);
+                    const count = countInput ? parseInt(countInput.value) || 1 : 1;
+                    const basePrice = sanctionPricesRaw[sanctionKey];
+                    const totalPrice = basePrice * count;
+                    const formattedPrice = totalPrice.toLocaleString('hu-HU') + ' Ft';
+
+                    const countText = count > 1 ? ` (${count}x)` : '';
+
+                    result.push({
+                        text: `• ${sanctionLabels[sanctionKey]}${countText} - ${formattedPrice}`,
+                        style: 'sanctions',
+                        margin: [0, 3, 0, 3]
+                    });
+                }
+            });
+
+            return { sanctions: result, hasAny: hasAny };
+        }
+
+        function getSanctionsSectionForPDF(data) {
+            const sanctionsData = getAppliedSanctionsForPDF(data);
+
+            if (!sanctionsData.hasAny) {
+                return [];
+            }
+
+            const totalPriceElement = document.getElementById('totalPrice');
+
+            return [
+                {
+                    text: 'SZANKCIÓS LISTA',
+                    style: 'sectionHeader',
+                    margin: [0, 15, 0, 10]
+                },
+                {
+                    text: 'Személyi feltételek kategória vonatkozó pontjai',
+                    style: 'sanctionsSubtitle',
+                    margin: [0, 0, 0, 10]
+                },
+                ...sanctionsData.sanctions,
+                {
+                    table: {
+                        widths: ['*', 'auto'],
+                        body: [[
+                            { text: 'Kiszabható összesített bírság:', bold: true, fontSize: 14, alignment: 'right', border: [false, true, false, false], margin: [0, 10, 0, 10] },
+                            { text: totalPriceElement.textContent, bold: true, fontSize: 16, color: '#dc3545', alignment: 'right', border: [false, true, false, false], margin: [0, 10, 0, 10] }
+                        ]]
+                    },
+                    layout: {
+                        hLineColor: '#333',
+                        hLineWidth: function() { return 2; }
+                    },
+                    margin: [0, 10, 0, 0]
+                }
+            ];
+        }
+
+        // Képek PDF-hez metaadatokkal
+        function getImagesForPDF(itemId) {
+            const images = uploadedImages[itemId];
+            if (!images || images.length === 0) {
+                return [];
+            }
+
+            const result = [
+                {
+                    text: 'Csatolt fényképek / dokumentáció:',
+                    style: 'imageTitle',
+                    margin: [0, 10, 0, 8]
+                }
+            ];
+
+            for (let i = 0; i < images.length; i++) {
+                const imgObj = images[i];
+                const imageData = imgObj.data;
+                const metadata = imgObj.metadata || {};
+
+                result.push({
+                    image: imageData,
+                    width: 300,
+                    alignment: 'center',
+                    margin: [0, 5, 0, 5]
+                });
+
+                const metaText = [];
+
+                if (metadata.fileName) {
+                    metaText.push(`📄 ${metadata.fileName}`);
+                }
+
+                if (metadata.hasDate && metadata.takenDate) {
+                    try {
+                        const formattedMeta = formatDate(metadata.takenDate);
+                        metaText.push(`📅 Felvétel ideje: ${formattedMeta}`);
+                    } catch (e) {
+                        console.warn('Dátum formázási hiba:', e);
+                    }
+                }
+
+                if (metadata.hasGPS && metadata.location) {
+                    metaText.push(`📍 Helyszín: ${metadata.location}`);
+                }
+
+                if (metadata.camera) {
+                    metaText.push(`📷 ${metadata.camera}`);
+                }
+
+                if (!metadata.hasDate || !metadata.hasGPS) {
+                    metaText.push(`⚠️ Hiányos metaadatok`);
+                }
+
+                if (metaText.length === 0) {
+                    metaText.push(`Kép ${i + 1}`);
+                }
+
+                result.push({
+                    text: metaText.join('\n'),
+                    fontSize: 9,
+                    color: '#666',
+                    italics: true,
+                    margin: [0, 3, 0, 15]
+                });
+            }
+
+            return result;
+        }
+
+        // Modal bezárása kattintással a háttérre
+        window.onclick = function(event) {
+            const modal = document.getElementById('signatureModal');
+            if (event.target == modal) {
+                closeSignatureModal();
+            }
+        }
+
+        // Mentett adatok betöltése a form-ba
+function loadSavedData(data) {
+    console.log('loadSavedData meghívva:', data);
+
+    // Projekt információk
+    if (data.projectName) {
+        document.getElementById('projectName').value = data.projectName;
+    }
+    if (data.serialNumber) {
+        document.getElementById('serialNumber').value = data.serialNumber;
+    }
+    if (data.inspectorPerson) {
+        document.getElementById('inspectorPerson').value = data.inspectorPerson;
+    }
+    if (data.inspectionDate) {
+        document.getElementById('inspectionDate').value = data.inspectionDate;
+    }
+
+    // Résztvevők
+    if (data.inspector_name) {
+        document.querySelector('input[name="inspector_name"]').value = data.inspector_name;
+    }
+    if (data.inspector_position) {
+        document.querySelector('input[name="inspector_position"]').value = data.inspector_position;
+    }
+    if (data.responsible_name) {
+        document.querySelector('input[name="responsible_name"]').value = data.responsible_name;
+    }
+    if (data.responsible_position) {
+        document.querySelector('input[name="responsible_position"]').value = data.responsible_position;
+    }
+
+    // Aláírások betöltése
+    if (data.inspector_signature) {
+        signatures.inspector = data.inspector_signature;
+        document.getElementById('inspectorSignature').value = data.inspector_signature;
+        document.getElementById('inspectorPreview').innerHTML = `<img src="${data.inspector_signature}" alt="Aláírás">`;
+        document.getElementById('inspectorClear').style.display = 'block';
+    }
+
+    if (data.responsible_signature) {
+        signatures.responsible = data.responsible_signature;
+        document.getElementById('responsibleSignature').value = data.responsible_signature;
+        document.getElementById('responsiblePreview').innerHTML = `<img src="${data.responsible_signature}" alt="Aláírás">`;
+        document.getElementById('responsibleClear').style.display = 'block';
+    }
+
+    // Tanúk betöltése
+    if (data.witness_name_0 || data.witness_name_1 || data.witnessesVisible) {
+        showWitnesses();
+
+        setTimeout(() => {
+            for (let i = 0; i < 2; i++) {
+                const nameInput = document.querySelector(`input[name="witness_name_${i}"]`);
+                const positionInput = document.querySelector(`input[name="witness_position_${i}"]`);
+                const idNumberInput = document.querySelector(`input[name="witness_id_number_${i}"]`);
+                const addressInput = document.querySelector(`input[name="witness_address_${i}"]`);
+
+                if (nameInput && data[`witness_name_${i}`]) {
+                    nameInput.value = data[`witness_name_${i}`];
+                }
+                if (positionInput && data[`witness_position_${i}`]) {
+                    positionInput.value = data[`witness_position_${i}`];
+                }
+                if (idNumberInput && data[`witness_id_number_${i}`]) {
+                    idNumberInput.value = data[`witness_id_number_${i}`];
+                }
+                if (addressInput && data[`witness_address_${i}`]) {
+                    addressInput.value = data[`witness_address_${i}`];
+                }
+
+                if (data[`witness_signature_${i}`]) {
+                    signatures[`witness_${i}`] = data[`witness_signature_${i}`];
+                    const sigInput = document.getElementById(`witness_${i}Signature`);
+                    const preview = document.getElementById(`witnessPreview_${i}`);
+                    const clearBtn = document.getElementById(`witness_${i}Clear`);
+
+                    if (sigInput) sigInput.value = data[`witness_signature_${i}`];
+                    if (preview) preview.innerHTML = `<img src="${data[`witness_signature_${i}`]}" alt="Aláírás">`;
+                    if (clearBtn) clearBtn.style.display = 'block';
+                }
+            }
+
+            if (data.noWitnessAvailable) {
+                document.getElementById('noWitnessAvailable').checked = true;
+                toggleNoWitness();
+            }
+        }, 200);
+    }
+
+    // Alvállalkozók betöltése
+    if (data.subcontractors && Array.isArray(data.subcontractors)) {
+        data.subcontractors.forEach(companyName => {
+            if (companyName && companyName !== 'MVM Xpert Zrt.') {
+                addSubcontractor();
+                const items = document.querySelectorAll('.subcontractor-item');
+                const lastItem = items[items.length - 1];
+                if (lastItem) {
+                    const input = lastItem.querySelector('input');
+                    if (input) input.value = companyName;
+                }
+            }
+        });
+    }
+
+    // Ellenőrzési pontok
+    ['item_2_1', 'item_2_2', 'item_2_3', 'item_2_4', 'item_2_5'].forEach(itemName => {
+        if (data[itemName]) {
+            const radio = document.querySelector(`input[name="${itemName}"][value="${data[itemName]}"]`);
+            if (radio) {
+                radio.checked = true;
+                const itemId = itemName.replace('item_', '');
+                toggleSeverity(itemId);
+            }
+        }
+
+        const severityKey = `${itemName}_severity`;
+        if (data[severityKey]) {
+            const severityRadio = document.querySelector(`input[name="${severityKey}"][value="${data[severityKey]}"]`);
+            if (severityRadio) severityRadio.checked = true;
+        }
+    });
+
+    // Megjegyzések
+    ['notes_2_1', 'notes_2_2', 'notes_2_3', 'notes_2_4', 'notes_2_5'].forEach(noteName => {
+        if (data[noteName]) {
+            const textarea = document.querySelector(`textarea[name="${noteName}"]`);
+            if (textarea) textarea.value = data[noteName];
+        }
+    });
+
+    // Képek betöltése metaadatokkal
+    if (data.images) {
+        ['2_1', '2_2', '2_3', '2_4', '2_5'].forEach(itemId => {
+            if (data.images[itemId] && Array.isArray(data.images[itemId])) {
+                uploadedImages[itemId] = data.images[itemId];
+
+                const previewContainer = document.getElementById(`preview_${itemId}`);
+                data.images[itemId].forEach(imgObj => {
+                    const imageData = imgObj.data || imgObj;
+                    const metadata = imgObj.metadata || {};
+
+                    const previewItem = document.createElement('div');
+                    previewItem.className = 'image-preview-item';
+
+                    const img = document.createElement('img');
+                    img.src = imageData;
+                    img.style.width = '100%';
+                    img.style.height = '200px';
+                    img.style.objectFit = 'cover';
+                    img.style.display = 'block';
+
+                    const metaInfo = document.createElement('div');
+                    metaInfo.className = 'image-meta-info';
+
+                    let metaHTML = '';
+
+                    if (metadata.hasDate && metadata.takenDate) {
+                        metaHTML += `
+                            <div class="meta-item">
+                                <i class="fas fa-calendar"></i>
+                                <span>${formatDate(metadata.takenDate)}</span>
+                            </div>
+                        `;
+                    }
+
+                    if (metadata.hasGPS && metadata.location && metadata.latitude && metadata.longitude) {
+                        metaHTML += `
+                            <div class="meta-item">
+                                <i class="fas fa-map-marker-alt"></i>
+                                <span>
+                                    <a href="https://www.google.com/maps?q=${metadata.latitude},${metadata.longitude}"
+                                       target="_blank"
+                                       rel="noopener noreferrer"
+                                       class="map-link"
+                                       style="color: #4CAF50; text-decoration: none; font-weight: bold;">
+                                       ${metadata.location}
+                                    </a>
+                                </span>
+                            </div>
+                        `;
+                    } else {
+                        metaHTML += `
+                            <div class="meta-item">
+                                <i class="fas fa-map-marker-alt"></i>
+                                <span style="color: #ffc107;">Nincs GPS adat</span>
+                            </div>
+                        `;
+                    }
+
+                    if (!metadata.hasDate || !metadata.hasGPS) {
+                        metaHTML += `
+                            <div class="no-metadata-warning">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <span>Hiányos metaadatok</span>
+                            </div>
+                        `;
+                    }
+
+                    metaInfo.innerHTML = metaHTML;
+
+                    const removeBtn = document.createElement('button');
+                    removeBtn.className = 'image-remove-btn';
+                    removeBtn.innerHTML = '&times;';
+                    removeBtn.title = 'Kép eltávolítása';
+                    removeBtn.onclick = function(e) {
+                        e.stopPropagation();
+                        const index = uploadedImages[itemId].findIndex(img => {
+                            if (typeof img === 'object' && img.data) {
+                                return img.data === imageData;
+                            }
+                            return img === imageData;
+                        });
+                        if (index > -1) {
+                            uploadedImages[itemId].splice(index, 1);
+                        }
+                        previewItem.remove();
+                    };
+
+                    previewItem.appendChild(img);
+                    previewItem.appendChild(metaInfo);
+                    previewItem.appendChild(removeBtn);
+                    previewContainer.appendChild(previewItem);
+                });
+            }
+        });
+    }
+
+    // Szankciók betöltése
+    const checkboxes = document.querySelectorAll('.price-item input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+        if (data[checkbox.name] === 'on' || data[checkbox.name] === checkbox.value) {
+            checkbox.checked = true;
+        }
+
+        const sanctionKey = checkbox.name;
+        const countKey = `${sanctionKey}_count`;
+        if (data[countKey]) {
+            const countInput = document.querySelector(`input[name="${countKey}"]`);
+            if (countInput) {
+                countInput.value = data[countKey];
+            }
+        }
+    });
+    calculateTotal();
+
+    console.log('✓ Mentett adatok sikeresen betöltve a form-ba');
+}
+    </script>
+
+</body>
+</html>
