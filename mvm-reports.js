@@ -885,6 +885,1505 @@ router.get('/projects/:projectId/images-metadata', isAuthenticated, async (req, 
     }
 });
 
+// ========================================
+// MVM PERSONAL-CONDITIONS (2. Személyi feltételek) ROUTES
+// ========================================
+
+// POST - Személyi feltételek Ellenőrzés Mentése
+router.post('/projects/:projectId/reports/personal-conditions', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+    const reportData = req.body;
+
+    try {
+        // Jogosultság ellenőrzése
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        const existingReport = await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 2 })
+            .first();
+
+        let reportId;
+
+        if (existingReport) {
+            await knex('mvm_reports')
+                .where({ project_id: projectId, category_id: 2 })
+                .update({
+                    report_data: JSON.stringify(reportData),
+                    updated_at: knex.fn.now(),
+                    user_id: userId
+                });
+
+            reportId = existingReport.id;
+        } else {
+            const [result] = await knex('mvm_reports')
+                .insert({
+                    project_id: projectId,
+                    user_id: userId,
+                    category_id: 2,
+                    category_name: 'Személyi feltételek',
+                    report_data: JSON.stringify(reportData),
+                    created_at: knex.fn.now(),
+                    updated_at: knex.fn.now()
+                })
+                .returning('id');
+
+            reportId = result.id;
+        }
+
+        res.json({
+            success: true,
+            message: 'Személyi feltételek ellenőrzés sikeresen mentve.',
+            reportId: reportId
+        });
+
+    } catch (error) {
+        console.error('Hiba a személyi feltételek ellenőrzés mentésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a mentés során.',
+            error: error.message
+        });
+    }
+});
+
+// GET - Személyi feltételek Ellenőrzés Betöltése
+router.get('/projects/:projectId/reports/personal-conditions', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        const report = await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 2 })
+            .first();
+
+        if (report && report.report_data) {
+            const reportData = typeof report.report_data === 'string'
+                ? JSON.parse(report.report_data)
+                : report.report_data;
+
+            res.json({
+                success: true,
+                data: reportData
+            });
+        } else {
+            res.json({
+                success: true,
+                data: null
+            });
+        }
+
+    } catch (error) {
+        console.error('Hiba a személyi feltételek ellenőrzés betöltésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a betöltés során.',
+            error: error.message
+        });
+    }
+});
+
+// DELETE - Személyi feltételek Ellenőrzés Törlése (Új ellenőrzés indítása)
+router.delete('/projects/:projectId/reports/personal-conditions', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 2 })
+            .delete();
+
+        res.json({
+            success: true,
+            message: 'Személyi feltételek ellenőrzés sikeresen törölve.'
+        });
+
+    } catch (error) {
+        console.error('Hiba a személyi feltételek ellenőrzés törlésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a törlés során.',
+            error: error.message
+        });
+    }
+});
+
+// ========================================
+// MVM WORK-ENVIRONMENT (3. Munkakörnyezet) ROUTES
+// ========================================
+
+// POST - Munkakörnyezet Ellenőrzés Mentése
+router.post('/projects/:projectId/reports/work-environment', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+    const reportData = req.body;
+
+    try {
+        // Jogosultság ellenőrzése
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        const existingReport = await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 3 })
+            .first();
+
+        let reportId;
+
+        if (existingReport) {
+            await knex('mvm_reports')
+                .where({ project_id: projectId, category_id: 3 })
+                .update({
+                    report_data: JSON.stringify(reportData),
+                    updated_at: knex.fn.now(),
+                    user_id: userId
+                });
+
+            reportId = existingReport.id;
+        } else {
+            const [result] = await knex('mvm_reports')
+                .insert({
+                    project_id: projectId,
+                    user_id: userId,
+                    category_id: 3,
+                    category_name: 'Munkakörnyezet',
+                    report_data: JSON.stringify(reportData),
+                    created_at: knex.fn.now(),
+                    updated_at: knex.fn.now()
+                })
+                .returning('id');
+
+            reportId = result.id;
+        }
+
+        res.json({
+            success: true,
+            message: 'Munkakörnyezet ellenőrzés sikeresen mentve.',
+            reportId: reportId
+        });
+
+    } catch (error) {
+        console.error('Hiba a munkakörnyezet ellenőrzés mentésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a mentés során.',
+            error: error.message
+        });
+    }
+});
+
+// GET - Munkakörnyezet Ellenőrzés Betöltése
+router.get('/projects/:projectId/reports/work-environment', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        const report = await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 3 })
+            .first();
+
+        if (report && report.report_data) {
+            const reportData = typeof report.report_data === 'string'
+                ? JSON.parse(report.report_data)
+                : report.report_data;
+
+            res.json({
+                success: true,
+                data: reportData
+            });
+        } else {
+            res.json({
+                success: true,
+                data: null
+            });
+        }
+
+    } catch (error) {
+        console.error('Hiba a munkakörnyezet ellenőrzés betöltésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a betöltés során.',
+            error: error.message
+        });
+    }
+});
+
+// DELETE - Munkakörnyezet Ellenőrzés Törlése (Új ellenőrzés indítása)
+router.delete('/projects/:projectId/reports/work-environment', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 3 })
+            .delete();
+
+        res.json({
+            success: true,
+            message: 'Munkakörnyezet ellenőrzés sikeresen törölve.'
+        });
+
+    } catch (error) {
+        console.error('Hiba a munkakörnyezet ellenőrzés törlésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a törlés során.',
+            error: error.message
+        });
+    }
+});
+
+// ========================================
+// MVM MACHINERY (4. Munkagépek, munkaeszközök) ROUTES
+// ========================================
+
+// POST - Munkagépek Ellenőrzés Mentése
+router.post('/projects/:projectId/reports/machinery', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+    const reportData = req.body;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        const existingReport = await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 4 })
+            .first();
+
+        let reportId;
+
+        if (existingReport) {
+            await knex('mvm_reports')
+                .where({ project_id: projectId, category_id: 4 })
+                .update({
+                    report_data: JSON.stringify(reportData),
+                    updated_at: knex.fn.now(),
+                    user_id: userId
+                });
+
+            reportId = existingReport.id;
+        } else {
+            const [result] = await knex('mvm_reports')
+                .insert({
+                    project_id: projectId,
+                    user_id: userId,
+                    category_id: 4,
+                    category_name: 'Munkagépek, munkaeszközök',
+                    report_data: JSON.stringify(reportData),
+                    created_at: knex.fn.now(),
+                    updated_at: knex.fn.now()
+                })
+                .returning('id');
+
+            reportId = result.id;
+        }
+
+        res.json({
+            success: true,
+            message: 'Munkagépek ellenőrzés sikeresen mentve.',
+            reportId: reportId
+        });
+
+    } catch (error) {
+        console.error('Hiba a munkagépek ellenőrzés mentésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a mentés során.',
+            error: error.message
+        });
+    }
+});
+
+// GET - Munkagépek Ellenőrzés Betöltése
+router.get('/projects/:projectId/reports/machinery', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        const report = await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 4 })
+            .first();
+
+        if (report && report.report_data) {
+            const reportData = typeof report.report_data === 'string'
+                ? JSON.parse(report.report_data)
+                : report.report_data;
+
+            res.json({
+                success: true,
+                data: reportData
+            });
+        } else {
+            res.json({
+                success: true,
+                data: null
+            });
+        }
+
+    } catch (error) {
+        console.error('Hiba a munkagépek ellenőrzés betöltésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a betöltés során.',
+            error: error.message
+        });
+    }
+});
+
+// DELETE - Munkagépek Ellenőrzés Törlése (Új ellenőrzés indítása)
+router.delete('/projects/:projectId/reports/machinery', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 4 })
+            .delete();
+
+        res.json({
+            success: true,
+            message: 'Munkagépek ellenőrzés sikeresen törölve.'
+        });
+
+    } catch (error) {
+        console.error('Hiba a munkagépek ellenőrzés törlésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a törlés során.',
+            error: error.message
+        });
+    }
+});
+
+// POST - Villamos biztonság Ellenőrzés Mentése
+router.post('/projects/:projectId/reports/electrical-safety', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        const reportData = req.body;
+
+        if (reportData.images && Array.isArray(reportData.images)) {
+            for (let image of reportData.images) {
+                if (image.data && image.data.startsWith('data:image')) {
+                    const base64Data = image.data.split(',')[1];
+                    const buffer = Buffer.from(base64Data, 'base64');
+                    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
+
+                    await uploadImageToDrive(projectId, buffer, fileName, image.metadata || {});
+
+                    image.data = fileName;
+                }
+            }
+        }
+
+        const existingReport = await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 5 })
+            .first();
+
+        let reportId;
+
+        if (existingReport) {
+            await knex('mvm_reports')
+                .where({ project_id: projectId, category_id: 5 })
+                .update({
+                    report_data: JSON.stringify(reportData),
+                    updated_at: knex.fn.now(),
+                    user_id: userId
+                });
+
+            reportId = existingReport.id;
+        } else {
+            const [result] = await knex('mvm_reports')
+                .insert({
+                    project_id: projectId,
+                    user_id: userId,
+                    category_id: 5,
+                    category_name: 'Villamos biztonság',
+                    report_data: JSON.stringify(reportData),
+                    created_at: knex.fn.now(),
+                    updated_at: knex.fn.now()
+                })
+                .returning('id');
+
+            reportId = result.id;
+        }
+
+        res.json({
+            success: true,
+            message: 'Villamos biztonság ellenőrzés sikeresen mentve.',
+            reportId: reportId
+        });
+
+    } catch (error) {
+        console.error('Hiba a villamos biztonság ellenőrzés mentésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a mentés során.',
+            error: error.message
+        });
+    }
+});
+
+// GET - Villamos biztonság Ellenőrzés Betöltése
+router.get('/projects/:projectId/reports/electrical-safety', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        const report = await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 5 })
+            .first();
+
+        if (report && report.report_data) {
+            const reportData = typeof report.report_data === 'string'
+                ? JSON.parse(report.report_data)
+                : report.report_data;
+
+            res.json({
+                success: true,
+                data: reportData
+            });
+        } else {
+            res.json({
+                success: true,
+                data: null
+            });
+        }
+
+    } catch (error) {
+        console.error('Hiba a villamos biztonság ellenőrzés betöltésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a betöltés során.',
+            error: error.message
+        });
+    }
+});
+
+// DELETE - Villamos biztonság Ellenőrzés Törlése (Új ellenőrzés indítása)
+router.delete('/projects/:projectId/reports/electrical-safety', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 5 })
+            .delete();
+
+        res.json({
+            success: true,
+            message: 'Villamos biztonság ellenőrzés sikeresen törölve.'
+        });
+
+    } catch (error) {
+        console.error('Hiba a villamos biztonság ellenőrzés törlésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a törlés során.',
+            error: error.message
+        });
+    }
+});
+
+// POST - Egyéni védőeszközök Ellenőrzés Mentése
+router.post('/projects/:projectId/reports/personal-protective-equipment', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        const reportData = req.body;
+
+        if (reportData.images && Array.isArray(reportData.images)) {
+            for (let image of reportData.images) {
+                if (image.data && image.data.startsWith('data:image')) {
+                    const base64Data = image.data.split(',')[1];
+                    const buffer = Buffer.from(base64Data, 'base64');
+                    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
+
+                    await uploadImageToDrive(projectId, buffer, fileName, image.metadata || {});
+
+                    image.data = fileName;
+                }
+            }
+        }
+
+        const existingReport = await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 6 })
+            .first();
+
+        let reportId;
+
+        if (existingReport) {
+            await knex('mvm_reports')
+                .where({ project_id: projectId, category_id: 6 })
+                .update({
+                    report_data: JSON.stringify(reportData),
+                    updated_at: knex.fn.now(),
+                    user_id: userId
+                });
+
+            reportId = existingReport.id;
+        } else {
+            const [result] = await knex('mvm_reports')
+                .insert({
+                    project_id: projectId,
+                    user_id: userId,
+                    category_id: 6,
+                    category_name: 'Egyéni védőeszközök',
+                    report_data: JSON.stringify(reportData),
+                    created_at: knex.fn.now(),
+                    updated_at: knex.fn.now()
+                })
+                .returning('id');
+
+            reportId = result.id;
+        }
+
+        res.json({
+            success: true,
+            message: 'Egyéni védőeszközök ellenőrzés sikeresen mentve.',
+            reportId: reportId
+        });
+
+    } catch (error) {
+        console.error('Hiba az egyéni védőeszközök ellenőrzés mentésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a mentés során.',
+            error: error.message
+        });
+    }
+});
+
+// GET - Egyéni védőeszközök Ellenőrzés Betöltése
+router.get('/projects/:projectId/reports/personal-protective-equipment', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        const report = await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 6 })
+            .first();
+
+        if (report && report.report_data) {
+            const reportData = typeof report.report_data === 'string'
+                ? JSON.parse(report.report_data)
+                : report.report_data;
+
+            res.json({
+                success: true,
+                data: reportData
+            });
+        } else {
+            res.json({
+                success: true,
+                data: null
+            });
+        }
+
+    } catch (error) {
+        console.error('Hiba az egyéni védőeszközök ellenőrzés betöltésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a betöltés során.',
+            error: error.message
+        });
+    }
+});
+
+// DELETE - Egyéni védőeszközök Ellenőrzés Törlése (Új ellenőrzés indítása)
+router.delete('/projects/:projectId/reports/personal-protective-equipment', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 6 })
+            .delete();
+
+        res.json({
+            success: true,
+            message: 'Egyéni védőeszközök ellenőrzés sikeresen törölve.'
+        });
+
+    } catch (error) {
+        console.error('Hiba az egyéni védőeszközök ellenőrzés törlésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a törlés során.',
+            error: error.message
+        });
+    }
+});
+
+// POST - Elsősegélynyújtás Ellenőrzés Mentése
+router.post('/projects/:projectId/reports/first-aid', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        const reportData = req.body;
+
+        if (reportData.images && Array.isArray(reportData.images)) {
+            for (let image of reportData.images) {
+                if (image.data && image.data.startsWith('data:image')) {
+                    const base64Data = image.data.split(',')[1];
+                    const buffer = Buffer.from(base64Data, 'base64');
+                    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
+
+                    await uploadImageToDrive(projectId, buffer, fileName, image.metadata || {});
+
+                    image.data = fileName;
+                }
+            }
+        }
+
+        const existingReport = await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 7 })
+            .first();
+
+        let reportId;
+
+        if (existingReport) {
+            await knex('mvm_reports')
+                .where({ project_id: projectId, category_id: 7 })
+                .update({
+                    report_data: JSON.stringify(reportData),
+                    updated_at: knex.fn.now(),
+                    user_id: userId
+                });
+
+            reportId = existingReport.id;
+        } else {
+            const [result] = await knex('mvm_reports')
+                .insert({
+                    project_id: projectId,
+                    user_id: userId,
+                    category_id: 7,
+                    category_name: 'Elsősegélynyújtás',
+                    report_data: JSON.stringify(reportData),
+                    created_at: knex.fn.now(),
+                    updated_at: knex.fn.now()
+                })
+                .returning('id');
+
+            reportId = result.id;
+        }
+
+        res.json({
+            success: true,
+            message: 'Elsősegélynyújtás ellenőrzés sikeresen mentve.',
+            reportId: reportId
+        });
+
+    } catch (error) {
+        console.error('Hiba az elsősegélynyújtás ellenőrzés mentésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a mentés során.',
+            error: error.message
+        });
+    }
+});
+
+// GET - Elsősegélynyújtás Ellenőrzés Betöltése
+router.get('/projects/:projectId/reports/first-aid', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        const report = await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 7 })
+            .first();
+
+        if (report && report.report_data) {
+            const reportData = typeof report.report_data === 'string'
+                ? JSON.parse(report.report_data)
+                : report.report_data;
+
+            res.json({
+                success: true,
+                data: reportData
+            });
+        } else {
+            res.json({
+                success: true,
+                data: null
+            });
+        }
+
+    } catch (error) {
+        console.error('Hiba az elsősegélynyújtás ellenőrzés betöltésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a betöltés során.',
+            error: error.message
+        });
+    }
+});
+
+// DELETE - Elsősegélynyújtás Ellenőrzés Törlése (Új ellenőrzés indítása)
+router.delete('/projects/:projectId/reports/first-aid', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 7 })
+            .delete();
+
+        res.json({
+            success: true,
+            message: 'Elsősegélynyújtás ellenőrzés sikeresen törölve.'
+        });
+
+    } catch (error) {
+        console.error('Hiba az elsősegélynyújtás ellenőrzés törlésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a törlés során.',
+            error: error.message
+        });
+    }
+});
+
+// POST - Veszélyes anyagok Ellenőrzés Mentése
+router.post('/projects/:projectId/reports/hazardous-materials', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        const reportData = req.body;
+
+        if (reportData.images && Array.isArray(reportData.images)) {
+            for (let image of reportData.images) {
+                if (image.data && image.data.startsWith('data:image')) {
+                    const base64Data = image.data.split(',')[1];
+                    const buffer = Buffer.from(base64Data, 'base64');
+                    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
+
+                    await uploadImageToDrive(projectId, buffer, fileName, image.metadata || {});
+
+                    image.data = fileName;
+                }
+            }
+        }
+
+        const existingReport = await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 8 })
+            .first();
+
+        let reportId;
+
+        if (existingReport) {
+            await knex('mvm_reports')
+                .where({ project_id: projectId, category_id: 8 })
+                .update({
+                    report_data: JSON.stringify(reportData),
+                    updated_at: knex.fn.now(),
+                    user_id: userId
+                });
+
+            reportId = existingReport.id;
+        } else {
+            const [result] = await knex('mvm_reports')
+                .insert({
+                    project_id: projectId,
+                    user_id: userId,
+                    category_id: 8,
+                    category_name: 'Veszélyes anyagok',
+                    report_data: JSON.stringify(reportData),
+                    created_at: knex.fn.now(),
+                    updated_at: knex.fn.now()
+                })
+                .returning('id');
+
+            reportId = result.id;
+        }
+
+        res.json({
+            success: true,
+            message: 'Veszélyes anyagok ellenőrzés sikeresen mentve.',
+            reportId: reportId
+        });
+
+    } catch (error) {
+        console.error('Hiba a veszélyes anyagok ellenőrzés mentésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a mentés során.',
+            error: error.message
+        });
+    }
+});
+
+// GET - Veszélyes anyagok Ellenőrzés Betöltése
+router.get('/projects/:projectId/reports/hazardous-materials', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        const report = await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 8 })
+            .first();
+
+        if (report && report.report_data) {
+            const reportData = typeof report.report_data === 'string'
+                ? JSON.parse(report.report_data)
+                : report.report_data;
+
+            res.json({
+                success: true,
+                data: reportData
+            });
+        } else {
+            res.json({
+                success: true,
+                data: null
+            });
+        }
+
+    } catch (error) {
+        console.error('Hiba a veszélyes anyagok ellenőrzés betöltésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a betöltés során.',
+            error: error.message
+        });
+    }
+});
+
+// DELETE - Veszélyes anyagok Ellenőrzés Törlése (Új ellenőrzés indítása)
+router.delete('/projects/:projectId/reports/hazardous-materials', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 8 })
+            .delete();
+
+        res.json({
+            success: true,
+            message: 'Veszélyes anyagok ellenőrzés sikeresen törölve.'
+        });
+
+    } catch (error) {
+        console.error('Hiba a veszélyes anyagok ellenőrzés törlésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a törlés során.',
+            error: error.message
+        });
+    }
+});
+
+// POST - Elmaradt cselekedetek Ellenőrzés Mentése
+router.post('/projects/:projectId/reports/omissions', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        const reportData = req.body;
+
+        if (reportData.images && Array.isArray(reportData.images)) {
+            for (let image of reportData.images) {
+                if (image.data && image.data.startsWith('data:image')) {
+                    const base64Data = image.data.split(',')[1];
+                    const buffer = Buffer.from(base64Data, 'base64');
+                    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
+
+                    await uploadImageToDrive(projectId, buffer, fileName, image.metadata || {});
+
+                    image.data = fileName;
+                }
+            }
+        }
+
+        const existingReport = await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 9 })
+            .first();
+
+        let reportId;
+
+        if (existingReport) {
+            await knex('mvm_reports')
+                .where({ project_id: projectId, category_id: 9 })
+                .update({
+                    report_data: JSON.stringify(reportData),
+                    updated_at: knex.fn.now(),
+                    user_id: userId
+                });
+
+            reportId = existingReport.id;
+        } else {
+            const [result] = await knex('mvm_reports')
+                .insert({
+                    project_id: projectId,
+                    user_id: userId,
+                    category_id: 9,
+                    category_name: 'Elmaradt cselekedetek',
+                    report_data: JSON.stringify(reportData),
+                    created_at: knex.fn.now(),
+                    updated_at: knex.fn.now()
+                })
+                .returning('id');
+
+            reportId = result.id;
+        }
+
+        res.json({
+            success: true,
+            message: 'Elmaradt cselekedetek ellenőrzés sikeresen mentve.',
+            reportId: reportId
+        });
+
+    } catch (error) {
+        console.error('Hiba az elmaradt cselekedetek ellenőrzés mentésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a mentés során.',
+            error: error.message
+        });
+    }
+});
+
+// GET - Elmaradt cselekedetek Ellenőrzés Betöltése
+router.get('/projects/:projectId/reports/omissions', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        const report = await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 9 })
+            .first();
+
+        if (report && report.report_data) {
+            const reportData = typeof report.report_data === 'string'
+                ? JSON.parse(report.report_data)
+                : report.report_data;
+
+            res.json({
+                success: true,
+                data: reportData
+            });
+        } else {
+            res.json({
+                success: true,
+                data: null
+            });
+        }
+
+    } catch (error) {
+        console.error('Hiba az elmaradt cselekedetek ellenőrzés betöltésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a betöltés során.',
+            error: error.message
+        });
+    }
+});
+
+// DELETE - Elmaradt cselekedetek Ellenőrzés Törlése (Új ellenőrzés indítása)
+router.delete('/projects/:projectId/reports/omissions', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 9 })
+            .delete();
+
+        res.json({
+            success: true,
+            message: 'Elmaradt cselekedetek ellenőrzés sikeresen törölve.'
+        });
+
+    } catch (error) {
+        console.error('Hiba az elmaradt cselekedetek ellenőrzés törlésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a törlés során.',
+            error: error.message
+        });
+    }
+});
+
+// POST - Egyéb Ellenőrzés Mentése
+router.post('/projects/:projectId/reports/other', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        const reportData = req.body;
+
+        if (reportData.images && Array.isArray(reportData.images)) {
+            for (let image of reportData.images) {
+                if (image.data && image.data.startsWith('data:image')) {
+                    const base64Data = image.data.split(',')[1];
+                    const buffer = Buffer.from(base64Data, 'base64');
+                    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
+
+                    await uploadImageToDrive(projectId, buffer, fileName, image.metadata || {});
+
+                    image.data = fileName;
+                }
+            }
+        }
+
+        const existingReport = await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 10 })
+            .first();
+
+        let reportId;
+
+        if (existingReport) {
+            await knex('mvm_reports')
+                .where({ project_id: projectId, category_id: 10 })
+                .update({
+                    report_data: JSON.stringify(reportData),
+                    updated_at: knex.fn.now(),
+                    user_id: userId
+                });
+
+            reportId = existingReport.id;
+        } else {
+            const [result] = await knex('mvm_reports')
+                .insert({
+                    project_id: projectId,
+                    user_id: userId,
+                    category_id: 10,
+                    category_name: 'Egyéb',
+                    report_data: JSON.stringify(reportData),
+                    created_at: knex.fn.now(),
+                    updated_at: knex.fn.now()
+                })
+                .returning('id');
+
+            reportId = result.id;
+        }
+
+        res.json({
+            success: true,
+            message: 'Egyéb ellenőrzés sikeresen mentve.',
+            reportId: reportId
+        });
+
+    } catch (error) {
+        console.error('Hiba az egyéb ellenőrzés mentésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a mentés során.',
+            error: error.message
+        });
+    }
+});
+
+// GET - Egyéb Ellenőrzés Betöltése
+router.get('/projects/:projectId/reports/other', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        const report = await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 10 })
+            .first();
+
+        if (report && report.report_data) {
+            const reportData = typeof report.report_data === 'string'
+                ? JSON.parse(report.report_data)
+                : report.report_data;
+
+            res.json({
+                success: true,
+                data: reportData
+            });
+        } else {
+            res.json({
+                success: true,
+                data: null
+            });
+        }
+
+    } catch (error) {
+        console.error('Hiba az egyéb ellenőrzés betöltésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a betöltés során.',
+            error: error.message
+        });
+    }
+});
+
+// DELETE - Egyéb Ellenőrzés Törlése (Új ellenőrzés indítása)
+router.delete('/projects/:projectId/reports/other', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+
+    try {
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Nincs jogosultsága ehhez a projekthez.'
+                });
+            }
+        }
+
+        await knex('mvm_reports')
+            .where({ project_id: projectId, category_id: 10 })
+            .delete();
+
+        res.json({
+            success: true,
+            message: 'Egyéb ellenőrzés sikeresen törölve.'
+        });
+
+    } catch (error) {
+        console.error('Hiba az egyéb ellenőrzés törlésekor:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a törlés során.',
+            error: error.message
+        });
+    }
+});
+
 module.exports = router;
 module.exports.createProjectFolder = createProjectFolder;
 module.exports.initializeDrive = initializeGoogleDrive;

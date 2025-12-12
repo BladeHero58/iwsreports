@@ -1,10 +1,10 @@
-<!--2. Kategória: Személyi feltételek --->
+<!--8. Kategória: Veszélyes anyagok --->
 <!DOCTYPE html>
 <html lang="hu">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2. Személyi feltételek - <%= project.name %></title>
+    <title>8. Veszélyes anyagok - <%= project.name %></title>
      <link rel="stylesheet" href="/css/pages/mvm-documentation.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
@@ -82,11 +82,11 @@ const backUrl = isAdmin
 
         <!-- Header -->
         <div class="header">
-            <h1>2. Személyi feltételek</h1>
-            <p>Munkavállalók oktatása, képzettsége és alkalmasságának ellenőrzése</p>
+            <h1>4. Munkagépek, munkaeszközök</h1>
+            <p>Munkagépek, munkaeszközök állapota, kezelése és biztonsági felülvizsgálatai</p>
         </div>
 
-        <form id="documentationForm" method="POST" action="/projects/<%= project.id %>/reports/personal-conditions">
+        <form id="documentationForm" method="POST" action="/projects/<%= project.id %>/reports/hazardous-materials">
 
             <!-- Ellenőrzés résztvevői -->
             <div class="form-section">
@@ -179,44 +179,47 @@ const backUrl = isAdmin
                 </div>
             </div>
 
-            <!-- 2.1 XPert munkavállalók munkavédelmi oktatása -->
+            
+            
+            
+            <!-- 8.1 -->
             <div class="checklist-item">
-                <div class="checklist-header">2.1 XPert munkavállalók munkavédelmi oktatása és azok dokumentáltsága</div>
-                <div class="checklist-description">Munkavédelmi oktatási dokumentumok fellelhetősége, naprakészsége</div>
+                <div class="checklist-header">8.1 Veszélyes anyagok tárolása, jelölése, biztonsági adatlapok</div>
+                <div class="checklist-description">Megfelelő tárolás és dokumentáció</div>
 
                 <div class="radio-options">
                     <div class="radio-option success">
-                        <input type="radio" id="item_2_1_m" name="item_2_1" value="megfelelő" onchange="toggleSeverity('2_1')">
-                        <label for="item_2_1_m">Megfelelt</label>
+                        <input type="radio" id="item_8_1_m" name="item_8_1" value="megfelelő" onchange="toggleSeverity('8_1')">
+                        <label for="item_8_1_m">Megfelelt</label>
                     </div>
                     <div class="radio-option danger">
-                        <input type="radio" id="item_2_1_nm" name="item_2_1" value="nem_megfelelő" onchange="toggleSeverity('2_1')">
-                        <label for="item_2_1_nm">Nem megfelelt</label>
+                        <input type="radio" id="item_8_1_nm" name="item_8_1" value="nem_megfelelő" onchange="toggleSeverity('8_1')">
+                        <label for="item_8_1_nm">Nem megfelelt</label>
                     </div>
                     <div class="radio-option info">
-                        <input type="radio" id="item_2_1_ft" name="item_2_1" value="felszólítás_után" onchange="toggleSeverity('2_1')">
-                        <label for="item_2_1_ft">Felszólítás után teljesítve</label>
+                        <input type="radio" id="item_8_1_ft" name="item_8_1" value="felszólítás_után" onchange="toggleSeverity('8_1')">
+                        <label for="item_8_1_ft">Felszólítás után teljesítve</label>
                     </div>
                     <div class="radio-option warning">
-                        <input type="radio" id="item_2_1_nv" name="item_2_1" value="nem_vizsgált" onchange="toggleSeverity('2_1')">
-                        <label for="item_2_1_nv">Nem vonatkozik / Nem vizsgált</label>
+                        <input type="radio" id="item_8_1_nv" name="item_8_1" value="nem_vizsgált" onchange="toggleSeverity('8_1')">
+                        <label for="item_8_1_nv">Nem vonatkozik / Nem vizsgált</label>
                     </div>
                 </div>
 
-                <div id="severity_2_1" class="severity-selector" style="display: none; margin-top: 15px; padding: 15px; background-color: #f7fafc; border-radius: 8px;">
+                <div id="severity_8_1" class="severity-selector" style="display: none; margin-top: 15px; padding: 15px; background-color: #f7fafc; border-radius: 8px;">
                     <label style="font-weight: 600; display: block; margin-bottom: 10px;">Hiba súlyossága:</label>
                     <div class="radio-options">
                         <div class="radio-option" style="border-color: #FFFF00;">
-                            <input type="radio" id="item_2_1_sev_low" name="item_2_1_severity" value="alacsony">
-                            <label for="item_2_1_sev_low" style="color: #000000;">🟡Alacsony</label>
+                            <input type="radio" id="item_8_1_sev_low" name="item_8_1_severity" value="alacsony">
+                            <label for="item_8_1_sev_low" style="color: #000000;">🟡Alacsony</label>
                         </div>
                         <div class="radio-option" style="border-color: #ED7D31;">
-                            <input type="radio" id="item_2_1_sev_medium" name="item_2_1_severity" value="közepes">
-                            <label for="item_2_1_sev_medium" style="color: #000000;">🟠Közepes</label>
+                            <input type="radio" id="item_8_1_sev_medium" name="item_8_1_severity" value="közepes">
+                            <label for="item_8_1_sev_medium" style="color: #000000;">🟠Közepes</label>
                         </div>
                         <div class="radio-option" style="border-color: #FF0000;">
-                            <input type="radio" id="item_2_1_sev_high" name="item_2_1_severity" value="magas">
-                            <label for="item_2_1_sev_high" style="color: #000000;">🔴Magas</label>
+                            <input type="radio" id="item_8_1_sev_high" name="item_8_1_severity" value="magas">
+                            <label for="item_8_1_sev_high" style="color: #000000;">🔴Magas</label>
                         </div>
                     </div>
                 </div>
@@ -230,348 +233,360 @@ const backUrl = isAdmin
     <!-- Rejtett file input -->
     <input
         type="file"
-        id="photos_2_1"
+        id="photos_8_1"
         multiple
-        onchange="handleImageUpload(event, '2_1')"
+        onchange="handleImageUpload(event, '8_1')"
         style="display: none;"
     >
 
     <!-- Szép gomb -->
-    <button type="button" class="upload-btn" onclick="document.getElementById('photos_2_1').click()">
+    <button type="button" class="upload-btn" onclick="document.getElementById('photos_8_1').click()">
         <i class="fas fa-upload"></i> Fájlok feltöltése
     </button>
 
-    <div id="preview_2_1" class="image-preview-container"></div>
+    <div id="preview_8_1" class="image-preview-container"></div>
 </div>
 
-                <textarea class="notes-textarea" name="notes_2_1" placeholder="Megjegyzés..."></textarea>
+                <textarea class="notes-textarea" name="notes_8_1" placeholder="Megjegyzés..."></textarea>
             </div>
 
-            <!-- 2.2 Alvállalkozók munkavédelmi oktatása -->
+
+            <!-- 8.2 -->
             <div class="checklist-item">
-                <div class="checklist-header">2.2 Alvállalkozók munkavédelmi oktatása és azok dokumentáltsága</div>
-                <div class="checklist-description">Alvállalkozói munkavállalók oktatási dokumentumai</div>
+                <div class="checklist-header">8.2 Vegyszeres munka dokumentáltsága, engedélyei</div>
+                <div class="checklist-description">Munkavégzési engedélyek</div>
 
                 <div class="radio-options">
                     <div class="radio-option success">
-                        <input type="radio" id="item_2_2_m" name="item_2_2" value="megfelelő" onchange="toggleSeverity('2_2')">
-                        <label for="item_2_2_m">Megfelelt</label>
+                        <input type="radio" id="item_8_2_m" name="item_8_2" value="megfelelő" onchange="toggleSeverity('8_2')">
+                        <label for="item_8_2_m">Megfelelt</label>
                     </div>
                     <div class="radio-option danger">
-                        <input type="radio" id="item_2_2_nm" name="item_2_2" value="nem_megfelelő" onchange="toggleSeverity('2_2')">
-                        <label for="item_2_2_nm">Nem megfelelt</label>
+                        <input type="radio" id="item_8_2_nm" name="item_8_2" value="nem_megfelelő" onchange="toggleSeverity('8_2')">
+                        <label for="item_8_2_nm">Nem megfelelt</label>
                     </div>
                     <div class="radio-option info">
-                        <input type="radio" id="item_2_2_ft" name="item_2_2" value="felszólítás_után" onchange="toggleSeverity('2_2')">
-                        <label for="item_2_2_ft">Felszólítás után teljesítve</label>
+                        <input type="radio" id="item_8_2_ft" name="item_8_2" value="felszólítás_után" onchange="toggleSeverity('8_2')">
+                        <label for="item_8_2_ft">Felszólítás után teljesítve</label>
                     </div>
                     <div class="radio-option warning">
-                        <input type="radio" id="item_2_2_nv" name="item_2_2" value="nem_vizsgált" onchange="toggleSeverity('2_2')">
-                        <label for="item_2_2_nv">Nem vonatkozik / Nem vizsgált</label>
+                        <input type="radio" id="item_8_2_nv" name="item_8_2" value="nem_vizsgált" onchange="toggleSeverity('8_2')">
+                        <label for="item_8_2_nv">Nem vonatkozik / Nem vizsgált</label>
                     </div>
                 </div>
 
-                <div id="severity_2_2" class="severity-selector" style="display: none; margin-top: 15px; padding: 15px; background-color: #f7fafc; border-radius: 8px;">
+                <div id="severity_8_2" class="severity-selector" style="display: none; margin-top: 15px; padding: 15px; background-color: #f7fafc; border-radius: 8px;">
                     <label style="font-weight: 600; display: block; margin-bottom: 10px;">Hiba súlyossága:</label>
                     <div class="radio-options">
                         <div class="radio-option" style="border-color: #FFFF00;">
-                            <input type="radio" id="item_2_2_sev_low" name="item_2_2_severity" value="alacsony">
-                            <label for="item_2_2_sev_low" style="color: #000000;">🟡Alacsony</label>
+                            <input type="radio" id="item_8_2_sev_low" name="item_8_2_severity" value="alacsony">
+                            <label for="item_8_2_sev_low" style="color: #000000;">🟡Alacsony</label>
                         </div>
                         <div class="radio-option" style="border-color: #ED7D31;">
-                            <input type="radio" id="item_2_2_sev_medium" name="item_2_2_severity" value="közepes">
-                            <label for="item_2_2_sev_medium" style="color: #000000;">🟠Közepes</label>
+                            <input type="radio" id="item_8_2_sev_medium" name="item_8_2_severity" value="közepes">
+                            <label for="item_8_2_sev_medium" style="color: #000000;">🟠Közepes</label>
                         </div>
                         <div class="radio-option" style="border-color: #FF0000;">
-                            <input type="radio" id="item_2_2_sev_high" name="item_2_2_severity" value="magas">
-                            <label for="item_2_2_sev_high" style="color: #000000;">🔴Magas</label>
+                            <input type="radio" id="item_8_2_sev_high" name="item_8_2_severity" value="magas">
+                            <label for="item_8_2_sev_high" style="color: #000000;">🔴Magas</label>
                         </div>
                     </div>
                 </div>
 
-                <div class="form-group" style="margin-top: 15px;">
+              <div class="form-group" style="margin-top: 15px;">
     <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
+    <p style="font-size: 11px; color: #4CAF50; margin: 5px 0;">
+        <i class="fas fa-check-circle"></i> Minden képformátum támogatott (HEIC is) • Automatikus tömörítés
+    </p>
 
     <!-- Rejtett file input -->
     <input
         type="file"
-        id="photos_2_2"
+        id="photos_8_2"
         multiple
-        onchange="handleImageUpload(event, '2_2')"
+        onchange="handleImageUpload(event, '8_2')"
         style="display: none;"
     >
 
-    <!-- Stílusos gomb -->
-    <button
-        type="button"
-        class="upload-btn"
-        onclick="document.getElementById('photos_2_2').click()"
-    >
+    <!-- Szép gomb -->
+    <button type="button" class="upload-btn" onclick="document.getElementById('photos_8_2').click()">
         <i class="fas fa-upload"></i> Fájlok feltöltése
     </button>
 
-    <div id="preview_2_2" class="image-preview-container"></div>
+    <div id="preview_8_2" class="image-preview-container"></div>
 </div>
 
-                <textarea class="notes-textarea" name="notes_2_2" placeholder="Megjegyzés..."></textarea>
+                <textarea class="notes-textarea" name="notes_8_2" placeholder="Megjegyzés..."></textarea>
             </div>
 
-            <!-- 2.3 Szükséges oktatás/végzettség/alkalmasság -->
+
+            <!-- 8.3 -->
             <div class="checklist-item">
-                <div class="checklist-header">2.3 A tevékenység/feladat végzéséhez szükséges oktatás/végzettség/alkalmasság megléte</div>
-                <div class="checklist-description">Munkára képes állapot, tűzvédelmi szakvizsga, kötözői, gépkezelői stb.</div>
+                <div class="checklist-header">8.3 Veszélyes hulladékok kezelése, gyűjtése, dokumentálása</div>
+                <div class="checklist-description">Hulladékkezelés előírásai</div>
 
                 <div class="radio-options">
                     <div class="radio-option success">
-                        <input type="radio" id="item_2_3_m" name="item_2_3" value="megfelelő" onchange="toggleSeverity('2_3')">
-                        <label for="item_2_3_m">Megfelelt</label>
+                        <input type="radio" id="item_8_3_m" name="item_8_3" value="megfelelő" onchange="toggleSeverity('8_3')">
+                        <label for="item_8_3_m">Megfelelt</label>
                     </div>
                     <div class="radio-option danger">
-                        <input type="radio" id="item_2_3_nm" name="item_2_3" value="nem_megfelelő" onchange="toggleSeverity('2_3')">
-                        <label for="item_2_3_nm">Nem megfelelt</label>
+                        <input type="radio" id="item_8_3_nm" name="item_8_3" value="nem_megfelelő" onchange="toggleSeverity('8_3')">
+                        <label for="item_8_3_nm">Nem megfelelt</label>
                     </div>
                     <div class="radio-option info">
-                        <input type="radio" id="item_2_3_ft" name="item_2_3" value="felszólítás_után" onchange="toggleSeverity('2_3')">
-                        <label for="item_2_3_ft">Felszólítás után teljesítve</label>
+                        <input type="radio" id="item_8_3_ft" name="item_8_3" value="felszólítás_után" onchange="toggleSeverity('8_3')">
+                        <label for="item_8_3_ft">Felszólítás után teljesítve</label>
                     </div>
                     <div class="radio-option warning">
-                        <input type="radio" id="item_2_3_nv" name="item_2_3" value="nem_vizsgált" onchange="toggleSeverity('2_3')">
-                        <label for="item_2_3_nv">Nem vonatkozik / Nem vizsgált</label>
+                        <input type="radio" id="item_8_3_nv" name="item_8_3" value="nem_vizsgált" onchange="toggleSeverity('8_3')">
+                        <label for="item_8_3_nv">Nem vonatkozik / Nem vizsgált</label>
                     </div>
                 </div>
 
-                <div id="severity_2_3" class="severity-selector" style="display: none; margin-top: 15px; padding: 15px; background-color: #f7fafc; border-radius: 8px;">
+                <div id="severity_8_3" class="severity-selector" style="display: none; margin-top: 15px; padding: 15px; background-color: #f7fafc; border-radius: 8px;">
                     <label style="font-weight: 600; display: block; margin-bottom: 10px;">Hiba súlyossága:</label>
                     <div class="radio-options">
                         <div class="radio-option" style="border-color: #FFFF00;">
-                            <input type="radio" id="item_2_3_sev_low" name="item_2_3_severity" value="alacsony">
-                            <label for="item_2_3_sev_low" style="color: #000000;">🟡Alacsony</label>
+                            <input type="radio" id="item_8_3_sev_low" name="item_8_3_severity" value="alacsony">
+                            <label for="item_8_3_sev_low" style="color: #000000;">🟡Alacsony</label>
                         </div>
                         <div class="radio-option" style="border-color: #ED7D31;">
-                            <input type="radio" id="item_2_3_sev_medium" name="item_2_3_severity" value="közepes">
-                            <label for="item_2_3_sev_medium" style="color: #000000;">🟠Közepes</label>
+                            <input type="radio" id="item_8_3_sev_medium" name="item_8_3_severity" value="közepes">
+                            <label for="item_8_3_sev_medium" style="color: #000000;">🟠Közepes</label>
                         </div>
                         <div class="radio-option" style="border-color: #FF0000;">
-                            <input type="radio" id="item_2_3_sev_high" name="item_2_3_severity" value="magas">
-                            <label for="item_2_3_sev_high" style="color: #000000;">🔴Magas</label>
+                            <input type="radio" id="item_8_3_sev_high" name="item_8_3_severity" value="magas">
+                            <label for="item_8_3_sev_high" style="color: #000000;">🔴Magas</label>
                         </div>
                     </div>
                 </div>
-<div class="form-group" style="margin-top: 15px;">
+
+              <div class="form-group" style="margin-top: 15px;">
     <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
+    <p style="font-size: 11px; color: #4CAF50; margin: 5px 0;">
+        <i class="fas fa-check-circle"></i> Minden képformátum támogatott (HEIC is) • Automatikus tömörítés
+    </p>
 
     <!-- Rejtett file input -->
     <input
         type="file"
-        id="photos_2_3"
+        id="photos_8_3"
         multiple
-        onchange="handleImageUpload(event, '2_3')"
+        onchange="handleImageUpload(event, '8_3')"
         style="display: none;"
     >
 
-    <!-- Stílusos gomb -->
-    <button
-        type="button"
-        class="upload-btn"
-        onclick="document.getElementById('photos_2_3').click()"
-    >
+    <!-- Szép gomb -->
+    <button type="button" class="upload-btn" onclick="document.getElementById('photos_8_3').click()">
         <i class="fas fa-upload"></i> Fájlok feltöltése
     </button>
 
-    <div id="preview_2_3" class="image-preview-container"></div>
+    <div id="preview_8_3" class="image-preview-container"></div>
 </div>
 
-                <textarea class="notes-textarea" name="notes_2_3" placeholder="Megjegyzés..."></textarea>
+                <textarea class="notes-textarea" name="notes_8_3" placeholder="Megjegyzés..."></textarea>
             </div>
 
-            <!-- 2.4 Munkáltatói megbízás -->
+
+            <!-- 8.4 -->
             <div class="checklist-item">
-                <div class="checklist-header">2.4 Munkáltatói megbízás</div>
-                <div class="checklist-description">Veszélyes gép, építésvezetői, munkairányítói stb.</div>
+                <div class="checklist-header">8.4 Tűzvédelmi előírások betartása veszélyes anyagok esetén</div>
+                <div class="checklist-description">Tűzvédelmi követelmények</div>
 
                 <div class="radio-options">
                     <div class="radio-option success">
-                        <input type="radio" id="item_2_4_m" name="item_2_4" value="megfelelő" onchange="toggleSeverity('2_4')">
-                        <label for="item_2_4_m">Megfelelt</label>
+                        <input type="radio" id="item_8_4_m" name="item_8_4" value="megfelelő" onchange="toggleSeverity('8_4')">
+                        <label for="item_8_4_m">Megfelelt</label>
                     </div>
                     <div class="radio-option danger">
-                        <input type="radio" id="item_2_4_nm" name="item_2_4" value="nem_megfelelő" onchange="toggleSeverity('2_4')">
-                        <label for="item_2_4_nm">Nem megfelelt</label>
+                        <input type="radio" id="item_8_4_nm" name="item_8_4" value="nem_megfelelő" onchange="toggleSeverity('8_4')">
+                        <label for="item_8_4_nm">Nem megfelelt</label>
                     </div>
                     <div class="radio-option info">
-                        <input type="radio" id="item_2_4_ft" name="item_2_4" value="felszólítás_után" onchange="toggleSeverity('2_4')">
-                        <label for="item_2_4_ft">Felszólítás után teljesítve </label>
+                        <input type="radio" id="item_8_4_ft" name="item_8_4" value="felszólítás_után" onchange="toggleSeverity('8_4')">
+                        <label for="item_8_4_ft">Felszólítás után teljesítve</label>
                     </div>
                     <div class="radio-option warning">
-                        <input type="radio" id="item_2_4_nv" name="item_2_4" value="nem_vizsgált" onchange="toggleSeverity('2_4')">
-                        <label for="item_2_4_nv">Nem vonatkozik / Nem vizsgált</label>
+                        <input type="radio" id="item_8_4_nv" name="item_8_4" value="nem_vizsgált" onchange="toggleSeverity('8_4')">
+                        <label for="item_8_4_nv">Nem vonatkozik / Nem vizsgált</label>
                     </div>
                 </div>
 
-                <div id="severity_2_4" class="severity-selector" style="display: none; margin-top: 15px; padding: 15px; background-color: #f7fafc; border-radius: 8px;">
+                <div id="severity_8_4" class="severity-selector" style="display: none; margin-top: 15px; padding: 15px; background-color: #f7fafc; border-radius: 8px;">
                     <label style="font-weight: 600; display: block; margin-bottom: 10px;">Hiba súlyossága:</label>
                     <div class="radio-options">
                         <div class="radio-option" style="border-color: #FFFF00;">
-                            <input type="radio" id="item_2_4_sev_low" name="item_2_4_severity" value="alacsony">
-                            <label for="item_2_4_sev_low" style="color: #000000;">🟡Alacsony</label>
+                            <input type="radio" id="item_8_4_sev_low" name="item_8_4_severity" value="alacsony">
+                            <label for="item_8_4_sev_low" style="color: #000000;">🟡Alacsony</label>
                         </div>
                         <div class="radio-option" style="border-color: #ED7D31;">
-                            <input type="radio" id="item_2_4_sev_medium" name="item_2_4_severity" value="közepes">
-                            <label for="item_2_4_sev_medium" style="color: #000000;">🟠Közepes</label>
+                            <input type="radio" id="item_8_4_sev_medium" name="item_8_4_severity" value="közepes">
+                            <label for="item_8_4_sev_medium" style="color: #000000;">🟠Közepes</label>
                         </div>
                         <div class="radio-option" style="border-color: #FF0000;">
-                            <input type="radio" id="item_2_4_sev_high" name="item_2_4_severity" value="magas">
-                            <label for="item_2_4_sev_high" style="color: #000000;">🔴Magas</label>
+                            <input type="radio" id="item_8_4_sev_high" name="item_8_4_severity" value="magas">
+                            <label for="item_8_4_sev_high" style="color: #000000;">🔴Magas</label>
                         </div>
                     </div>
                 </div>
 
-               <div class="form-group" style="margin-top: 15px;">
+              <div class="form-group" style="margin-top: 15px;">
     <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
+    <p style="font-size: 11px; color: #4CAF50; margin: 5px 0;">
+        <i class="fas fa-check-circle"></i> Minden képformátum támogatott (HEIC is) • Automatikus tömörítés
+    </p>
 
     <!-- Rejtett file input -->
     <input
         type="file"
-        id="photos_2_4"
+        id="photos_8_4"
         multiple
-        onchange="handleImageUpload(event, '2_4')"
+        onchange="handleImageUpload(event, '8_4')"
         style="display: none;"
     >
 
-    <!-- Stílusos gomb -->
-    <button
-        type="button"
-        class="upload-btn"
-        onclick="document.getElementById('photos_2_4').click()"
-    >
+    <!-- Szép gomb -->
+    <button type="button" class="upload-btn" onclick="document.getElementById('photos_8_4').click()">
         <i class="fas fa-upload"></i> Fájlok feltöltése
     </button>
 
-    <div id="preview_2_4" class="image-preview-container"></div>
+    <div id="preview_8_4" class="image-preview-container"></div>
 </div>
 
-                <textarea class="notes-textarea" name="notes_2_4" placeholder="Megjegyzés..."></textarea>
+                <textarea class="notes-textarea" name="notes_8_4" placeholder="Megjegyzés..."></textarea>
             </div>
 
-            <!-- 2.5 Orvosi alkalmassági vizsgálatok -->
-            <div class="checklist-item">
-                <div class="checklist-header">2.5 Előzetes és időszakos orvosi alkalmassági vizsgálatok megléte, igazolhatósága</div>
-                <div class="checklist-description">Érvényes orvosi alkalmassági vizsgálatok dokumentumai</div>
-
-                <div class="radio-options">
-                    <div class="radio-option success">
-                        <input type="radio" id="item_2_5_m" name="item_2_5" value="megfelelő" onchange="toggleSeverity('2_5')">
-                        <label for="item_2_5_m">Megfelelt</label>
-                    </div>
-                    <div class="radio-option danger">
-                        <input type="radio" id="item_2_5_nm" name="item_2_5" value="nem_megfelelő" onchange="toggleSeverity('2_5')">
-                        <label for="item_2_5_nm">Nem megfelelt</label>
-                    </div>
-                    <div class="radio-option info">
-                        <input type="radio" id="item_2_5_ft" name="item_2_5" value="felszólítás_után" onchange="toggleSeverity('2_5')">
-                        <label for="item_2_5_ft">Felszólítás után teljesítve </label>
-                    </div>
-                    <div class="radio-option warning">
-                        <input type="radio" id="item_2_5_nv" name="item_2_5" value="nem_vizsgált" onchange="toggleSeverity('2_5')">
-                        <label for="item_2_5_nv">Nem vonatkozik / Nem vizsgált</label>
-                    </div>
-                </div>
-
-                <div id="severity_2_5" class="severity-selector" style="display: none; margin-top: 15px; padding: 15px; background-color: #f7fafc; border-radius: 8px;">
-                    <label style="font-weight: 600; display: block; margin-bottom: 10px;">Hiba súlyossága:</label>
-                    <div class="radio-options">
-                        <div class="radio-option" style="border-color: #FFFF00;">
-                            <input type="radio" id="item_2_5_sev_low" name="item_2_5_severity" value="alacsony">
-                            <label for="item_2_5_sev_low" style="color: #000000;">🟡Alacsony</label>
-                        </div>
-                        <div class="radio-option" style="border-color: #ED7D31;">
-                            <input type="radio" id="item_2_5_sev_medium" name="item_2_5_severity" value="közepes">
-                            <label for="item_2_5_sev_medium" style="color: #000000;">🟠Közepes</label>
-                        </div>
-                        <div class="radio-option" style="border-color: #FF0000;">
-                            <input type="radio" id="item_2_5_sev_high" name="item_2_5_severity" value="magas">
-                            <label for="item_2_5_sev_high" style="color: #000000;">🔴Magas</label>
-                        </div>
-                    </div>
-                </div>
-
-               <div class="form-group" style="margin-top: 15px;">
-    <label><i class="fas fa-camera"></i> Fényképek / dokumentáció</label>
-
-    <!-- Rejtett file input -->
-    <input
-        type="file"
-        id="photos_2_5"
-        multiple
-        onchange="handleImageUpload(event, '2_5')"
-        style="display: none;"
-    >
-
-    <!-- Stílusos gomb -->
-    <button
-        type="button"
-        class="upload-btn"
-        onclick="document.getElementById('photos_2_5').click()"
-    >
-        <i class="fas fa-upload"></i> Fájlok feltöltése
-    </button>
-
-    <div id="preview_2_5" class="image-preview-container"></div>
-</div>
-
-                <textarea class="notes-textarea" name="notes_2_5" placeholder="Megjegyzés..."></textarea>
-            </div>
-
-            <!-- Szankciós lista -->
+<!-- Szankciós lista -->
             <div class="price-section">
-                <h3>Szankciós lista - Személyi feltételek kategória vonatkozó pontjai</h3>
+                <h3>Szankciós lista - Veszélyes anyagok kategória vonatkozó pontjai</h3>
 
                 <div class="price-item">
                     <input type="checkbox" id="price_1" name="sanction_1" value="100000" onchange="calculateTotal()">
                     <label for="price_1">1. MVM XPert munka-, tűz-, vagy környezetvédelmi szabályainak (szerződésben rögzített, illetve a BET-ben szereplő, és itt nem részletezett) megsértése</label>
                     <input type="number" name="sanction_1_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
                     <span style="margin-right: 10px; font-weight: 600;">×</span>
-                    <span class="price">100,000 Ft</span>
+                    <span class="price">100 000 Ft</span>
                 </div>
 
                 <div class="price-item">
-                    <input type="checkbox" id="price_2" name="sanction_13" value="100000" onchange="calculateTotal()">
-                    <label for="price_2">13. Képzettség nélküli emelőgép, munkagép kezelése</label>
+                    <input type="checkbox" id="price_2" name="sanction_4" value="100000" onchange="calculateTotal()">
+                    <label for="price_2">4. A vállalkozó nem biztosítja az egészséget nem veszélyeztető biztonságos munkavégzéshez szükséges feltétleket, munkaeszközöket, kollektív védőeszközöket (pl. állványok, személyemelés feltételei, stb.)</label>
+                    <input type="number" name="sanction_4_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
+                    <span class="price">100 000 Ft</span>
+                </div>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_3" name="sanction_5" value="50000" onchange="calculateTotal()">
+                    <label for="price_3">5. Állványok, munkaállások nem szabályszerű kivitelezése... személyemelők nem megfelelő használata, illetve dokumentációk hiánya (vázlat, állványterv, átadás-átvétel és felülvizsgálati jegyzőkönyvek, stb.)</label>
+                    <input type="number" name="sanction_5_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
+                    <span class="price">50 000 Ft</span>
+                </div>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_4" name="sanction_6" value="50000" onchange="calculateTotal()">
+                    <label for="price_4">6. Munkabiztonságot jelentősen befolyásoló eszközök, jelzések, biztonsági berendezések mellőzése, kiiktatása, vállalkozónak felróható nem megfelelősége</label>
+                    <input type="number" name="sanction_6_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
+                    <span class="price">50 000 Ft</span>
+                </div>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_5" name="sanction_9" value="50000" onchange="calculateTotal()">
+                    <label for="price_5">9. Veszélyes munkaeszköz üzembehelyezésének és időszakos biztonsági felülvizsgálat elvégzésének, igazolásának hiánya, kezelési utasítás nem elérhető</label>
+                    <input type="number" name="sanction_9_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
+                    <span class="price">50 000 Ft</span>
+                </div>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_6" name="sanction_10" value="30000" onchange="calculateTotal()">
+                    <label for="price_6">10. A munkavégzéshez használt időszakos felülvizsgálatra kötelezett gépek, berendezések, munkaeszközök nem azonosíthatók, felülvizsgálatai a helyszínen nem igazolhatók (matrica és/vagy jegyzőkönyv hiánya)</label>
+                    <input type="number" name="sanction_10_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
+                    <span class="price">30 000 Ft</span>
+                </div>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_7" name="sanction_11" value="30000" onchange="calculateTotal()">
+                    <label for="price_7">11. A munkaeszközök nem rendeltetésszerű használata, nem szabályszerű telepítés, állapot, környezeti hatásoknak nem megfelelő ellenállóság (IP védettség, földelés, mechanikai védelem, védőburkolat hiánya, stb.)</label>
+                    <input type="number" name="sanction_11_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
+                    <span class="price">30 000 Ft</span>
+                </div>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_8" name="sanction_13" value="100000" onchange="calculateTotal()">
+                    <label for="price_8">13. Képzettség nélküli emelőgép, munkagép kezelése</label>
                     <input type="number" name="sanction_13_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
                     <span style="margin-right: 10px; font-weight: 600;">×</span>
-                    <span class="price">100,000 Ft</span>
+                    <span class="price">100 000 Ft</span>
                 </div>
 
                 <div class="price-item">
-                    <input type="checkbox" id="price_3" name="sanction_15" value="50000" onchange="calculateTotal()">
-                    <label for="price_3">15. Egyéb jogosulatlan munkavégzés (pl: gépkezelői jogosultságok, emelőgép kezelői megbízás, teherkötözői vizsga, tűzvédelmi szakvizsga, stb.)</label>
-                    <input type="number" name="sanction_15_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <input type="checkbox" id="price_9" name="sanction_16" value="100000" onchange="calculateTotal()">
+                    <label for="price_9">16. Időszakos biztonsági és egyéb jogszabályban, szabványokban meghatározott felülvizsgálatok hiánya</label>
+                    <input type="number" name="sanction_16_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
                     <span style="margin-right: 10px; font-weight: 600;">×</span>
-                    <span class="price">50,000 Ft</span>
+                    <span class="price">100 000 Ft</span>
                 </div>
 
                 <div class="price-item">
-                    <input type="checkbox" id="price_4" name="sanction_23" value="20000" onchange="calculateTotal()">
-                    <label for="price_4">23. Az alvállalkozó munkavállaló a munkaterületen nem azonosítható (fényképes okmány bemutatása), munkakörre vonatkozó érvényes orvosi alkalmasság, a munkaterületre vonatkozó munkabiztonsági oktatás helyszínen nem igazolható</label>
-                    <input type="number" name="sanction_23_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <input type="checkbox" id="price_10" name="sanction_17" value="10000" onchange="calculateTotal()">
+                    <label for="price_10">17. Veszélyesnek minősülő vegyi anyagok biztonsági adatlapja nem hozzáférhető a helyszínen (anyagonként), nem megfelelő edényzetben való tárolás</label>
+                    <input type="number" name="sanction_17_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
                     <span style="margin-right: 10px; font-weight: 600;">×</span>
-                    <span class="price">20,000 Ft</span>
+                    <span class="price">10 000 Ft</span>
                 </div>
 
                 <div class="price-item">
-                    <input type="checkbox" id="price_5" name="sanction_37" value="100000" onchange="calculateTotal()">
-                    <label for="price_5">37. Alkohol vagy drog befolyása alatti munkavégzés (a "munkára képes állapot" hiánya miatt)</label>
-                    <input type="number" name="sanction_37_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <input type="checkbox" id="price_11" name="sanction_21" value="20000" onchange="calculateTotal()">
+                    <label for="price_11">21. Veszélyes emelési művelet, nem megfelelő technológia, nem megfelelő teherfelvevő illetve emelőeszköz használata munkavégzéshez (földmunkagép használata teheremeléshez, rögzitőfül, kiakadásgátló hiánya, sérült emelőkötél, lánc használata, stb.)</label>
+                    <input type="number" name="sanction_21_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
                     <span style="margin-right: 10px; font-weight: 600;">×</span>
-                    <span class="price">100,000 Ft + aznapi kitiltás</span>
+                    <span class="price">20 000 Ft</span>
                 </div>
 
                 <div class="price-item">
-                    <input type="checkbox" id="price_6" name="sanction_41" value="100000" onchange="calculateTotal()">
-                    <label for="price_6">41. Az alvállalkozó munkairányítója nincs a helyszínen, illetve nincs kijelölve munkairányító</label>
-                    <input type="number" name="sanction_41_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <input type="checkbox" id="price_12" name="sanction_26" value="100000" onchange="calculateTotal()">
+                    <label for="price_12">26. Írásos engedélyhez kötött tevékenység végzése engedély nélkül, illetve az engedélyben szereplő feltételek be nem tartása (tűzveszélyes, beszállásos, stb.)</label>
+                    <input type="number" name="sanction_26_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
                     <span style="margin-right: 10px; font-weight: 600;">×</span>
-                    <span class="price">100,000 Ft</span>
+                    <span class="price">100 000 Ft</span>
+                </div>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_13" name="sanction_27" value="100000" onchange="calculateTotal()">
+                    <label for="price_13">27. Emelési terv köteles tevékenység engedély nélküli végzése</label>
+                    <input type="number" name="sanction_27_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
+                    <span class="price">100 000 Ft</span>
+                </div>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_14" name="sanction_29a" value="25000" onchange="calculateTotal()">
+                    <label for="price_14">29a. Nem veszélyes hulladékok nem megfelelő módon/helyen történő tárolása (hulladékfajta és mennyiség függvényében)</label>
+                    <input type="number" name="sanction_29a_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
+                    <span class="price">25 000 Ft</span>
+                </div>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_15" name="sanction_29b" value="50000" onchange="calculateTotal()">
+                    <label for="price_15">29b. Veszélyes hulladékok nem megfelelő módon/helyen történő tárolása (hulladékfajta és mennyiség függvényében)</label>
+                    <input type="number" name="sanction_29b_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
+                    <span class="price">50 000 Ft</span>
+                </div>
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_16" name="sanction_36" value="20000" onchange="calculateTotal()">
+                    <label for="price_16">36. Veszélyes anyagok, illetve veszélyes hulladékok tárolása esetén a kármentő tálca hiánya</label>
+                    <input type="number" name="sanction_36_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
+                    <span class="price">20 000 Ft</span>
                 </div>
 
                 <div class="total-section">
@@ -683,7 +698,7 @@ const backUrl = isAdmin
 
             // Mentett adatok betöltése szerverről
             try {
-                const response = await fetch('/projects/<%= project.id %>/reports/personal-conditions');
+                const response = await fetch('/projects/<%= project.id %>/reports/hazardous-materials');
                 const result = await response.json();
 
                 if (result.success && result.data) {
@@ -1117,11 +1132,21 @@ const backUrl = isAdmin
         function calculateTotal() {
             const prices = {
                 sanction_1: 100000,
+                sanction_4: 100000,
+                sanction_5: 50000,
+                sanction_6: 50000,
+                sanction_9: 50000,
+                sanction_10: 30000,
+                sanction_11: 30000,
                 sanction_13: 100000,
-                sanction_15: 50000,
-                sanction_23: 20000,
-                sanction_37: 100000,
-                sanction_41: 100000
+                sanction_16: 100000,
+                sanction_17: 10000,
+                sanction_21: 20000,
+                sanction_26: 100000,
+                sanction_27: 100000,
+                sanction_29a: 25000,
+                sanction_29b: 50000,
+                sanction_36: 20000
             };
 
             let total = 0;
@@ -1290,11 +1315,11 @@ const backUrl = isAdmin
         function calculateTotalFine() {
             const prices = {
                 sanction_1: 100000,
-                sanction_13: 100000,
-                sanction_15: 50000,
-                sanction_23: 20000,
-                sanction_37: 100000,
-                sanction_41: 100000
+                sanction_17: 10000,
+                sanction_29b: 50000,
+                sanction_31b: 100000,
+                sanction_33: 50000,
+                sanction_36: 20000
             };
 
             let total = 0;
@@ -1388,7 +1413,7 @@ const backUrl = isAdmin
             }
 
             try {
-                const response = await fetch('/projects/<%= project.id %>/reports/personal-conditions', {
+                const response = await fetch('/projects/<%= project.id %>/reports/hazardous-materials', {
                     method: 'DELETE',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1455,7 +1480,7 @@ const backUrl = isAdmin
                 pageSize: 'A4',
                 pageMargins: [40, 60, 40, 60],
                 content: [
-                    { text: '2. SZEMÉLYI FELTÉTELEK', style: 'header' },
+                    { text: '4. MUNKAGÉPEK, MUNKAESZKÖZÖK', style: 'header' },
                     { text: 'Ellenőrzési jegyzőkönyv', style: 'subheader' },
                     { text: '\n' },
 
@@ -1678,12 +1703,11 @@ const backUrl = isAdmin
             ];
 
             const items = [
-                { id: '2_1', title: '2.1 XPert munkavállalók munkavédelmi oktatása és azok dokumentáltsága' },
-                { id: '2_2', title: '2.2 Alvállalkozók munkavédelmi oktatása és azok dokumentáltsága' },
-                { id: '2_3', title: '2.3 A tevékenység/feladat végzéséhez szükséges oktatás/végzettség/alkalmasság megléte' },
-                { id: '2_4', title: '2.4 Munkáltatói megbízás' },
-                { id: '2_5', title: '2.5 Előzetes és időszakos orvosi alkalmassági vizsgálatok megléte, igazolhatósága' }
-            ];
+                    { id: '8_1', label: 'Veszélyes anyagok tárolása, jelölése, biztonsági adatlapok' },
+                    { id: '8_2', label: 'Vegyszeres munka dokumentáltsága, engedélyei' },
+                    { id: '8_3', label: 'Veszélyes hulladékok kezelése, gyűjtése, dokumentálása' },
+                    { id: '8_4', label: 'Tűzvédelmi előírások betartása veszélyes anyagok esetén' }
+                ];
 
             items.forEach(item => {
                 const status = data[`item_${item.id}`];
@@ -1764,22 +1788,22 @@ const backUrl = isAdmin
         // Szankciók PDF-hez
         function getAppliedSanctionsForPDF(data) {
             const sanctionLabels = {
-                sanction_1: '1. MVM XPert munka-, tűz-, vagy környezetvédelmi szabályainak (szerződésben rögzített, illetve a BET-ben szereplő, és itt nem részletezett) megsértése',
-                sanction_13: '13. Képzettség nélküli emelőgép, munkagép kezelése',
-                sanction_15: '15. Egyéb jogosulatlan munkavégzés (pl: gépkezelői jogosultságok, emelőgép kezelői megbízás, teherkötözői vizsga, tűzvédelmi szakvizsga, stb.)',
-                sanction_23: '23. Az alvállalkozó munkavállaló a munkaterületen nem azonosítható (fényképes okmány bemutatása), munkakörre vonatkozó érvényes orvosi alkalmasság, a munkaterületre vonatkozó munkabiztonsági oktatás helyszínen nem igazolható',
-                sanction_37: '37. Alkohol vagy drog befolyása alatti munkavégzés (a "munkára képes állapot" hiánya miatt)',
-                sanction_41: '41. Az alvállalkozó munkairányítója nincs a helyszínen, illetve nincs kijelölve munkairányító'
-            };
+                    '1': '1. Felelős személy hiánya',
+                    '17': '17. Veszélyes anyagok nem megfelelő tárolása',
+                    '29b': '29b. Hulladékkezelés szabálytalanságai',
+                    '31b': '31b. Biztonsági adatlap hiánya',
+                    '33': '33. Vegyszeres munka engedélyének hiánya',
+                    '36': '36. Tűzvédelmi előírások megsértése'
+                };
 
             const sanctionPricesRaw = {
-                sanction_1: 100000,
-                sanction_13: 100000,
-                sanction_15: 50000,
-                sanction_23: 20000,
-                sanction_37: 100000,
-                sanction_41: 100000
-            };
+                    '1': 100000,
+                    '17': 10000,
+                    '29b': 50000,
+                    '31b': 100000,
+                    '33': 50000,
+                    '36': 20000
+                };
 
             const result = [];
             let hasAny = false;
@@ -1826,7 +1850,7 @@ const backUrl = isAdmin
                     margin: [0, 15, 0, 10]
                 },
                 {
-                    text: 'Személyi feltételek kategória vonatkozó pontjai',
+                    text: 'Veszélyes anyagok kategória vonatkozó pontjai',
                     style: 'sanctionsSubtitle',
                     margin: [0, 0, 0, 10]
                 },
@@ -2032,7 +2056,7 @@ function loadSavedData(data) {
     }
 
     // Ellenőrzési pontok
-    ['item_2_1', 'item_2_2', 'item_2_3', 'item_2_4', 'item_2_5'].forEach(itemName => {
+    ['item_8_1', 'item_8_2', 'item_8_3', 'item_8_4', 'item_8_4', 'item_8_4', 'item_8_4', 'item_8_4'].forEach(itemName => {
         if (data[itemName]) {
             const radio = document.querySelector(`input[name="${itemName}"][value="${data[itemName]}"]`);
             if (radio) {
@@ -2050,7 +2074,7 @@ function loadSavedData(data) {
     });
 
     // Megjegyzések
-    ['notes_2_1', 'notes_2_2', 'notes_2_3', 'notes_2_4', 'notes_2_5'].forEach(noteName => {
+    ['notes_8_1', 'notes_8_2', 'notes_8_3', 'notes_8_4', 'notes_8_4', 'notes_8_4', 'notes_8_4', 'notes_8_4'].forEach(noteName => {
         if (data[noteName]) {
             const textarea = document.querySelector(`textarea[name="${noteName}"]`);
             if (textarea) textarea.value = data[noteName];
@@ -2059,7 +2083,7 @@ function loadSavedData(data) {
 
     // Képek betöltése metaadatokkal
     if (data.images) {
-        ['2_1', '2_2', '2_3', '2_4', '2_5'].forEach(itemId => {
+        ['8_1', '8_2', '8_3', '8_4', '8_4', '8_4', '8_4', '8_4'].forEach(itemId => {
             if (data.images[itemId] && Array.isArray(data.images[itemId])) {
                 uploadedImages[itemId] = data.images[itemId];
 
