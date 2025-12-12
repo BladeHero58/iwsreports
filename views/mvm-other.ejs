@@ -82,7 +82,7 @@ const backUrl = isAdmin
 
         <!-- Header -->
         <div class="header">
-            <h1>4. Munkagépek, munkaeszközök</h1>
+            <h1>10. Egyéb</h1>
             <p>Munkagépek, munkaeszközök állapota, kezelése és biztonsági felülvizsgálatai</p>
         </div>
 
@@ -738,131 +738,119 @@ const backUrl = isAdmin
                 <h3>Szankciós lista - Egyéb kategória vonatkozó pontjai</h3>
 
                 <div class="price-item">
-                    <input type="checkbox" id="price_1" name="sanction_1" value="100000" onchange="calculateTotal()">
-                    <label for="price_1">1. MVM XPert munka-, tűz-, vagy környezetvédelmi szabályainak (szerződésben rögzített, illetve a BET-ben szereplő, és itt nem részletezett) megsértése</label>
-                    <input type="number" name="sanction_1_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
-                    <span style="margin-right: 10px; font-weight: 600;">×</span>
-                    <span class="price">100 000 Ft</span>
-                </div>
-
-                <div class="price-item">
-                    <input type="checkbox" id="price_2" name="sanction_4" value="100000" onchange="calculateTotal()">
-                    <label for="price_2">4. A vállalkozó nem biztosítja az egészséget nem veszélyeztető biztonságos munkavégzéshez szükséges feltétleket, munkaeszközöket, kollektív védőeszközöket (pl. állványok, személyemelés feltételei, stb.)</label>
-                    <input type="number" name="sanction_4_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
-                    <span style="margin-right: 10px; font-weight: 600;">×</span>
-                    <span class="price">100 000 Ft</span>
-                </div>
-
-                <div class="price-item">
-                    <input type="checkbox" id="price_3" name="sanction_5" value="50000" onchange="calculateTotal()">
-                    <label for="price_3">5. Állványok, munkaállások nem szabályszerű kivitelezése... személyemelők nem megfelelő használata, illetve dokumentációk hiánya (vázlat, állványterv, átadás-átvétel és felülvizsgálati jegyzőkönyvek, stb.)</label>
-                    <input type="number" name="sanction_5_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <input type="checkbox" id="price_1" name="sanction_34" value="50000" onchange="calculateTotal()">
+                    <label for="price_1">34. Közlekedési utak lezárása, akadályozása</label>
+                    <input type="number" name="sanction_34_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
                     <span style="margin-right: 10px; font-weight: 600;">×</span>
                     <span class="price">50 000 Ft</span>
                 </div>
 
-                <div class="price-item">
-                    <input type="checkbox" id="price_4" name="sanction_6" value="50000" onchange="calculateTotal()">
-                    <label for="price_4">6. Munkabiztonságot jelentősen befolyásoló eszközök, jelzések, biztonsági berendezések mellőzése, kiiktatása, vállalkozónak felróható nem megfelelősége</label>
-                    <input type="number" name="sanction_6_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
-                    <span style="margin-right: 10px; font-weight: 600;">×</span>
-                    <span class="price">50 000 Ft</span>
-                </div>
 
                 <div class="price-item">
-                    <input type="checkbox" id="price_5" name="sanction_9" value="50000" onchange="calculateTotal()">
-                    <label for="price_5">9. Veszélyes munkaeszköz üzembehelyezésének és időszakos biztonsági felülvizsgálat elvégzésének, igazolásának hiánya, kezelési utasítás nem elérhető</label>
-                    <input type="number" name="sanction_9_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
-                    <span style="margin-right: 10px; font-weight: 600;">×</span>
-                    <span class="price">50 000 Ft</span>
-                </div>
-
-                <div class="price-item">
-                    <input type="checkbox" id="price_6" name="sanction_10" value="30000" onchange="calculateTotal()">
-                    <label for="price_6">10. A munkavégzéshez használt időszakos felülvizsgálatra kötelezett gépek, berendezések, munkaeszközök nem azonosíthatók, felülvizsgálatai a helyszínen nem igazolhatók (matrica és/vagy jegyzőkönyv hiánya)</label>
-                    <input type="number" name="sanction_10_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <input type="checkbox" id="price_2" name="sanction_35" value="30000" onchange="calculateTotal()">
+                    <label for="price_2">35. Anyagok nem megfelelő tárolása</label>
+                    <input type="number" name="sanction_35_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
                     <span style="margin-right: 10px; font-weight: 600;">×</span>
                     <span class="price">30 000 Ft</span>
                 </div>
 
-                <div class="price-item">
-                    <input type="checkbox" id="price_7" name="sanction_11" value="30000" onchange="calculateTotal()">
-                    <label for="price_7">11. A munkaeszközök nem rendeltetésszerű használata, nem szabályszerű telepítés, állapot, környezeti hatásoknak nem megfelelő ellenállóság (IP védettség, földelés, mechanikai védelem, védőburkolat hiánya, stb.)</label>
-                    <input type="number" name="sanction_11_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
-                    <span style="margin-right: 10px; font-weight: 600;">×</span>
-                    <span class="price">30 000 Ft</span>
-                </div>
 
                 <div class="price-item">
-                    <input type="checkbox" id="price_8" name="sanction_13" value="100000" onchange="calculateTotal()">
-                    <label for="price_8">13. Képzettség nélküli emelőgép, munkagép kezelése</label>
-                    <input type="number" name="sanction_13_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <input type="checkbox" id="price_3" name="sanction_37" value="100000" onchange="calculateTotal()">
+                    <label for="price_3">37. Tűzvédelmi eszközök hiánya vagy elérhetetlen volta</label>
+                    <input type="number" name="sanction_37_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
                     <span style="margin-right: 10px; font-weight: 600;">×</span>
                     <span class="price">100 000 Ft</span>
                 </div>
 
+
                 <div class="price-item">
-                    <input type="checkbox" id="price_9" name="sanction_16" value="100000" onchange="calculateTotal()">
-                    <label for="price_9">16. Időszakos biztonsági és egyéb jogszabályban, szabványokban meghatározott felülvizsgálatok hiánya</label>
-                    <input type="number" name="sanction_16_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <input type="checkbox" id="price_4" name="sanction_38" value="0" onchange="calculateTotal()">
+                    <label for="price_4">38. Súlyos szabálytalanság - kitiltás</label>
+                    <input type="number" name="sanction_38_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
+                    <span class="price">Kitiltás</span>
+                </div>
+
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_5" name="sanction_40" value="200000" onchange="calculateTotal()">
+                    <label for="price_5">40. Életvédelmi rendszer kiiktatása</label>
+                    <input type="number" name="sanction_40_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
+                    <span class="price">200 000 Ft</span>
+                </div>
+
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_6" name="sanction_41" value="150000" onchange="calculateTotal()">
+                    <label for="price_6">41. Veszélyhelyzet kezelésének elmulasztása</label>
+                    <input type="number" name="sanction_41_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
+                    <span class="price">150 000 Ft</span>
+                </div>
+
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_7" name="sanction_42" value="100000" onchange="calculateTotal()">
+                    <label for="price_7">42. Engedély nélküli tevékenység végzése</label>
+                    <input type="number" name="sanction_42_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
                     <span style="margin-right: 10px; font-weight: 600;">×</span>
                     <span class="price">100 000 Ft</span>
                 </div>
 
-                <div class="price-item">
-                    <input type="checkbox" id="price_10" name="sanction_17" value="10000" onchange="calculateTotal()">
-                    <label for="price_10">17. Veszélyesnek minősülő vegyi anyagok biztonsági adatlapja nem hozzáférhető a helyszínen (anyagonként), nem megfelelő edényzetben való tárolás</label>
-                    <input type="number" name="sanction_17_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
-                    <span style="margin-right: 10px; font-weight: 600;">×</span>
-                    <span class="price">10 000 Ft</span>
-                </div>
 
                 <div class="price-item">
-                    <input type="checkbox" id="price_11" name="sanction_21" value="20000" onchange="calculateTotal()">
-                    <label for="price_11">21. Veszélyes emelési művelet, nem megfelelő technológia, nem megfelelő teherfelvevő illetve emelőeszköz használata munkavégzéshez (földmunkagép használata teheremeléshez, rögzitőfül, kiakadásgátló hiánya, sérült emelőkötél, lánc használata, stb.)</label>
-                    <input type="number" name="sanction_21_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <input type="checkbox" id="price_8" name="sanction_43" value="75000" onchange="calculateTotal()">
+                    <label for="price_8">43. Dokumentáció súlyos hiányossága</label>
+                    <input type="number" name="sanction_43_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
                     <span style="margin-right: 10px; font-weight: 600;">×</span>
-                    <span class="price">20 000 Ft</span>
+                    <span class="price">75 000 Ft</span>
                 </div>
 
-                <div class="price-item">
-                    <input type="checkbox" id="price_12" name="sanction_26" value="100000" onchange="calculateTotal()">
-                    <label for="price_12">26. Írásos engedélyhez kötött tevékenység végzése engedély nélkül, illetve az engedélyben szereplő feltételek be nem tartása (tűzveszélyes, beszállásos, stb.)</label>
-                    <input type="number" name="sanction_26_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
-                    <span style="margin-right: 10px; font-weight: 600;">×</span>
-                    <span class="price">100 000 Ft</span>
-                </div>
 
                 <div class="price-item">
-                    <input type="checkbox" id="price_13" name="sanction_27" value="100000" onchange="calculateTotal()">
-                    <label for="price_13">27. Emelési terv köteles tevékenység engedély nélküli végzése</label>
-                    <input type="number" name="sanction_27_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
-                    <span style="margin-right: 10px; font-weight: 600;">×</span>
-                    <span class="price">100 000 Ft</span>
-                </div>
-
-                <div class="price-item">
-                    <input type="checkbox" id="price_14" name="sanction_29a" value="25000" onchange="calculateTotal()">
-                    <label for="price_14">29a. Nem veszélyes hulladékok nem megfelelő módon/helyen történő tárolása (hulladékfajta és mennyiség függvényében)</label>
-                    <input type="number" name="sanction_29a_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
-                    <span style="margin-right: 10px; font-weight: 600;">×</span>
-                    <span class="price">25 000 Ft</span>
-                </div>
-
-                <div class="price-item">
-                    <input type="checkbox" id="price_15" name="sanction_29b" value="50000" onchange="calculateTotal()">
-                    <label for="price_15">29b. Veszélyes hulladékok nem megfelelő módon/helyen történő tárolása (hulladékfajta és mennyiség függvényében)</label>
-                    <input type="number" name="sanction_29b_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <input type="checkbox" id="price_9" name="sanction_44" value="50000" onchange="calculateTotal()">
+                    <label for="price_9">44. Munkaterület súlyos rendezetlensége</label>
+                    <input type="number" name="sanction_44_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
                     <span style="margin-right: 10px; font-weight: 600;">×</span>
                     <span class="price">50 000 Ft</span>
                 </div>
 
+
                 <div class="price-item">
-                    <input type="checkbox" id="price_16" name="sanction_36" value="20000" onchange="calculateTotal()">
-                    <label for="price_16">36. Veszélyes anyagok, illetve veszélyes hulladékok tárolása esetén a kármentő tálca hiánya</label>
-                    <input type="number" name="sanction_36_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <input type="checkbox" id="price_10" name="sanction_45" value="30000" onchange="calculateTotal()">
+                    <label for="price_10">45. Kötelező jelölések hiánya</label>
+                    <input type="number" name="sanction_45_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
+                    <span class="price">30 000 Ft</span>
+                </div>
+
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_11" name="sanction_46" value="20000" onchange="calculateTotal()">
+                    <label for="price_11">46. Kommunikációs eszközök hiánya</label>
+                    <input type="number" name="sanction_46_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
                     <span style="margin-right: 10px; font-weight: 600;">×</span>
                     <span class="price">20 000 Ft</span>
+                </div>
+
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_12" name="sanction_47" value="0" onchange="calculateTotal()">
+                    <label for="price_12">47. Ismételt súlyos veszélyeztetés - kitiltás</label>
+                    <input type="number" name="sanction_47_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
+                    <span class="price">Kitiltás</span>
+                </div>
+
+
+                <div class="price-item">
+                    <input type="checkbox" id="price_13" name="sanction_48" value="500000" onchange="calculateTotal()">
+                    <label for="price_13">48. Rendkívül súlyos szabálytalanság</label>
+                    <input type="number" name="sanction_48_count" min="1" value="1" style="width: 60px; margin: 0 10px;" onchange="calculateTotal()" placeholder="db">
+                    <span style="margin-right: 10px; font-weight: 600;">×</span>
+                    <span class="price">500 000 Ft</span>
                 </div>
 
                 <div class="total-section">
@@ -1720,7 +1708,51 @@ const backUrl = isAdmin
         // ========================================
         // PDF GENERÁLÁS
         // ========================================
-        async function exportToPDF() {
+        
+        // PDF fájlnév generálása
+        function generatePdfFileName() {
+            const serialNumber = document.getElementById('serialNumber').value;
+            const projectName = document.getElementById('projectName').value || '<%= project.name %>';
+            const timestamp = new Date().toISOString().split('T')[0];
+
+            if (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A') {
+                return `${serialNumber}_${timestamp}.pdf`;
+            } else {
+                return `${projectName}_${timestamp}.pdf`;
+            }
+        }
+
+async function exportToPDF() {
+            const projectName = document.getElementById('projectName').value || '<%= project.name %>';
+            const serialNumber = document.getElementById('serialNumber').value || 'N/A';
+            const inspectorPerson = document.getElementById('inspectorPerson').value || '<%= user.name %>';
+            const inspectionDateValue = document.getElementById('inspectionDate').value;
+            const formattedDate = inspectionDateValue ? new Date(inspectionDateValue).toLocaleDateString('hu-HU', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            }) : 'N/A';
+
+            // Logók betöltése base64-ként
+            async function imageToBase64(url) {
+                try {
+                    const response = await fetch(url);
+                    const blob = await response.blob();
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                    });
+                } catch (error) {
+                    console.warn(`⚠️ Nem sikerült betölteni a logót: ${url}`, error);
+                    return null;
+                }
+            }
+
+            const mvmLogoBase64 = await imageToBase64('/images/MVM.png');
+            const iwsLogoBase64 = await imageToBase64('/images/IWS-Solutions.jpg');
+
             const formData = new FormData(document.getElementById('documentationForm'));
             const data = {};
 
@@ -1805,9 +1837,191 @@ const backUrl = isAdmin
                     sanctions: { fontSize: 11, margin: [0, 3, 0, 3] },
                     sanctionsSubtitle: { fontSize: 12, italics: true, color: '#666' }
                 }
-            };
+            ,
 
-            pdfMake.createPdf(docDefinition).download(`Szemelyifeltetelek_${data.serialNumber || 'dokumentum'}.pdf`);
+    images: {
+        mvmLogo: mvmLogoBase64,
+        iwsLogo: iwsLogoBase64
+    }
+};
+
+            
+            // ⭐ PDF generálás és Google Drive feltöltés
+            pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
+                console.log('📤 PDF base64 generálva, méret:', pdfBase64.length, 'karakter');
+                const imageCount = Object.keys(uploadedImages).reduce((sum, key) => sum + (uploadedImages[key]?.length || 0), 0);
+                console.log('📤 Képek száma feltöltésre:', imageCount);
+
+                // ⭐ Progress bar megjelenítése
+                showUploadProgress();
+                updateUploadProgress(10, 'PDF előkészítése...');
+
+                try {
+                    // Küldés a backend-nek
+                    updateUploadProgress(20, `PDF és ${imageCount} kép feltöltése a szerverre...`);
+                    console.log('🌐 Fetch kezdés - PDF és képek feltöltése...');
+
+                    const pdfFileName = generatePdfFileName();
+
+                    const response = await fetch('/projects/<%= project.id %>/reports/other/export-pdf', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            pdfData: `data:application/pdf;base64,${pdfBase64}`,
+                            serialNumber: data.serialNumber || 'N/A',
+                            projectName: data.projectName || '<%= project.name %>',
+                            fileName: pdfFileName,
+                            images: uploadedImages
+                        })
+                    });
+
+                    updateUploadProgress(40, 'Válasz fogadása...');
+                    console.log('📡 Válasz érkezett:', response.status, response.statusText);
+
+                    if (!response.ok) {
+                        hideUploadProgress();
+                        throw new Error(`HTTP hiba! Státusz: ${response.status}`);
+                    }
+
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        hideUploadProgress();
+                        const responseText = await response.text();
+                        console.error('❌ Nem JSON válasz érkezett:', responseText.substring(0, 500));
+                        throw new Error('A szerver nem JSON választ küldött. Lehet, hogy ki vagy jelentkezve vagy szerver hiba történt.');
+                    }
+
+                    updateUploadProgress(60, 'Adatok feldolgozása...');
+                    const result = await response.json();
+                    console.log('✅ Backend válasz:', result);
+
+                    if (result.success) {
+                        updateUploadProgress(80, 'Drive feltöltés...');
+
+                        if (result.driveUrl) {
+                            updateUploadProgress(100, `✅ ${imageCount} kép sikeresen feltöltve!`);
+
+                            setTimeout(() => {
+                                hideUploadProgress();
+                                alert('✅ PDF sikeresen exportálva és feltöltve a Google Drive-ra!');
+                                console.log('📂 Drive URL:', result.driveUrl);
+                                if (result.images && result.images.length > 0) {
+                                    console.log(`📸 ${result.images.length} kép sikeresen feltöltve metaadatokkal`);
+                                }
+                            }, 500);
+                        } else {
+                            hideUploadProgress();
+                            alert('✅ PDF letöltésre kész!');
+                        }
+                    } else {
+                        hideUploadProgress();
+                        console.warn('⚠️ Backend hiba:', result.message);
+                        alert('⚠️ Hiba: ' + (result.message || 'Ismeretlen hiba'));
+                    }
+
+                    // ⭐ PDF letöltés (minden eszközön)
+                    const fileName = pdfFileName;
+                    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+                    console.log(`📱 Eszköz típus: ${isMobile ? 'Mobil' : 'Asztal'}, iOS: ${isIOS}`);
+
+                    pdfMake.createPdf(docDefinition).getBlob(function(blob) {
+                        try {
+                            const blobUrl = URL.createObjectURL(blob);
+
+                            if (isIOS) {
+                                console.log('🍎 iOS eszköz - Új ablak megnyitása');
+                                const reader = new FileReader();
+                                reader.onloadend = function() {
+                                    const newWindow = window.open('', '_blank');
+                                    if (newWindow) {
+                                        newWindow.document.write(`
+                                            <html>
+                                            <head><title>${fileName}</title></head>
+                                            <body style="margin:0;">
+                                                <embed src="${reader.result}" type="application/pdf" width="100%" height="100%" />
+                                            </body>
+                                            </html>
+                                        `);
+                                    } else {
+                                        alert('⚠️ Kérlek engedélyezd az új ablak megnyitását a böngészőben!');
+                                    }
+                                };
+                                reader.readAsDataURL(blob);
+                            } else if (isMobile) {
+                                console.log('📱 Mobil böngésző - Letöltés indítása');
+                                const link = document.createElement('a');
+                                link.href = blobUrl;
+                                link.download = fileName;
+                                link.style.display = 'none';
+                                document.body.appendChild(link);
+                                if (link.click) {
+                                    link.click();
+                                } else {
+                                    const clickEvent = new MouseEvent('click', {
+                                        view: window,
+                                        bubbles: true,
+                                        cancelable: true
+                                    });
+                                    link.dispatchEvent(clickEvent);
+                                }
+                                setTimeout(() => {
+                                    document.body.removeChild(link);
+                                    URL.revokeObjectURL(blobUrl);
+                                }, 100);
+                                console.log('✅ PDF letöltés elindítva (mobil)');
+                            } else {
+                                console.log('💻 Asztali böngésző - Standard letöltés');
+                                const link = document.createElement('a');
+                                link.href = blobUrl;
+                                link.download = fileName;
+                                link.style.display = 'none';
+                                document.body.appendChild(link);
+                                link.click();
+                                setTimeout(() => {
+                                    document.body.removeChild(link);
+                                    URL.revokeObjectURL(blobUrl);
+                                }, 100);
+                            }
+                        } catch (error) {
+                            console.error('❌ PDF letöltési hiba:', error);
+                            alert('⚠️ Hiba történt a PDF letöltésekor. Próbáld újra!');
+                        }
+                    });
+
+                } catch (error) {
+                    hideUploadProgress();
+                    console.error('❌ Kritikus hiba a PDF exportálás során:', error);
+
+                    let errorMessage = '⚠️ Hiba történt a PDF exportálása közben.\n\n';
+
+                    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                        errorMessage += 'Hálózati kapcsolat hiba. Ellenőrizd az internet kapcsolatot és próbáld újra!';
+                    } else if (error.message.includes('HTTP hiba')) {
+                        errorMessage += 'Szerver hiba: ' + error.message;
+                    } else {
+                        errorMessage += error.message || 'Ismeretlen hiba történt.';
+                    }
+
+                    alert(errorMessage);
+
+                    // Próbáljunk helyi letöltést biztonsági mentésként
+                    console.log('🔄 Próbálkozás helyi PDF letöltéssel...');
+                    try {
+                        const fileName = generatePdfFileName();
+                        pdfMake.createPdf(docDefinition).download(fileName);
+                        console.log('✅ Helyi letöltés sikerült');
+                    } catch (downloadError) {
+                        console.error('❌ Helyi letöltés is sikertelen:', downloadError);
+                    }
+                }
+            });
+
+            console.log('✓ PDF export folyamat elindítva');
+
 
             console.log('✓ PDF generálva');
         }
@@ -2500,6 +2714,19 @@ function loadSavedData(data) {
     console.log('✓ Mentett adatok sikeresen betöltve a form-ba');
 }
     </script>
+
+
+    <!-- ⭐ Progress bar overlay -->
+    <div id="uploadProgressOverlay" class="upload-progress-overlay">
+        <div class="upload-progress-container">
+            <div class="upload-progress-title">📤 Feltöltés folyamatban...</div>
+            <div class="upload-progress-bar-container">
+                <div id="uploadProgressBar" class="upload-progress-bar"></div>
+                <div id="uploadProgressText" class="upload-progress-text">0%</div>
+            </div>
+            <div id="uploadProgressStatus" class="upload-progress-status">Inicializálás...</div>
+        </div>
+    </div>
 
 </body>
 </html>

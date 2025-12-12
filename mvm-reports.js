@@ -829,6 +829,2697 @@ router.post('/projects/:projectId/reports/documentation/export-pdf', isAuthentic
         });
     }
 });
+router.post('/projects/:projectId/reports/work-environment/export-pdf', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+    const { pdfData, serialNumber, projectName, fileName, images } = req.body;
+
+    console.log('📥 PDF export request érkezett:', {
+        projectId,
+        userId,
+        serialNumber,
+        projectName,
+        fileName,
+        hasImages: !!images,
+        imageCount: images ? Object.keys(images).reduce((sum, key) => sum + (images[key]?.length || 0), 0) : 0
+    });
+
+    try {
+        // Jogosultság ellenőrzése
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({ 
+                    success: false, 
+                    message: 'Nincs jogosultsága ehhez a projekthez.' 
+                });
+            }
+        }
+
+        const safeProjectName = sanitizeFolderName(projectName);
+        const safeFolderName = (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A')
+            ? sanitizeFolderName(serialNumber)
+            : safeProjectName;
+
+        // Használjuk a kliens által generált fájlnevet, ha van
+        const pdfFileName = fileName || (
+            (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A')
+                ? `${sanitizeFolderName(serialNumber)}.pdf`
+                : `${safeProjectName}.pdf`
+        );
+
+        console.log(`📄 PDF export kezdés: ${pdfFileName}`);
+
+        // PDF buffer konvertálása
+        let pdfBuffer;
+        if (pdfData.startsWith('data:application/pdf;base64,')) {
+            const base64Data = pdfData.replace('data:application/pdf;base64,', '');
+            pdfBuffer = Buffer.from(base64Data, 'base64');
+        } else if (Buffer.isBuffer(pdfData)) {
+            pdfBuffer = pdfData;
+        } else {
+            pdfBuffer = Buffer.from(pdfData, 'base64');
+        }
+
+        console.log(`📊 PDF mérete: ${(pdfBuffer.length / 1024).toFixed(2)} KB`);
+
+        const isProduction = !!process.env.DATABASE_URL;
+
+        if (isProduction) {
+            console.log('🏭 Éles környezet - Google Drive feltöltés');
+
+            try {
+                if (!driveService) {
+                    console.log('⚠️ Drive service inicializálása...');
+                    await initializeGoogleDrive();
+                }
+
+                const projectFolderId = await getOrCreateFolder(safeProjectName, MAIN_DRIVE_FOLDER_ID);
+                const pdfFolderId = await getOrCreateDailyPdfFolder(safeFolderName, projectFolderId);
+
+                // PDF feltöltése
+                const uploadResult = await uploadPdfWithVersionControl(pdfBuffer, pdfFileName, pdfFolderId);
+                console.log(`✅ PDF feltöltve: ${uploadResult.webViewLink}`);
+
+                // ⭐ MÓDOSÍTOTT - Képek feltöltése EXIF metaadatokkal
+                if (images && Object.keys(images).length > 0) {
+                    const allImages = [];
+                    
+                    // Képek összegyűjtése az összes kategóriából
+                    Object.keys(images).forEach(itemId => {
+                        if (Array.isArray(images[itemId])) {
+                            images[itemId].forEach(imgObj => {
+                                // ⭐ FONTOS - A frontend objektumot küld: { data, originalData, metadata }
+                                if (imgObj && imgObj.originalData) {
+                                    // ⭐ ÚJ: originalData = tömörítetlen verzió Google Drive-hoz!
+                                    allImages.push({
+                                        data: imgObj.originalData,  // ⭐ TÖMÖRÍTETLEN!
+                                        compressedData: imgObj.data,  // Tömörített (backup)
+                                        metadata: imgObj.metadata || {},
+                                        itemId: itemId
+                                    });
+                                } else if (imgObj && imgObj.data) {
+                                    // Fallback: ha nincs originalData, használjuk a data-t
+                                    allImages.push({
+                                        data: imgObj.data,
+                                        metadata: imgObj.metadata || {},
+                                        itemId: itemId
+                                    });
+                                } else if (typeof imgObj === 'string') {
+                                    // Régi formátum támogatása (csak base64 string)
+                                    allImages.push({
+                                        data: imgObj,
+                                        metadata: {},
+                                        itemId: itemId
+                                    });
+                                }
+                            });
+                        }
+                    });
+
+                    console.log(`📸 ${allImages.length} kép feltöltése metaadatokkal...`);
+                    const startTime = Date.now();
+
+                    const uploadImagePromises = allImages.map(async (imgObj, index) => {
+                        const imgStartTime = Date.now();
+                        try {
+                            console.log(`📤 [${index + 1}/${allImages.length}] Kép feltöltés kezdés (EXIF metaadatokkal)...`);
+
+                            // ⭐ base64 → buffer
+                            const base64Data = imgObj.data.replace(/^data:image\/\w+;base64,/, '');
+                            const imageBuffer = Buffer.from(base64Data, 'base64');
+
+                            console.log(`📦 Eredeti képméret: ${(imageBuffer.length / 1024).toFixed(2)} KB`);
+
+                            // ⭐ KRITIKUS FIX: SZERVEROLDALI EXIF BEOLVASÁS!
+                            console.log(`🔍 Szerveroldali EXIF beolvasás (base64 képből)...`);
+                            const serverExifMetadata = await extractExifMetadata(imgObj.data);
+
+                            console.log(`📋 Szerver által kinyert EXIF:`, {
+                                hasDate: serverExifMetadata.hasDate,
+                                hasGPS: serverExifMetadata.hasGPS,
+                                location: serverExifMetadata.location,
+                                latitude: serverExifMetadata.latitude,
+                                longitude: serverExifMetadata.longitude,
+                                takenDate: serverExifMetadata.takenDate
+                            });
+
+                            // ⭐ SZERVER EXIF elsőbbsége, frontend metadata fallback
+                            const finalMetadata = {
+                                // Ha a szerver talált GPS-t, használjuk azt
+                                takenDate: serverExifMetadata.hasDate ? serverExifMetadata.takenDate : (imgObj.metadata?.takenDate || new Date().toISOString()),
+                                location: serverExifMetadata.hasGPS ? serverExifMetadata.location : (imgObj.metadata?.location || 'Nincs GPS adat'),
+                                latitude: serverExifMetadata.hasGPS ? serverExifMetadata.latitude : (imgObj.metadata?.latitude || null),
+                                longitude: serverExifMetadata.hasGPS ? serverExifMetadata.longitude : (imgObj.metadata?.longitude || null),
+                                camera: serverExifMetadata.camera || imgObj.metadata?.camera || null,
+                                hasGPS: serverExifMetadata.hasGPS || (imgObj.metadata?.hasGPS || false),
+                                hasDate: serverExifMetadata.hasDate || (imgObj.metadata?.hasDate || false),
+                                // Kiegészítő metaadatok
+                                itemId: imgObj.itemId,
+                                serialNumber: serialNumber || 'N/A',
+                                projectName: projectName,
+                                uploadDate: new Date().toISOString()
+                            };
+
+                            console.log(`✅ Végső metaadatok (szerver prioritással):`, {
+                                hasDate: finalMetadata.hasDate,
+                                hasGPS: finalMetadata.hasGPS,
+                                location: finalMetadata.location,
+                                latitude: finalMetadata.latitude,
+                                longitude: finalMetadata.longitude
+                            });
+
+                            // ⭐ KRITIKUS: EXIF GPS metaadatok visszarakása Sharp-pal
+                            let finalImageBuffer = imageBuffer;
+
+                            if (finalMetadata.latitude && finalMetadata.longitude &&
+                                !isNaN(finalMetadata.latitude) && !isNaN(finalMetadata.longitude)) {
+
+                                console.log(`🌍 GPS koordináták hozzáadása EXIF-hez: ${finalMetadata.latitude}, ${finalMetadata.longitude}`);
+
+                                try {
+                                    // ⭐ GPS koordináták decimális → DMS konverzió
+                                    function toDegreesMinutesSeconds(decimal) {
+                                        const absolute = Math.abs(decimal);
+                                        const degrees = Math.floor(absolute);
+                                        const minutesNotTruncated = (absolute - degrees) * 60;
+                                        const minutes = Math.floor(minutesNotTruncated);
+                                        const seconds = (minutesNotTruncated - minutes) * 60;
+                                        return [degrees, minutes, seconds];
+                                    }
+
+                                    const latDMS = toDegreesMinutesSeconds(finalMetadata.latitude);
+                                    const lonDMS = toDegreesMinutesSeconds(finalMetadata.longitude);
+
+                                    // ⭐ Sharp EXIF GPS formátum
+                                    const exifData = {
+                                        IFD0: {
+                                            Make: finalMetadata.camera || 'Unknown',
+                                            Model: finalMetadata.camera || 'Unknown'
+                                        },
+                                        GPSInfo: {
+                                            GPSLatitudeRef: finalMetadata.latitude >= 0 ? 'N' : 'S',
+                                            GPSLatitude: latDMS,
+                                            GPSLongitudeRef: finalMetadata.longitude >= 0 ? 'E' : 'W',
+                                            GPSLongitude: lonDMS,
+                                            GPSVersionID: [2, 3, 0, 0]
+                                        }
+                                    };
+
+                                    console.log(`📍 GPS EXIF DMS:`, {
+                                        lat: latDMS,
+                                        latRef: exifData.GPSInfo.GPSLatitudeRef,
+                                        lon: lonDMS,
+                                        lonRef: exifData.GPSInfo.GPSLongitudeRef
+                                    });
+
+                                    // ⭐ Kép újraírása EXIF GPS metaadatokkal tömörítéssel
+                                    finalImageBuffer = await sharp(imageBuffer)
+                                        .withExif(exifData)
+                                        .jpeg({ quality: 85 }) // 85% minőség - optimális tömörítés metaadatok megőrzésével
+                                        .toBuffer();
+
+                                    console.log(`✅ EXIF GPS metaadatok beágyazva képbe`);
+                                } catch (exifError) {
+                                    console.warn(`⚠️ EXIF GPS hozzáadása sikertelen:`, exifError.message);
+                                    finalImageBuffer = imageBuffer;
+                                }
+                            } else {
+                                console.log(`ℹ️ Nincs GPS adat - kép feltöltése GPS nélkül`);
+                            }
+
+                            // Fájlnév generálása a PDF neve alapján
+                            const pdfBaseName = pdfFileName.replace(/\.pdf$/i, ''); // PDF név .pdf kiterjesztés nélkül
+                            const imageFileName = allImages.length > 1
+                                ? `${pdfBaseName} (${index + 1}).jpg`
+                                : `${pdfBaseName}.jpg`;
+
+                            // ⭐ Feltöltés GPS EXIF metaadatokkal
+                            const imageUploadResult = await uploadBufferToDrive(
+                                finalImageBuffer,  // ⭐ GPS EXIF-el ellátott kép
+                                imageFileName,
+                                pdfFolderId,
+                                'image/jpeg',
+                                finalMetadata
+                            );
+
+                            const imgElapsed = ((Date.now() - imgStartTime) / 1000).toFixed(2);
+                            console.log(`✅ Eredeti kép feltöltve metaadatokkal: ${imageFileName} (${(imageBuffer.length / 1024).toFixed(2)} KB, ${imgElapsed}s)`);
+
+                            return {
+                                url: imageUploadResult.webViewLink,
+                                id: imageUploadResult.id,
+                                metadata: finalMetadata
+                            };
+
+                        } catch (imgErr) {
+                            console.error(`❌ Hiba a kép feltöltésekor (${index + 1}):`, imgErr.message);
+                            return null;
+                        }
+                    });
+
+                    const uploadedImages = await Promise.all(uploadImagePromises);
+                    const successfulUploads = uploadedImages.filter(img => img !== null);
+
+                    const totalElapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+                    console.log(`🎉 ${successfulUploads.length}/${allImages.length} kép sikeresen feltöltve metaadatokkal (${totalElapsed}s összesen)`);
+
+                    res.json({
+                        success: true,
+                        message: 'PDF és képek sikeresen feltöltve a Google Drive-ra',
+                        driveUrl: uploadResult.webViewLink,
+                        images: successfulUploads
+                    });
+                } else {
+                    res.json({
+                        success: true,
+                        message: 'PDF sikeresen feltöltve',
+                        driveUrl: uploadResult.webViewLink
+                    });
+                }
+
+            } catch (driveErr) {
+                console.error('❌ Hiba a Google Drive feltöltésnél:', driveErr.message);
+                res.json({
+                    success: true,
+                    message: 'PDF letöltésre kész (Drive feltöltés sikertelen)',
+                    pdfData: pdfBuffer.toString('base64')
+                });
+            }
+        } else {
+            console.log('🏠 Fejlesztői környezet - PDF csak letöltésre');
+            res.json({
+                success: true,
+                message: 'PDF letöltésre kész (fejlesztői környezet)',
+                pdfData: pdfBuffer.toString('base64')
+            });
+        }
+
+    } catch (error) {
+        console.error('❌ Hiba a PDF exportálás során:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a PDF exportálása során.',
+            error: error.message
+        });
+    }
+});
+
+router.post('/projects/:projectId/reports/personal-conditions/export-pdf', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+    const { pdfData, serialNumber, projectName, fileName, images } = req.body;
+
+    console.log('📥 PDF export request érkezett:', {
+        projectId,
+        userId,
+        serialNumber,
+        projectName,
+        fileName,
+        hasImages: !!images,
+        imageCount: images ? Object.keys(images).reduce((sum, key) => sum + (images[key]?.length || 0), 0) : 0
+    });
+
+    try {
+        // Jogosultság ellenőrzése
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({ 
+                    success: false, 
+                    message: 'Nincs jogosultsága ehhez a projekthez.' 
+                });
+            }
+        }
+
+        const safeProjectName = sanitizeFolderName(projectName);
+        const safeFolderName = (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A')
+            ? sanitizeFolderName(serialNumber)
+            : safeProjectName;
+
+        // Használjuk a kliens által generált fájlnevet, ha van
+        const pdfFileName = fileName || (
+            (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A')
+                ? `${sanitizeFolderName(serialNumber)}.pdf`
+                : `${safeProjectName}.pdf`
+        );
+
+        console.log(`📄 PDF export kezdés: ${pdfFileName}`);
+
+        // PDF buffer konvertálása
+        let pdfBuffer;
+        if (pdfData.startsWith('data:application/pdf;base64,')) {
+            const base64Data = pdfData.replace('data:application/pdf;base64,', '');
+            pdfBuffer = Buffer.from(base64Data, 'base64');
+        } else if (Buffer.isBuffer(pdfData)) {
+            pdfBuffer = pdfData;
+        } else {
+            pdfBuffer = Buffer.from(pdfData, 'base64');
+        }
+
+        console.log(`📊 PDF mérete: ${(pdfBuffer.length / 1024).toFixed(2)} KB`);
+
+        const isProduction = !!process.env.DATABASE_URL;
+
+        if (isProduction) {
+            console.log('🏭 Éles környezet - Google Drive feltöltés');
+
+            try {
+                if (!driveService) {
+                    console.log('⚠️ Drive service inicializálása...');
+                    await initializeGoogleDrive();
+                }
+
+                const projectFolderId = await getOrCreateFolder(safeProjectName, MAIN_DRIVE_FOLDER_ID);
+                const pdfFolderId = await getOrCreateDailyPdfFolder(safeFolderName, projectFolderId);
+
+                // PDF feltöltése
+                const uploadResult = await uploadPdfWithVersionControl(pdfBuffer, pdfFileName, pdfFolderId);
+                console.log(`✅ PDF feltöltve: ${uploadResult.webViewLink}`);
+
+                // ⭐ MÓDOSÍTOTT - Képek feltöltése EXIF metaadatokkal
+                if (images && Object.keys(images).length > 0) {
+                    const allImages = [];
+                    
+                    // Képek összegyűjtése az összes kategóriából
+                    Object.keys(images).forEach(itemId => {
+                        if (Array.isArray(images[itemId])) {
+                            images[itemId].forEach(imgObj => {
+                                // ⭐ FONTOS - A frontend objektumot küld: { data, originalData, metadata }
+                                if (imgObj && imgObj.originalData) {
+                                    // ⭐ ÚJ: originalData = tömörítetlen verzió Google Drive-hoz!
+                                    allImages.push({
+                                        data: imgObj.originalData,  // ⭐ TÖMÖRÍTETLEN!
+                                        compressedData: imgObj.data,  // Tömörített (backup)
+                                        metadata: imgObj.metadata || {},
+                                        itemId: itemId
+                                    });
+                                } else if (imgObj && imgObj.data) {
+                                    // Fallback: ha nincs originalData, használjuk a data-t
+                                    allImages.push({
+                                        data: imgObj.data,
+                                        metadata: imgObj.metadata || {},
+                                        itemId: itemId
+                                    });
+                                } else if (typeof imgObj === 'string') {
+                                    // Régi formátum támogatása (csak base64 string)
+                                    allImages.push({
+                                        data: imgObj,
+                                        metadata: {},
+                                        itemId: itemId
+                                    });
+                                }
+                            });
+                        }
+                    });
+
+                    console.log(`📸 ${allImages.length} kép feltöltése metaadatokkal...`);
+                    const startTime = Date.now();
+
+                    const uploadImagePromises = allImages.map(async (imgObj, index) => {
+                        const imgStartTime = Date.now();
+                        try {
+                            console.log(`📤 [${index + 1}/${allImages.length}] Kép feltöltés kezdés (EXIF metaadatokkal)...`);
+
+                            // ⭐ base64 → buffer
+                            const base64Data = imgObj.data.replace(/^data:image\/\w+;base64,/, '');
+                            const imageBuffer = Buffer.from(base64Data, 'base64');
+
+                            console.log(`📦 Eredeti képméret: ${(imageBuffer.length / 1024).toFixed(2)} KB`);
+
+                            // ⭐ KRITIKUS FIX: SZERVEROLDALI EXIF BEOLVASÁS!
+                            console.log(`🔍 Szerveroldali EXIF beolvasás (base64 képből)...`);
+                            const serverExifMetadata = await extractExifMetadata(imgObj.data);
+
+                            console.log(`📋 Szerver által kinyert EXIF:`, {
+                                hasDate: serverExifMetadata.hasDate,
+                                hasGPS: serverExifMetadata.hasGPS,
+                                location: serverExifMetadata.location,
+                                latitude: serverExifMetadata.latitude,
+                                longitude: serverExifMetadata.longitude,
+                                takenDate: serverExifMetadata.takenDate
+                            });
+
+                            // ⭐ SZERVER EXIF elsőbbsége, frontend metadata fallback
+                            const finalMetadata = {
+                                // Ha a szerver talált GPS-t, használjuk azt
+                                takenDate: serverExifMetadata.hasDate ? serverExifMetadata.takenDate : (imgObj.metadata?.takenDate || new Date().toISOString()),
+                                location: serverExifMetadata.hasGPS ? serverExifMetadata.location : (imgObj.metadata?.location || 'Nincs GPS adat'),
+                                latitude: serverExifMetadata.hasGPS ? serverExifMetadata.latitude : (imgObj.metadata?.latitude || null),
+                                longitude: serverExifMetadata.hasGPS ? serverExifMetadata.longitude : (imgObj.metadata?.longitude || null),
+                                camera: serverExifMetadata.camera || imgObj.metadata?.camera || null,
+                                hasGPS: serverExifMetadata.hasGPS || (imgObj.metadata?.hasGPS || false),
+                                hasDate: serverExifMetadata.hasDate || (imgObj.metadata?.hasDate || false),
+                                // Kiegészítő metaadatok
+                                itemId: imgObj.itemId,
+                                serialNumber: serialNumber || 'N/A',
+                                projectName: projectName,
+                                uploadDate: new Date().toISOString()
+                            };
+
+                            console.log(`✅ Végső metaadatok (szerver prioritással):`, {
+                                hasDate: finalMetadata.hasDate,
+                                hasGPS: finalMetadata.hasGPS,
+                                location: finalMetadata.location,
+                                latitude: finalMetadata.latitude,
+                                longitude: finalMetadata.longitude
+                            });
+
+                            // ⭐ KRITIKUS: EXIF GPS metaadatok visszarakása Sharp-pal
+                            let finalImageBuffer = imageBuffer;
+
+                            if (finalMetadata.latitude && finalMetadata.longitude &&
+                                !isNaN(finalMetadata.latitude) && !isNaN(finalMetadata.longitude)) {
+
+                                console.log(`🌍 GPS koordináták hozzáadása EXIF-hez: ${finalMetadata.latitude}, ${finalMetadata.longitude}`);
+
+                                try {
+                                    // ⭐ GPS koordináták decimális → DMS konverzió
+                                    function toDegreesMinutesSeconds(decimal) {
+                                        const absolute = Math.abs(decimal);
+                                        const degrees = Math.floor(absolute);
+                                        const minutesNotTruncated = (absolute - degrees) * 60;
+                                        const minutes = Math.floor(minutesNotTruncated);
+                                        const seconds = (minutesNotTruncated - minutes) * 60;
+                                        return [degrees, minutes, seconds];
+                                    }
+
+                                    const latDMS = toDegreesMinutesSeconds(finalMetadata.latitude);
+                                    const lonDMS = toDegreesMinutesSeconds(finalMetadata.longitude);
+
+                                    // ⭐ Sharp EXIF GPS formátum
+                                    const exifData = {
+                                        IFD0: {
+                                            Make: finalMetadata.camera || 'Unknown',
+                                            Model: finalMetadata.camera || 'Unknown'
+                                        },
+                                        GPSInfo: {
+                                            GPSLatitudeRef: finalMetadata.latitude >= 0 ? 'N' : 'S',
+                                            GPSLatitude: latDMS,
+                                            GPSLongitudeRef: finalMetadata.longitude >= 0 ? 'E' : 'W',
+                                            GPSLongitude: lonDMS,
+                                            GPSVersionID: [2, 3, 0, 0]
+                                        }
+                                    };
+
+                                    console.log(`📍 GPS EXIF DMS:`, {
+                                        lat: latDMS,
+                                        latRef: exifData.GPSInfo.GPSLatitudeRef,
+                                        lon: lonDMS,
+                                        lonRef: exifData.GPSInfo.GPSLongitudeRef
+                                    });
+
+                                    // ⭐ Kép újraírása EXIF GPS metaadatokkal tömörítéssel
+                                    finalImageBuffer = await sharp(imageBuffer)
+                                        .withExif(exifData)
+                                        .jpeg({ quality: 85 }) // 85% minőség - optimális tömörítés metaadatok megőrzésével
+                                        .toBuffer();
+
+                                    console.log(`✅ EXIF GPS metaadatok beágyazva képbe`);
+                                } catch (exifError) {
+                                    console.warn(`⚠️ EXIF GPS hozzáadása sikertelen:`, exifError.message);
+                                    finalImageBuffer = imageBuffer;
+                                }
+                            } else {
+                                console.log(`ℹ️ Nincs GPS adat - kép feltöltése GPS nélkül`);
+                            }
+
+                            // Fájlnév generálása a PDF neve alapján
+                            const pdfBaseName = pdfFileName.replace(/\.pdf$/i, ''); // PDF név .pdf kiterjesztés nélkül
+                            const imageFileName = allImages.length > 1
+                                ? `${pdfBaseName} (${index + 1}).jpg`
+                                : `${pdfBaseName}.jpg`;
+
+                            // ⭐ Feltöltés GPS EXIF metaadatokkal
+                            const imageUploadResult = await uploadBufferToDrive(
+                                finalImageBuffer,  // ⭐ GPS EXIF-el ellátott kép
+                                imageFileName,
+                                pdfFolderId,
+                                'image/jpeg',
+                                finalMetadata
+                            );
+
+                            const imgElapsed = ((Date.now() - imgStartTime) / 1000).toFixed(2);
+                            console.log(`✅ Eredeti kép feltöltve metaadatokkal: ${imageFileName} (${(imageBuffer.length / 1024).toFixed(2)} KB, ${imgElapsed}s)`);
+
+                            return {
+                                url: imageUploadResult.webViewLink,
+                                id: imageUploadResult.id,
+                                metadata: finalMetadata
+                            };
+
+                        } catch (imgErr) {
+                            console.error(`❌ Hiba a kép feltöltésekor (${index + 1}):`, imgErr.message);
+                            return null;
+                        }
+                    });
+
+                    const uploadedImages = await Promise.all(uploadImagePromises);
+                    const successfulUploads = uploadedImages.filter(img => img !== null);
+
+                    const totalElapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+                    console.log(`🎉 ${successfulUploads.length}/${allImages.length} kép sikeresen feltöltve metaadatokkal (${totalElapsed}s összesen)`);
+
+                    res.json({
+                        success: true,
+                        message: 'PDF és képek sikeresen feltöltve a Google Drive-ra',
+                        driveUrl: uploadResult.webViewLink,
+                        images: successfulUploads
+                    });
+                } else {
+                    res.json({
+                        success: true,
+                        message: 'PDF sikeresen feltöltve',
+                        driveUrl: uploadResult.webViewLink
+                    });
+                }
+
+            } catch (driveErr) {
+                console.error('❌ Hiba a Google Drive feltöltésnél:', driveErr.message);
+                res.json({
+                    success: true,
+                    message: 'PDF letöltésre kész (Drive feltöltés sikertelen)',
+                    pdfData: pdfBuffer.toString('base64')
+                });
+            }
+        } else {
+            console.log('🏠 Fejlesztői környezet - PDF csak letöltésre');
+            res.json({
+                success: true,
+                message: 'PDF letöltésre kész (fejlesztői környezet)',
+                pdfData: pdfBuffer.toString('base64')
+            });
+        }
+
+    } catch (error) {
+        console.error('❌ Hiba a PDF exportálás során:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a PDF exportálása során.',
+            error: error.message
+        });
+    }
+});
+
+router.post('/projects/:projectId/reports/machinery/export-pdf', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+    const { pdfData, serialNumber, projectName, fileName, images } = req.body;
+
+    console.log('📥 PDF export request érkezett:', {
+        projectId,
+        userId,
+        serialNumber,
+        projectName,
+        fileName,
+        hasImages: !!images,
+        imageCount: images ? Object.keys(images).reduce((sum, key) => sum + (images[key]?.length || 0), 0) : 0
+    });
+
+    try {
+        // Jogosultság ellenőrzése
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({ 
+                    success: false, 
+                    message: 'Nincs jogosultsága ehhez a projekthez.' 
+                });
+            }
+        }
+
+        const safeProjectName = sanitizeFolderName(projectName);
+        const safeFolderName = (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A')
+            ? sanitizeFolderName(serialNumber)
+            : safeProjectName;
+
+        // Használjuk a kliens által generált fájlnevet, ha van
+        const pdfFileName = fileName || (
+            (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A')
+                ? `${sanitizeFolderName(serialNumber)}.pdf`
+                : `${safeProjectName}.pdf`
+        );
+
+        console.log(`📄 PDF export kezdés: ${pdfFileName}`);
+
+        // PDF buffer konvertálása
+        let pdfBuffer;
+        if (pdfData.startsWith('data:application/pdf;base64,')) {
+            const base64Data = pdfData.replace('data:application/pdf;base64,', '');
+            pdfBuffer = Buffer.from(base64Data, 'base64');
+        } else if (Buffer.isBuffer(pdfData)) {
+            pdfBuffer = pdfData;
+        } else {
+            pdfBuffer = Buffer.from(pdfData, 'base64');
+        }
+
+        console.log(`📊 PDF mérete: ${(pdfBuffer.length / 1024).toFixed(2)} KB`);
+
+        const isProduction = !!process.env.DATABASE_URL;
+
+        if (isProduction) {
+            console.log('🏭 Éles környezet - Google Drive feltöltés');
+
+            try {
+                if (!driveService) {
+                    console.log('⚠️ Drive service inicializálása...');
+                    await initializeGoogleDrive();
+                }
+
+                const projectFolderId = await getOrCreateFolder(safeProjectName, MAIN_DRIVE_FOLDER_ID);
+                const pdfFolderId = await getOrCreateDailyPdfFolder(safeFolderName, projectFolderId);
+
+                // PDF feltöltése
+                const uploadResult = await uploadPdfWithVersionControl(pdfBuffer, pdfFileName, pdfFolderId);
+                console.log(`✅ PDF feltöltve: ${uploadResult.webViewLink}`);
+
+                // ⭐ MÓDOSÍTOTT - Képek feltöltése EXIF metaadatokkal
+                if (images && Object.keys(images).length > 0) {
+                    const allImages = [];
+                    
+                    // Képek összegyűjtése az összes kategóriából
+                    Object.keys(images).forEach(itemId => {
+                        if (Array.isArray(images[itemId])) {
+                            images[itemId].forEach(imgObj => {
+                                // ⭐ FONTOS - A frontend objektumot küld: { data, originalData, metadata }
+                                if (imgObj && imgObj.originalData) {
+                                    // ⭐ ÚJ: originalData = tömörítetlen verzió Google Drive-hoz!
+                                    allImages.push({
+                                        data: imgObj.originalData,  // ⭐ TÖMÖRÍTETLEN!
+                                        compressedData: imgObj.data,  // Tömörített (backup)
+                                        metadata: imgObj.metadata || {},
+                                        itemId: itemId
+                                    });
+                                } else if (imgObj && imgObj.data) {
+                                    // Fallback: ha nincs originalData, használjuk a data-t
+                                    allImages.push({
+                                        data: imgObj.data,
+                                        metadata: imgObj.metadata || {},
+                                        itemId: itemId
+                                    });
+                                } else if (typeof imgObj === 'string') {
+                                    // Régi formátum támogatása (csak base64 string)
+                                    allImages.push({
+                                        data: imgObj,
+                                        metadata: {},
+                                        itemId: itemId
+                                    });
+                                }
+                            });
+                        }
+                    });
+
+                    console.log(`📸 ${allImages.length} kép feltöltése metaadatokkal...`);
+                    const startTime = Date.now();
+
+                    const uploadImagePromises = allImages.map(async (imgObj, index) => {
+                        const imgStartTime = Date.now();
+                        try {
+                            console.log(`📤 [${index + 1}/${allImages.length}] Kép feltöltés kezdés (EXIF metaadatokkal)...`);
+
+                            // ⭐ base64 → buffer
+                            const base64Data = imgObj.data.replace(/^data:image\/\w+;base64,/, '');
+                            const imageBuffer = Buffer.from(base64Data, 'base64');
+
+                            console.log(`📦 Eredeti képméret: ${(imageBuffer.length / 1024).toFixed(2)} KB`);
+
+                            // ⭐ KRITIKUS FIX: SZERVEROLDALI EXIF BEOLVASÁS!
+                            console.log(`🔍 Szerveroldali EXIF beolvasás (base64 képből)...`);
+                            const serverExifMetadata = await extractExifMetadata(imgObj.data);
+
+                            console.log(`📋 Szerver által kinyert EXIF:`, {
+                                hasDate: serverExifMetadata.hasDate,
+                                hasGPS: serverExifMetadata.hasGPS,
+                                location: serverExifMetadata.location,
+                                latitude: serverExifMetadata.latitude,
+                                longitude: serverExifMetadata.longitude,
+                                takenDate: serverExifMetadata.takenDate
+                            });
+
+                            // ⭐ SZERVER EXIF elsőbbsége, frontend metadata fallback
+                            const finalMetadata = {
+                                // Ha a szerver talált GPS-t, használjuk azt
+                                takenDate: serverExifMetadata.hasDate ? serverExifMetadata.takenDate : (imgObj.metadata?.takenDate || new Date().toISOString()),
+                                location: serverExifMetadata.hasGPS ? serverExifMetadata.location : (imgObj.metadata?.location || 'Nincs GPS adat'),
+                                latitude: serverExifMetadata.hasGPS ? serverExifMetadata.latitude : (imgObj.metadata?.latitude || null),
+                                longitude: serverExifMetadata.hasGPS ? serverExifMetadata.longitude : (imgObj.metadata?.longitude || null),
+                                camera: serverExifMetadata.camera || imgObj.metadata?.camera || null,
+                                hasGPS: serverExifMetadata.hasGPS || (imgObj.metadata?.hasGPS || false),
+                                hasDate: serverExifMetadata.hasDate || (imgObj.metadata?.hasDate || false),
+                                // Kiegészítő metaadatok
+                                itemId: imgObj.itemId,
+                                serialNumber: serialNumber || 'N/A',
+                                projectName: projectName,
+                                uploadDate: new Date().toISOString()
+                            };
+
+                            console.log(`✅ Végső metaadatok (szerver prioritással):`, {
+                                hasDate: finalMetadata.hasDate,
+                                hasGPS: finalMetadata.hasGPS,
+                                location: finalMetadata.location,
+                                latitude: finalMetadata.latitude,
+                                longitude: finalMetadata.longitude
+                            });
+
+                            // ⭐ KRITIKUS: EXIF GPS metaadatok visszarakása Sharp-pal
+                            let finalImageBuffer = imageBuffer;
+
+                            if (finalMetadata.latitude && finalMetadata.longitude &&
+                                !isNaN(finalMetadata.latitude) && !isNaN(finalMetadata.longitude)) {
+
+                                console.log(`🌍 GPS koordináták hozzáadása EXIF-hez: ${finalMetadata.latitude}, ${finalMetadata.longitude}`);
+
+                                try {
+                                    // ⭐ GPS koordináták decimális → DMS konverzió
+                                    function toDegreesMinutesSeconds(decimal) {
+                                        const absolute = Math.abs(decimal);
+                                        const degrees = Math.floor(absolute);
+                                        const minutesNotTruncated = (absolute - degrees) * 60;
+                                        const minutes = Math.floor(minutesNotTruncated);
+                                        const seconds = (minutesNotTruncated - minutes) * 60;
+                                        return [degrees, minutes, seconds];
+                                    }
+
+                                    const latDMS = toDegreesMinutesSeconds(finalMetadata.latitude);
+                                    const lonDMS = toDegreesMinutesSeconds(finalMetadata.longitude);
+
+                                    // ⭐ Sharp EXIF GPS formátum
+                                    const exifData = {
+                                        IFD0: {
+                                            Make: finalMetadata.camera || 'Unknown',
+                                            Model: finalMetadata.camera || 'Unknown'
+                                        },
+                                        GPSInfo: {
+                                            GPSLatitudeRef: finalMetadata.latitude >= 0 ? 'N' : 'S',
+                                            GPSLatitude: latDMS,
+                                            GPSLongitudeRef: finalMetadata.longitude >= 0 ? 'E' : 'W',
+                                            GPSLongitude: lonDMS,
+                                            GPSVersionID: [2, 3, 0, 0]
+                                        }
+                                    };
+
+                                    console.log(`📍 GPS EXIF DMS:`, {
+                                        lat: latDMS,
+                                        latRef: exifData.GPSInfo.GPSLatitudeRef,
+                                        lon: lonDMS,
+                                        lonRef: exifData.GPSInfo.GPSLongitudeRef
+                                    });
+
+                                    // ⭐ Kép újraírása EXIF GPS metaadatokkal tömörítéssel
+                                    finalImageBuffer = await sharp(imageBuffer)
+                                        .withExif(exifData)
+                                        .jpeg({ quality: 85 }) // 85% minőség - optimális tömörítés metaadatok megőrzésével
+                                        .toBuffer();
+
+                                    console.log(`✅ EXIF GPS metaadatok beágyazva képbe`);
+                                } catch (exifError) {
+                                    console.warn(`⚠️ EXIF GPS hozzáadása sikertelen:`, exifError.message);
+                                    finalImageBuffer = imageBuffer;
+                                }
+                            } else {
+                                console.log(`ℹ️ Nincs GPS adat - kép feltöltése GPS nélkül`);
+                            }
+
+                            // Fájlnév generálása a PDF neve alapján
+                            const pdfBaseName = pdfFileName.replace(/\.pdf$/i, ''); // PDF név .pdf kiterjesztés nélkül
+                            const imageFileName = allImages.length > 1
+                                ? `${pdfBaseName} (${index + 1}).jpg`
+                                : `${pdfBaseName}.jpg`;
+
+                            // ⭐ Feltöltés GPS EXIF metaadatokkal
+                            const imageUploadResult = await uploadBufferToDrive(
+                                finalImageBuffer,  // ⭐ GPS EXIF-el ellátott kép
+                                imageFileName,
+                                pdfFolderId,
+                                'image/jpeg',
+                                finalMetadata
+                            );
+
+                            const imgElapsed = ((Date.now() - imgStartTime) / 1000).toFixed(2);
+                            console.log(`✅ Eredeti kép feltöltve metaadatokkal: ${imageFileName} (${(imageBuffer.length / 1024).toFixed(2)} KB, ${imgElapsed}s)`);
+
+                            return {
+                                url: imageUploadResult.webViewLink,
+                                id: imageUploadResult.id,
+                                metadata: finalMetadata
+                            };
+
+                        } catch (imgErr) {
+                            console.error(`❌ Hiba a kép feltöltésekor (${index + 1}):`, imgErr.message);
+                            return null;
+                        }
+                    });
+
+                    const uploadedImages = await Promise.all(uploadImagePromises);
+                    const successfulUploads = uploadedImages.filter(img => img !== null);
+
+                    const totalElapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+                    console.log(`🎉 ${successfulUploads.length}/${allImages.length} kép sikeresen feltöltve metaadatokkal (${totalElapsed}s összesen)`);
+
+                    res.json({
+                        success: true,
+                        message: 'PDF és képek sikeresen feltöltve a Google Drive-ra',
+                        driveUrl: uploadResult.webViewLink,
+                        images: successfulUploads
+                    });
+                } else {
+                    res.json({
+                        success: true,
+                        message: 'PDF sikeresen feltöltve',
+                        driveUrl: uploadResult.webViewLink
+                    });
+                }
+
+            } catch (driveErr) {
+                console.error('❌ Hiba a Google Drive feltöltésnél:', driveErr.message);
+                res.json({
+                    success: true,
+                    message: 'PDF letöltésre kész (Drive feltöltés sikertelen)',
+                    pdfData: pdfBuffer.toString('base64')
+                });
+            }
+        } else {
+            console.log('🏠 Fejlesztői környezet - PDF csak letöltésre');
+            res.json({
+                success: true,
+                message: 'PDF letöltésre kész (fejlesztői környezet)',
+                pdfData: pdfBuffer.toString('base64')
+            });
+        }
+
+    } catch (error) {
+        console.error('❌ Hiba a PDF exportálás során:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a PDF exportálása során.',
+            error: error.message
+        });
+    }
+});
+
+router.post('/projects/:projectId/reports/electrical-safety/export-pdf', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+    const { pdfData, serialNumber, projectName, fileName, images } = req.body;
+
+    console.log('📥 PDF export request érkezett:', {
+        projectId,
+        userId,
+        serialNumber,
+        projectName,
+        fileName,
+        hasImages: !!images,
+        imageCount: images ? Object.keys(images).reduce((sum, key) => sum + (images[key]?.length || 0), 0) : 0
+    });
+
+    try {
+        // Jogosultság ellenőrzése
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({ 
+                    success: false, 
+                    message: 'Nincs jogosultsága ehhez a projekthez.' 
+                });
+            }
+        }
+
+        const safeProjectName = sanitizeFolderName(projectName);
+        const safeFolderName = (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A')
+            ? sanitizeFolderName(serialNumber)
+            : safeProjectName;
+
+        // Használjuk a kliens által generált fájlnevet, ha van
+        const pdfFileName = fileName || (
+            (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A')
+                ? `${sanitizeFolderName(serialNumber)}.pdf`
+                : `${safeProjectName}.pdf`
+        );
+
+        console.log(`📄 PDF export kezdés: ${pdfFileName}`);
+
+        // PDF buffer konvertálása
+        let pdfBuffer;
+        if (pdfData.startsWith('data:application/pdf;base64,')) {
+            const base64Data = pdfData.replace('data:application/pdf;base64,', '');
+            pdfBuffer = Buffer.from(base64Data, 'base64');
+        } else if (Buffer.isBuffer(pdfData)) {
+            pdfBuffer = pdfData;
+        } else {
+            pdfBuffer = Buffer.from(pdfData, 'base64');
+        }
+
+        console.log(`📊 PDF mérete: ${(pdfBuffer.length / 1024).toFixed(2)} KB`);
+
+        const isProduction = !!process.env.DATABASE_URL;
+
+        if (isProduction) {
+            console.log('🏭 Éles környezet - Google Drive feltöltés');
+
+            try {
+                if (!driveService) {
+                    console.log('⚠️ Drive service inicializálása...');
+                    await initializeGoogleDrive();
+                }
+
+                const projectFolderId = await getOrCreateFolder(safeProjectName, MAIN_DRIVE_FOLDER_ID);
+                const pdfFolderId = await getOrCreateDailyPdfFolder(safeFolderName, projectFolderId);
+
+                // PDF feltöltése
+                const uploadResult = await uploadPdfWithVersionControl(pdfBuffer, pdfFileName, pdfFolderId);
+                console.log(`✅ PDF feltöltve: ${uploadResult.webViewLink}`);
+
+                // ⭐ MÓDOSÍTOTT - Képek feltöltése EXIF metaadatokkal
+                if (images && Object.keys(images).length > 0) {
+                    const allImages = [];
+                    
+                    // Képek összegyűjtése az összes kategóriából
+                    Object.keys(images).forEach(itemId => {
+                        if (Array.isArray(images[itemId])) {
+                            images[itemId].forEach(imgObj => {
+                                // ⭐ FONTOS - A frontend objektumot küld: { data, originalData, metadata }
+                                if (imgObj && imgObj.originalData) {
+                                    // ⭐ ÚJ: originalData = tömörítetlen verzió Google Drive-hoz!
+                                    allImages.push({
+                                        data: imgObj.originalData,  // ⭐ TÖMÖRÍTETLEN!
+                                        compressedData: imgObj.data,  // Tömörített (backup)
+                                        metadata: imgObj.metadata || {},
+                                        itemId: itemId
+                                    });
+                                } else if (imgObj && imgObj.data) {
+                                    // Fallback: ha nincs originalData, használjuk a data-t
+                                    allImages.push({
+                                        data: imgObj.data,
+                                        metadata: imgObj.metadata || {},
+                                        itemId: itemId
+                                    });
+                                } else if (typeof imgObj === 'string') {
+                                    // Régi formátum támogatása (csak base64 string)
+                                    allImages.push({
+                                        data: imgObj,
+                                        metadata: {},
+                                        itemId: itemId
+                                    });
+                                }
+                            });
+                        }
+                    });
+
+                    console.log(`📸 ${allImages.length} kép feltöltése metaadatokkal...`);
+                    const startTime = Date.now();
+
+                    const uploadImagePromises = allImages.map(async (imgObj, index) => {
+                        const imgStartTime = Date.now();
+                        try {
+                            console.log(`📤 [${index + 1}/${allImages.length}] Kép feltöltés kezdés (EXIF metaadatokkal)...`);
+
+                            // ⭐ base64 → buffer
+                            const base64Data = imgObj.data.replace(/^data:image\/\w+;base64,/, '');
+                            const imageBuffer = Buffer.from(base64Data, 'base64');
+
+                            console.log(`📦 Eredeti képméret: ${(imageBuffer.length / 1024).toFixed(2)} KB`);
+
+                            // ⭐ KRITIKUS FIX: SZERVEROLDALI EXIF BEOLVASÁS!
+                            console.log(`🔍 Szerveroldali EXIF beolvasás (base64 képből)...`);
+                            const serverExifMetadata = await extractExifMetadata(imgObj.data);
+
+                            console.log(`📋 Szerver által kinyert EXIF:`, {
+                                hasDate: serverExifMetadata.hasDate,
+                                hasGPS: serverExifMetadata.hasGPS,
+                                location: serverExifMetadata.location,
+                                latitude: serverExifMetadata.latitude,
+                                longitude: serverExifMetadata.longitude,
+                                takenDate: serverExifMetadata.takenDate
+                            });
+
+                            // ⭐ SZERVER EXIF elsőbbsége, frontend metadata fallback
+                            const finalMetadata = {
+                                // Ha a szerver talált GPS-t, használjuk azt
+                                takenDate: serverExifMetadata.hasDate ? serverExifMetadata.takenDate : (imgObj.metadata?.takenDate || new Date().toISOString()),
+                                location: serverExifMetadata.hasGPS ? serverExifMetadata.location : (imgObj.metadata?.location || 'Nincs GPS adat'),
+                                latitude: serverExifMetadata.hasGPS ? serverExifMetadata.latitude : (imgObj.metadata?.latitude || null),
+                                longitude: serverExifMetadata.hasGPS ? serverExifMetadata.longitude : (imgObj.metadata?.longitude || null),
+                                camera: serverExifMetadata.camera || imgObj.metadata?.camera || null,
+                                hasGPS: serverExifMetadata.hasGPS || (imgObj.metadata?.hasGPS || false),
+                                hasDate: serverExifMetadata.hasDate || (imgObj.metadata?.hasDate || false),
+                                // Kiegészítő metaadatok
+                                itemId: imgObj.itemId,
+                                serialNumber: serialNumber || 'N/A',
+                                projectName: projectName,
+                                uploadDate: new Date().toISOString()
+                            };
+
+                            console.log(`✅ Végső metaadatok (szerver prioritással):`, {
+                                hasDate: finalMetadata.hasDate,
+                                hasGPS: finalMetadata.hasGPS,
+                                location: finalMetadata.location,
+                                latitude: finalMetadata.latitude,
+                                longitude: finalMetadata.longitude
+                            });
+
+                            // ⭐ KRITIKUS: EXIF GPS metaadatok visszarakása Sharp-pal
+                            let finalImageBuffer = imageBuffer;
+
+                            if (finalMetadata.latitude && finalMetadata.longitude &&
+                                !isNaN(finalMetadata.latitude) && !isNaN(finalMetadata.longitude)) {
+
+                                console.log(`🌍 GPS koordináták hozzáadása EXIF-hez: ${finalMetadata.latitude}, ${finalMetadata.longitude}`);
+
+                                try {
+                                    // ⭐ GPS koordináták decimális → DMS konverzió
+                                    function toDegreesMinutesSeconds(decimal) {
+                                        const absolute = Math.abs(decimal);
+                                        const degrees = Math.floor(absolute);
+                                        const minutesNotTruncated = (absolute - degrees) * 60;
+                                        const minutes = Math.floor(minutesNotTruncated);
+                                        const seconds = (minutesNotTruncated - minutes) * 60;
+                                        return [degrees, minutes, seconds];
+                                    }
+
+                                    const latDMS = toDegreesMinutesSeconds(finalMetadata.latitude);
+                                    const lonDMS = toDegreesMinutesSeconds(finalMetadata.longitude);
+
+                                    // ⭐ Sharp EXIF GPS formátum
+                                    const exifData = {
+                                        IFD0: {
+                                            Make: finalMetadata.camera || 'Unknown',
+                                            Model: finalMetadata.camera || 'Unknown'
+                                        },
+                                        GPSInfo: {
+                                            GPSLatitudeRef: finalMetadata.latitude >= 0 ? 'N' : 'S',
+                                            GPSLatitude: latDMS,
+                                            GPSLongitudeRef: finalMetadata.longitude >= 0 ? 'E' : 'W',
+                                            GPSLongitude: lonDMS,
+                                            GPSVersionID: [2, 3, 0, 0]
+                                        }
+                                    };
+
+                                    console.log(`📍 GPS EXIF DMS:`, {
+                                        lat: latDMS,
+                                        latRef: exifData.GPSInfo.GPSLatitudeRef,
+                                        lon: lonDMS,
+                                        lonRef: exifData.GPSInfo.GPSLongitudeRef
+                                    });
+
+                                    // ⭐ Kép újraírása EXIF GPS metaadatokkal tömörítéssel
+                                    finalImageBuffer = await sharp(imageBuffer)
+                                        .withExif(exifData)
+                                        .jpeg({ quality: 85 }) // 85% minőség - optimális tömörítés metaadatok megőrzésével
+                                        .toBuffer();
+
+                                    console.log(`✅ EXIF GPS metaadatok beágyazva képbe`);
+                                } catch (exifError) {
+                                    console.warn(`⚠️ EXIF GPS hozzáadása sikertelen:`, exifError.message);
+                                    finalImageBuffer = imageBuffer;
+                                }
+                            } else {
+                                console.log(`ℹ️ Nincs GPS adat - kép feltöltése GPS nélkül`);
+                            }
+
+                            // Fájlnév generálása a PDF neve alapján
+                            const pdfBaseName = pdfFileName.replace(/\.pdf$/i, ''); // PDF név .pdf kiterjesztés nélkül
+                            const imageFileName = allImages.length > 1
+                                ? `${pdfBaseName} (${index + 1}).jpg`
+                                : `${pdfBaseName}.jpg`;
+
+                            // ⭐ Feltöltés GPS EXIF metaadatokkal
+                            const imageUploadResult = await uploadBufferToDrive(
+                                finalImageBuffer,  // ⭐ GPS EXIF-el ellátott kép
+                                imageFileName,
+                                pdfFolderId,
+                                'image/jpeg',
+                                finalMetadata
+                            );
+
+                            const imgElapsed = ((Date.now() - imgStartTime) / 1000).toFixed(2);
+                            console.log(`✅ Eredeti kép feltöltve metaadatokkal: ${imageFileName} (${(imageBuffer.length / 1024).toFixed(2)} KB, ${imgElapsed}s)`);
+
+                            return {
+                                url: imageUploadResult.webViewLink,
+                                id: imageUploadResult.id,
+                                metadata: finalMetadata
+                            };
+
+                        } catch (imgErr) {
+                            console.error(`❌ Hiba a kép feltöltésekor (${index + 1}):`, imgErr.message);
+                            return null;
+                        }
+                    });
+
+                    const uploadedImages = await Promise.all(uploadImagePromises);
+                    const successfulUploads = uploadedImages.filter(img => img !== null);
+
+                    const totalElapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+                    console.log(`🎉 ${successfulUploads.length}/${allImages.length} kép sikeresen feltöltve metaadatokkal (${totalElapsed}s összesen)`);
+
+                    res.json({
+                        success: true,
+                        message: 'PDF és képek sikeresen feltöltve a Google Drive-ra',
+                        driveUrl: uploadResult.webViewLink,
+                        images: successfulUploads
+                    });
+                } else {
+                    res.json({
+                        success: true,
+                        message: 'PDF sikeresen feltöltve',
+                        driveUrl: uploadResult.webViewLink
+                    });
+                }
+
+            } catch (driveErr) {
+                console.error('❌ Hiba a Google Drive feltöltésnél:', driveErr.message);
+                res.json({
+                    success: true,
+                    message: 'PDF letöltésre kész (Drive feltöltés sikertelen)',
+                    pdfData: pdfBuffer.toString('base64')
+                });
+            }
+        } else {
+            console.log('🏠 Fejlesztői környezet - PDF csak letöltésre');
+            res.json({
+                success: true,
+                message: 'PDF letöltésre kész (fejlesztői környezet)',
+                pdfData: pdfBuffer.toString('base64')
+            });
+        }
+
+    } catch (error) {
+        console.error('❌ Hiba a PDF exportálás során:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a PDF exportálása során.',
+            error: error.message
+        });
+    }
+});
+
+router.post('/projects/:projectId/reports/personal-protective-equipment/export-pdf', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+    const { pdfData, serialNumber, projectName, fileName, images } = req.body;
+
+    console.log('📥 PDF export request érkezett:', {
+        projectId,
+        userId,
+        serialNumber,
+        projectName,
+        fileName,
+        hasImages: !!images,
+        imageCount: images ? Object.keys(images).reduce((sum, key) => sum + (images[key]?.length || 0), 0) : 0
+    });
+
+    try {
+        // Jogosultság ellenőrzése
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({ 
+                    success: false, 
+                    message: 'Nincs jogosultsága ehhez a projekthez.' 
+                });
+            }
+        }
+
+        const safeProjectName = sanitizeFolderName(projectName);
+        const safeFolderName = (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A')
+            ? sanitizeFolderName(serialNumber)
+            : safeProjectName;
+
+        // Használjuk a kliens által generált fájlnevet, ha van
+        const pdfFileName = fileName || (
+            (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A')
+                ? `${sanitizeFolderName(serialNumber)}.pdf`
+                : `${safeProjectName}.pdf`
+        );
+
+        console.log(`📄 PDF export kezdés: ${pdfFileName}`);
+
+        // PDF buffer konvertálása
+        let pdfBuffer;
+        if (pdfData.startsWith('data:application/pdf;base64,')) {
+            const base64Data = pdfData.replace('data:application/pdf;base64,', '');
+            pdfBuffer = Buffer.from(base64Data, 'base64');
+        } else if (Buffer.isBuffer(pdfData)) {
+            pdfBuffer = pdfData;
+        } else {
+            pdfBuffer = Buffer.from(pdfData, 'base64');
+        }
+
+        console.log(`📊 PDF mérete: ${(pdfBuffer.length / 1024).toFixed(2)} KB`);
+
+        const isProduction = !!process.env.DATABASE_URL;
+
+        if (isProduction) {
+            console.log('🏭 Éles környezet - Google Drive feltöltés');
+
+            try {
+                if (!driveService) {
+                    console.log('⚠️ Drive service inicializálása...');
+                    await initializeGoogleDrive();
+                }
+
+                const projectFolderId = await getOrCreateFolder(safeProjectName, MAIN_DRIVE_FOLDER_ID);
+                const pdfFolderId = await getOrCreateDailyPdfFolder(safeFolderName, projectFolderId);
+
+                // PDF feltöltése
+                const uploadResult = await uploadPdfWithVersionControl(pdfBuffer, pdfFileName, pdfFolderId);
+                console.log(`✅ PDF feltöltve: ${uploadResult.webViewLink}`);
+
+                // ⭐ MÓDOSÍTOTT - Képek feltöltése EXIF metaadatokkal
+                if (images && Object.keys(images).length > 0) {
+                    const allImages = [];
+                    
+                    // Képek összegyűjtése az összes kategóriából
+                    Object.keys(images).forEach(itemId => {
+                        if (Array.isArray(images[itemId])) {
+                            images[itemId].forEach(imgObj => {
+                                // ⭐ FONTOS - A frontend objektumot küld: { data, originalData, metadata }
+                                if (imgObj && imgObj.originalData) {
+                                    // ⭐ ÚJ: originalData = tömörítetlen verzió Google Drive-hoz!
+                                    allImages.push({
+                                        data: imgObj.originalData,  // ⭐ TÖMÖRÍTETLEN!
+                                        compressedData: imgObj.data,  // Tömörített (backup)
+                                        metadata: imgObj.metadata || {},
+                                        itemId: itemId
+                                    });
+                                } else if (imgObj && imgObj.data) {
+                                    // Fallback: ha nincs originalData, használjuk a data-t
+                                    allImages.push({
+                                        data: imgObj.data,
+                                        metadata: imgObj.metadata || {},
+                                        itemId: itemId
+                                    });
+                                } else if (typeof imgObj === 'string') {
+                                    // Régi formátum támogatása (csak base64 string)
+                                    allImages.push({
+                                        data: imgObj,
+                                        metadata: {},
+                                        itemId: itemId
+                                    });
+                                }
+                            });
+                        }
+                    });
+
+                    console.log(`📸 ${allImages.length} kép feltöltése metaadatokkal...`);
+                    const startTime = Date.now();
+
+                    const uploadImagePromises = allImages.map(async (imgObj, index) => {
+                        const imgStartTime = Date.now();
+                        try {
+                            console.log(`📤 [${index + 1}/${allImages.length}] Kép feltöltés kezdés (EXIF metaadatokkal)...`);
+
+                            // ⭐ base64 → buffer
+                            const base64Data = imgObj.data.replace(/^data:image\/\w+;base64,/, '');
+                            const imageBuffer = Buffer.from(base64Data, 'base64');
+
+                            console.log(`📦 Eredeti képméret: ${(imageBuffer.length / 1024).toFixed(2)} KB`);
+
+                            // ⭐ KRITIKUS FIX: SZERVEROLDALI EXIF BEOLVASÁS!
+                            console.log(`🔍 Szerveroldali EXIF beolvasás (base64 képből)...`);
+                            const serverExifMetadata = await extractExifMetadata(imgObj.data);
+
+                            console.log(`📋 Szerver által kinyert EXIF:`, {
+                                hasDate: serverExifMetadata.hasDate,
+                                hasGPS: serverExifMetadata.hasGPS,
+                                location: serverExifMetadata.location,
+                                latitude: serverExifMetadata.latitude,
+                                longitude: serverExifMetadata.longitude,
+                                takenDate: serverExifMetadata.takenDate
+                            });
+
+                            // ⭐ SZERVER EXIF elsőbbsége, frontend metadata fallback
+                            const finalMetadata = {
+                                // Ha a szerver talált GPS-t, használjuk azt
+                                takenDate: serverExifMetadata.hasDate ? serverExifMetadata.takenDate : (imgObj.metadata?.takenDate || new Date().toISOString()),
+                                location: serverExifMetadata.hasGPS ? serverExifMetadata.location : (imgObj.metadata?.location || 'Nincs GPS adat'),
+                                latitude: serverExifMetadata.hasGPS ? serverExifMetadata.latitude : (imgObj.metadata?.latitude || null),
+                                longitude: serverExifMetadata.hasGPS ? serverExifMetadata.longitude : (imgObj.metadata?.longitude || null),
+                                camera: serverExifMetadata.camera || imgObj.metadata?.camera || null,
+                                hasGPS: serverExifMetadata.hasGPS || (imgObj.metadata?.hasGPS || false),
+                                hasDate: serverExifMetadata.hasDate || (imgObj.metadata?.hasDate || false),
+                                // Kiegészítő metaadatok
+                                itemId: imgObj.itemId,
+                                serialNumber: serialNumber || 'N/A',
+                                projectName: projectName,
+                                uploadDate: new Date().toISOString()
+                            };
+
+                            console.log(`✅ Végső metaadatok (szerver prioritással):`, {
+                                hasDate: finalMetadata.hasDate,
+                                hasGPS: finalMetadata.hasGPS,
+                                location: finalMetadata.location,
+                                latitude: finalMetadata.latitude,
+                                longitude: finalMetadata.longitude
+                            });
+
+                            // ⭐ KRITIKUS: EXIF GPS metaadatok visszarakása Sharp-pal
+                            let finalImageBuffer = imageBuffer;
+
+                            if (finalMetadata.latitude && finalMetadata.longitude &&
+                                !isNaN(finalMetadata.latitude) && !isNaN(finalMetadata.longitude)) {
+
+                                console.log(`🌍 GPS koordináták hozzáadása EXIF-hez: ${finalMetadata.latitude}, ${finalMetadata.longitude}`);
+
+                                try {
+                                    // ⭐ GPS koordináták decimális → DMS konverzió
+                                    function toDegreesMinutesSeconds(decimal) {
+                                        const absolute = Math.abs(decimal);
+                                        const degrees = Math.floor(absolute);
+                                        const minutesNotTruncated = (absolute - degrees) * 60;
+                                        const minutes = Math.floor(minutesNotTruncated);
+                                        const seconds = (minutesNotTruncated - minutes) * 60;
+                                        return [degrees, minutes, seconds];
+                                    }
+
+                                    const latDMS = toDegreesMinutesSeconds(finalMetadata.latitude);
+                                    const lonDMS = toDegreesMinutesSeconds(finalMetadata.longitude);
+
+                                    // ⭐ Sharp EXIF GPS formátum
+                                    const exifData = {
+                                        IFD0: {
+                                            Make: finalMetadata.camera || 'Unknown',
+                                            Model: finalMetadata.camera || 'Unknown'
+                                        },
+                                        GPSInfo: {
+                                            GPSLatitudeRef: finalMetadata.latitude >= 0 ? 'N' : 'S',
+                                            GPSLatitude: latDMS,
+                                            GPSLongitudeRef: finalMetadata.longitude >= 0 ? 'E' : 'W',
+                                            GPSLongitude: lonDMS,
+                                            GPSVersionID: [2, 3, 0, 0]
+                                        }
+                                    };
+
+                                    console.log(`📍 GPS EXIF DMS:`, {
+                                        lat: latDMS,
+                                        latRef: exifData.GPSInfo.GPSLatitudeRef,
+                                        lon: lonDMS,
+                                        lonRef: exifData.GPSInfo.GPSLongitudeRef
+                                    });
+
+                                    // ⭐ Kép újraírása EXIF GPS metaadatokkal tömörítéssel
+                                    finalImageBuffer = await sharp(imageBuffer)
+                                        .withExif(exifData)
+                                        .jpeg({ quality: 85 }) // 85% minőség - optimális tömörítés metaadatok megőrzésével
+                                        .toBuffer();
+
+                                    console.log(`✅ EXIF GPS metaadatok beágyazva képbe`);
+                                } catch (exifError) {
+                                    console.warn(`⚠️ EXIF GPS hozzáadása sikertelen:`, exifError.message);
+                                    finalImageBuffer = imageBuffer;
+                                }
+                            } else {
+                                console.log(`ℹ️ Nincs GPS adat - kép feltöltése GPS nélkül`);
+                            }
+
+                            // Fájlnév generálása a PDF neve alapján
+                            const pdfBaseName = pdfFileName.replace(/\.pdf$/i, ''); // PDF név .pdf kiterjesztés nélkül
+                            const imageFileName = allImages.length > 1
+                                ? `${pdfBaseName} (${index + 1}).jpg`
+                                : `${pdfBaseName}.jpg`;
+
+                            // ⭐ Feltöltés GPS EXIF metaadatokkal
+                            const imageUploadResult = await uploadBufferToDrive(
+                                finalImageBuffer,  // ⭐ GPS EXIF-el ellátott kép
+                                imageFileName,
+                                pdfFolderId,
+                                'image/jpeg',
+                                finalMetadata
+                            );
+
+                            const imgElapsed = ((Date.now() - imgStartTime) / 1000).toFixed(2);
+                            console.log(`✅ Eredeti kép feltöltve metaadatokkal: ${imageFileName} (${(imageBuffer.length / 1024).toFixed(2)} KB, ${imgElapsed}s)`);
+
+                            return {
+                                url: imageUploadResult.webViewLink,
+                                id: imageUploadResult.id,
+                                metadata: finalMetadata
+                            };
+
+                        } catch (imgErr) {
+                            console.error(`❌ Hiba a kép feltöltésekor (${index + 1}):`, imgErr.message);
+                            return null;
+                        }
+                    });
+
+                    const uploadedImages = await Promise.all(uploadImagePromises);
+                    const successfulUploads = uploadedImages.filter(img => img !== null);
+
+                    const totalElapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+                    console.log(`🎉 ${successfulUploads.length}/${allImages.length} kép sikeresen feltöltve metaadatokkal (${totalElapsed}s összesen)`);
+
+                    res.json({
+                        success: true,
+                        message: 'PDF és képek sikeresen feltöltve a Google Drive-ra',
+                        driveUrl: uploadResult.webViewLink,
+                        images: successfulUploads
+                    });
+                } else {
+                    res.json({
+                        success: true,
+                        message: 'PDF sikeresen feltöltve',
+                        driveUrl: uploadResult.webViewLink
+                    });
+                }
+
+            } catch (driveErr) {
+                console.error('❌ Hiba a Google Drive feltöltésnél:', driveErr.message);
+                res.json({
+                    success: true,
+                    message: 'PDF letöltésre kész (Drive feltöltés sikertelen)',
+                    pdfData: pdfBuffer.toString('base64')
+                });
+            }
+        } else {
+            console.log('🏠 Fejlesztői környezet - PDF csak letöltésre');
+            res.json({
+                success: true,
+                message: 'PDF letöltésre kész (fejlesztői környezet)',
+                pdfData: pdfBuffer.toString('base64')
+            });
+        }
+
+    } catch (error) {
+        console.error('❌ Hiba a PDF exportálás során:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a PDF exportálása során.',
+            error: error.message
+        });
+    }
+});
+
+router.post('/projects/:projectId/reports/first-aid/export-pdf', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+    const { pdfData, serialNumber, projectName, fileName, images } = req.body;
+
+    console.log('📥 PDF export request érkezett:', {
+        projectId,
+        userId,
+        serialNumber,
+        projectName,
+        fileName,
+        hasImages: !!images,
+        imageCount: images ? Object.keys(images).reduce((sum, key) => sum + (images[key]?.length || 0), 0) : 0
+    });
+
+    try {
+        // Jogosultság ellenőrzése
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({ 
+                    success: false, 
+                    message: 'Nincs jogosultsága ehhez a projekthez.' 
+                });
+            }
+        }
+
+        const safeProjectName = sanitizeFolderName(projectName);
+        const safeFolderName = (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A')
+            ? sanitizeFolderName(serialNumber)
+            : safeProjectName;
+
+        // Használjuk a kliens által generált fájlnevet, ha van
+        const pdfFileName = fileName || (
+            (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A')
+                ? `${sanitizeFolderName(serialNumber)}.pdf`
+                : `${safeProjectName}.pdf`
+        );
+
+        console.log(`📄 PDF export kezdés: ${pdfFileName}`);
+
+        // PDF buffer konvertálása
+        let pdfBuffer;
+        if (pdfData.startsWith('data:application/pdf;base64,')) {
+            const base64Data = pdfData.replace('data:application/pdf;base64,', '');
+            pdfBuffer = Buffer.from(base64Data, 'base64');
+        } else if (Buffer.isBuffer(pdfData)) {
+            pdfBuffer = pdfData;
+        } else {
+            pdfBuffer = Buffer.from(pdfData, 'base64');
+        }
+
+        console.log(`📊 PDF mérete: ${(pdfBuffer.length / 1024).toFixed(2)} KB`);
+
+        const isProduction = !!process.env.DATABASE_URL;
+
+        if (isProduction) {
+            console.log('🏭 Éles környezet - Google Drive feltöltés');
+
+            try {
+                if (!driveService) {
+                    console.log('⚠️ Drive service inicializálása...');
+                    await initializeGoogleDrive();
+                }
+
+                const projectFolderId = await getOrCreateFolder(safeProjectName, MAIN_DRIVE_FOLDER_ID);
+                const pdfFolderId = await getOrCreateDailyPdfFolder(safeFolderName, projectFolderId);
+
+                // PDF feltöltése
+                const uploadResult = await uploadPdfWithVersionControl(pdfBuffer, pdfFileName, pdfFolderId);
+                console.log(`✅ PDF feltöltve: ${uploadResult.webViewLink}`);
+
+                // ⭐ MÓDOSÍTOTT - Képek feltöltése EXIF metaadatokkal
+                if (images && Object.keys(images).length > 0) {
+                    const allImages = [];
+                    
+                    // Képek összegyűjtése az összes kategóriából
+                    Object.keys(images).forEach(itemId => {
+                        if (Array.isArray(images[itemId])) {
+                            images[itemId].forEach(imgObj => {
+                                // ⭐ FONTOS - A frontend objektumot küld: { data, originalData, metadata }
+                                if (imgObj && imgObj.originalData) {
+                                    // ⭐ ÚJ: originalData = tömörítetlen verzió Google Drive-hoz!
+                                    allImages.push({
+                                        data: imgObj.originalData,  // ⭐ TÖMÖRÍTETLEN!
+                                        compressedData: imgObj.data,  // Tömörített (backup)
+                                        metadata: imgObj.metadata || {},
+                                        itemId: itemId
+                                    });
+                                } else if (imgObj && imgObj.data) {
+                                    // Fallback: ha nincs originalData, használjuk a data-t
+                                    allImages.push({
+                                        data: imgObj.data,
+                                        metadata: imgObj.metadata || {},
+                                        itemId: itemId
+                                    });
+                                } else if (typeof imgObj === 'string') {
+                                    // Régi formátum támogatása (csak base64 string)
+                                    allImages.push({
+                                        data: imgObj,
+                                        metadata: {},
+                                        itemId: itemId
+                                    });
+                                }
+                            });
+                        }
+                    });
+
+                    console.log(`📸 ${allImages.length} kép feltöltése metaadatokkal...`);
+                    const startTime = Date.now();
+
+                    const uploadImagePromises = allImages.map(async (imgObj, index) => {
+                        const imgStartTime = Date.now();
+                        try {
+                            console.log(`📤 [${index + 1}/${allImages.length}] Kép feltöltés kezdés (EXIF metaadatokkal)...`);
+
+                            // ⭐ base64 → buffer
+                            const base64Data = imgObj.data.replace(/^data:image\/\w+;base64,/, '');
+                            const imageBuffer = Buffer.from(base64Data, 'base64');
+
+                            console.log(`📦 Eredeti képméret: ${(imageBuffer.length / 1024).toFixed(2)} KB`);
+
+                            // ⭐ KRITIKUS FIX: SZERVEROLDALI EXIF BEOLVASÁS!
+                            console.log(`🔍 Szerveroldali EXIF beolvasás (base64 képből)...`);
+                            const serverExifMetadata = await extractExifMetadata(imgObj.data);
+
+                            console.log(`📋 Szerver által kinyert EXIF:`, {
+                                hasDate: serverExifMetadata.hasDate,
+                                hasGPS: serverExifMetadata.hasGPS,
+                                location: serverExifMetadata.location,
+                                latitude: serverExifMetadata.latitude,
+                                longitude: serverExifMetadata.longitude,
+                                takenDate: serverExifMetadata.takenDate
+                            });
+
+                            // ⭐ SZERVER EXIF elsőbbsége, frontend metadata fallback
+                            const finalMetadata = {
+                                // Ha a szerver talált GPS-t, használjuk azt
+                                takenDate: serverExifMetadata.hasDate ? serverExifMetadata.takenDate : (imgObj.metadata?.takenDate || new Date().toISOString()),
+                                location: serverExifMetadata.hasGPS ? serverExifMetadata.location : (imgObj.metadata?.location || 'Nincs GPS adat'),
+                                latitude: serverExifMetadata.hasGPS ? serverExifMetadata.latitude : (imgObj.metadata?.latitude || null),
+                                longitude: serverExifMetadata.hasGPS ? serverExifMetadata.longitude : (imgObj.metadata?.longitude || null),
+                                camera: serverExifMetadata.camera || imgObj.metadata?.camera || null,
+                                hasGPS: serverExifMetadata.hasGPS || (imgObj.metadata?.hasGPS || false),
+                                hasDate: serverExifMetadata.hasDate || (imgObj.metadata?.hasDate || false),
+                                // Kiegészítő metaadatok
+                                itemId: imgObj.itemId,
+                                serialNumber: serialNumber || 'N/A',
+                                projectName: projectName,
+                                uploadDate: new Date().toISOString()
+                            };
+
+                            console.log(`✅ Végső metaadatok (szerver prioritással):`, {
+                                hasDate: finalMetadata.hasDate,
+                                hasGPS: finalMetadata.hasGPS,
+                                location: finalMetadata.location,
+                                latitude: finalMetadata.latitude,
+                                longitude: finalMetadata.longitude
+                            });
+
+                            // ⭐ KRITIKUS: EXIF GPS metaadatok visszarakása Sharp-pal
+                            let finalImageBuffer = imageBuffer;
+
+                            if (finalMetadata.latitude && finalMetadata.longitude &&
+                                !isNaN(finalMetadata.latitude) && !isNaN(finalMetadata.longitude)) {
+
+                                console.log(`🌍 GPS koordináták hozzáadása EXIF-hez: ${finalMetadata.latitude}, ${finalMetadata.longitude}`);
+
+                                try {
+                                    // ⭐ GPS koordináták decimális → DMS konverzió
+                                    function toDegreesMinutesSeconds(decimal) {
+                                        const absolute = Math.abs(decimal);
+                                        const degrees = Math.floor(absolute);
+                                        const minutesNotTruncated = (absolute - degrees) * 60;
+                                        const minutes = Math.floor(minutesNotTruncated);
+                                        const seconds = (minutesNotTruncated - minutes) * 60;
+                                        return [degrees, minutes, seconds];
+                                    }
+
+                                    const latDMS = toDegreesMinutesSeconds(finalMetadata.latitude);
+                                    const lonDMS = toDegreesMinutesSeconds(finalMetadata.longitude);
+
+                                    // ⭐ Sharp EXIF GPS formátum
+                                    const exifData = {
+                                        IFD0: {
+                                            Make: finalMetadata.camera || 'Unknown',
+                                            Model: finalMetadata.camera || 'Unknown'
+                                        },
+                                        GPSInfo: {
+                                            GPSLatitudeRef: finalMetadata.latitude >= 0 ? 'N' : 'S',
+                                            GPSLatitude: latDMS,
+                                            GPSLongitudeRef: finalMetadata.longitude >= 0 ? 'E' : 'W',
+                                            GPSLongitude: lonDMS,
+                                            GPSVersionID: [2, 3, 0, 0]
+                                        }
+                                    };
+
+                                    console.log(`📍 GPS EXIF DMS:`, {
+                                        lat: latDMS,
+                                        latRef: exifData.GPSInfo.GPSLatitudeRef,
+                                        lon: lonDMS,
+                                        lonRef: exifData.GPSInfo.GPSLongitudeRef
+                                    });
+
+                                    // ⭐ Kép újraírása EXIF GPS metaadatokkal tömörítéssel
+                                    finalImageBuffer = await sharp(imageBuffer)
+                                        .withExif(exifData)
+                                        .jpeg({ quality: 85 }) // 85% minőség - optimális tömörítés metaadatok megőrzésével
+                                        .toBuffer();
+
+                                    console.log(`✅ EXIF GPS metaadatok beágyazva képbe`);
+                                } catch (exifError) {
+                                    console.warn(`⚠️ EXIF GPS hozzáadása sikertelen:`, exifError.message);
+                                    finalImageBuffer = imageBuffer;
+                                }
+                            } else {
+                                console.log(`ℹ️ Nincs GPS adat - kép feltöltése GPS nélkül`);
+                            }
+
+                            // Fájlnév generálása a PDF neve alapján
+                            const pdfBaseName = pdfFileName.replace(/\.pdf$/i, ''); // PDF név .pdf kiterjesztés nélkül
+                            const imageFileName = allImages.length > 1
+                                ? `${pdfBaseName} (${index + 1}).jpg`
+                                : `${pdfBaseName}.jpg`;
+
+                            // ⭐ Feltöltés GPS EXIF metaadatokkal
+                            const imageUploadResult = await uploadBufferToDrive(
+                                finalImageBuffer,  // ⭐ GPS EXIF-el ellátott kép
+                                imageFileName,
+                                pdfFolderId,
+                                'image/jpeg',
+                                finalMetadata
+                            );
+
+                            const imgElapsed = ((Date.now() - imgStartTime) / 1000).toFixed(2);
+                            console.log(`✅ Eredeti kép feltöltve metaadatokkal: ${imageFileName} (${(imageBuffer.length / 1024).toFixed(2)} KB, ${imgElapsed}s)`);
+
+                            return {
+                                url: imageUploadResult.webViewLink,
+                                id: imageUploadResult.id,
+                                metadata: finalMetadata
+                            };
+
+                        } catch (imgErr) {
+                            console.error(`❌ Hiba a kép feltöltésekor (${index + 1}):`, imgErr.message);
+                            return null;
+                        }
+                    });
+
+                    const uploadedImages = await Promise.all(uploadImagePromises);
+                    const successfulUploads = uploadedImages.filter(img => img !== null);
+
+                    const totalElapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+                    console.log(`🎉 ${successfulUploads.length}/${allImages.length} kép sikeresen feltöltve metaadatokkal (${totalElapsed}s összesen)`);
+
+                    res.json({
+                        success: true,
+                        message: 'PDF és képek sikeresen feltöltve a Google Drive-ra',
+                        driveUrl: uploadResult.webViewLink,
+                        images: successfulUploads
+                    });
+                } else {
+                    res.json({
+                        success: true,
+                        message: 'PDF sikeresen feltöltve',
+                        driveUrl: uploadResult.webViewLink
+                    });
+                }
+
+            } catch (driveErr) {
+                console.error('❌ Hiba a Google Drive feltöltésnél:', driveErr.message);
+                res.json({
+                    success: true,
+                    message: 'PDF letöltésre kész (Drive feltöltés sikertelen)',
+                    pdfData: pdfBuffer.toString('base64')
+                });
+            }
+        } else {
+            console.log('🏠 Fejlesztői környezet - PDF csak letöltésre');
+            res.json({
+                success: true,
+                message: 'PDF letöltésre kész (fejlesztői környezet)',
+                pdfData: pdfBuffer.toString('base64')
+            });
+        }
+
+    } catch (error) {
+        console.error('❌ Hiba a PDF exportálás során:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a PDF exportálása során.',
+            error: error.message
+        });
+    }
+});
+
+router.post('/projects/:projectId/reports/hazardous-materials/export-pdf', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+    const { pdfData, serialNumber, projectName, fileName, images } = req.body;
+
+    console.log('📥 PDF export request érkezett:', {
+        projectId,
+        userId,
+        serialNumber,
+        projectName,
+        fileName,
+        hasImages: !!images,
+        imageCount: images ? Object.keys(images).reduce((sum, key) => sum + (images[key]?.length || 0), 0) : 0
+    });
+
+    try {
+        // Jogosultság ellenőrzése
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({ 
+                    success: false, 
+                    message: 'Nincs jogosultsága ehhez a projekthez.' 
+                });
+            }
+        }
+
+        const safeProjectName = sanitizeFolderName(projectName);
+        const safeFolderName = (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A')
+            ? sanitizeFolderName(serialNumber)
+            : safeProjectName;
+
+        // Használjuk a kliens által generált fájlnevet, ha van
+        const pdfFileName = fileName || (
+            (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A')
+                ? `${sanitizeFolderName(serialNumber)}.pdf`
+                : `${safeProjectName}.pdf`
+        );
+
+        console.log(`📄 PDF export kezdés: ${pdfFileName}`);
+
+        // PDF buffer konvertálása
+        let pdfBuffer;
+        if (pdfData.startsWith('data:application/pdf;base64,')) {
+            const base64Data = pdfData.replace('data:application/pdf;base64,', '');
+            pdfBuffer = Buffer.from(base64Data, 'base64');
+        } else if (Buffer.isBuffer(pdfData)) {
+            pdfBuffer = pdfData;
+        } else {
+            pdfBuffer = Buffer.from(pdfData, 'base64');
+        }
+
+        console.log(`📊 PDF mérete: ${(pdfBuffer.length / 1024).toFixed(2)} KB`);
+
+        const isProduction = !!process.env.DATABASE_URL;
+
+        if (isProduction) {
+            console.log('🏭 Éles környezet - Google Drive feltöltés');
+
+            try {
+                if (!driveService) {
+                    console.log('⚠️ Drive service inicializálása...');
+                    await initializeGoogleDrive();
+                }
+
+                const projectFolderId = await getOrCreateFolder(safeProjectName, MAIN_DRIVE_FOLDER_ID);
+                const pdfFolderId = await getOrCreateDailyPdfFolder(safeFolderName, projectFolderId);
+
+                // PDF feltöltése
+                const uploadResult = await uploadPdfWithVersionControl(pdfBuffer, pdfFileName, pdfFolderId);
+                console.log(`✅ PDF feltöltve: ${uploadResult.webViewLink}`);
+
+                // ⭐ MÓDOSÍTOTT - Képek feltöltése EXIF metaadatokkal
+                if (images && Object.keys(images).length > 0) {
+                    const allImages = [];
+                    
+                    // Képek összegyűjtése az összes kategóriából
+                    Object.keys(images).forEach(itemId => {
+                        if (Array.isArray(images[itemId])) {
+                            images[itemId].forEach(imgObj => {
+                                // ⭐ FONTOS - A frontend objektumot küld: { data, originalData, metadata }
+                                if (imgObj && imgObj.originalData) {
+                                    // ⭐ ÚJ: originalData = tömörítetlen verzió Google Drive-hoz!
+                                    allImages.push({
+                                        data: imgObj.originalData,  // ⭐ TÖMÖRÍTETLEN!
+                                        compressedData: imgObj.data,  // Tömörített (backup)
+                                        metadata: imgObj.metadata || {},
+                                        itemId: itemId
+                                    });
+                                } else if (imgObj && imgObj.data) {
+                                    // Fallback: ha nincs originalData, használjuk a data-t
+                                    allImages.push({
+                                        data: imgObj.data,
+                                        metadata: imgObj.metadata || {},
+                                        itemId: itemId
+                                    });
+                                } else if (typeof imgObj === 'string') {
+                                    // Régi formátum támogatása (csak base64 string)
+                                    allImages.push({
+                                        data: imgObj,
+                                        metadata: {},
+                                        itemId: itemId
+                                    });
+                                }
+                            });
+                        }
+                    });
+
+                    console.log(`📸 ${allImages.length} kép feltöltése metaadatokkal...`);
+                    const startTime = Date.now();
+
+                    const uploadImagePromises = allImages.map(async (imgObj, index) => {
+                        const imgStartTime = Date.now();
+                        try {
+                            console.log(`📤 [${index + 1}/${allImages.length}] Kép feltöltés kezdés (EXIF metaadatokkal)...`);
+
+                            // ⭐ base64 → buffer
+                            const base64Data = imgObj.data.replace(/^data:image\/\w+;base64,/, '');
+                            const imageBuffer = Buffer.from(base64Data, 'base64');
+
+                            console.log(`📦 Eredeti képméret: ${(imageBuffer.length / 1024).toFixed(2)} KB`);
+
+                            // ⭐ KRITIKUS FIX: SZERVEROLDALI EXIF BEOLVASÁS!
+                            console.log(`🔍 Szerveroldali EXIF beolvasás (base64 képből)...`);
+                            const serverExifMetadata = await extractExifMetadata(imgObj.data);
+
+                            console.log(`📋 Szerver által kinyert EXIF:`, {
+                                hasDate: serverExifMetadata.hasDate,
+                                hasGPS: serverExifMetadata.hasGPS,
+                                location: serverExifMetadata.location,
+                                latitude: serverExifMetadata.latitude,
+                                longitude: serverExifMetadata.longitude,
+                                takenDate: serverExifMetadata.takenDate
+                            });
+
+                            // ⭐ SZERVER EXIF elsőbbsége, frontend metadata fallback
+                            const finalMetadata = {
+                                // Ha a szerver talált GPS-t, használjuk azt
+                                takenDate: serverExifMetadata.hasDate ? serverExifMetadata.takenDate : (imgObj.metadata?.takenDate || new Date().toISOString()),
+                                location: serverExifMetadata.hasGPS ? serverExifMetadata.location : (imgObj.metadata?.location || 'Nincs GPS adat'),
+                                latitude: serverExifMetadata.hasGPS ? serverExifMetadata.latitude : (imgObj.metadata?.latitude || null),
+                                longitude: serverExifMetadata.hasGPS ? serverExifMetadata.longitude : (imgObj.metadata?.longitude || null),
+                                camera: serverExifMetadata.camera || imgObj.metadata?.camera || null,
+                                hasGPS: serverExifMetadata.hasGPS || (imgObj.metadata?.hasGPS || false),
+                                hasDate: serverExifMetadata.hasDate || (imgObj.metadata?.hasDate || false),
+                                // Kiegészítő metaadatok
+                                itemId: imgObj.itemId,
+                                serialNumber: serialNumber || 'N/A',
+                                projectName: projectName,
+                                uploadDate: new Date().toISOString()
+                            };
+
+                            console.log(`✅ Végső metaadatok (szerver prioritással):`, {
+                                hasDate: finalMetadata.hasDate,
+                                hasGPS: finalMetadata.hasGPS,
+                                location: finalMetadata.location,
+                                latitude: finalMetadata.latitude,
+                                longitude: finalMetadata.longitude
+                            });
+
+                            // ⭐ KRITIKUS: EXIF GPS metaadatok visszarakása Sharp-pal
+                            let finalImageBuffer = imageBuffer;
+
+                            if (finalMetadata.latitude && finalMetadata.longitude &&
+                                !isNaN(finalMetadata.latitude) && !isNaN(finalMetadata.longitude)) {
+
+                                console.log(`🌍 GPS koordináták hozzáadása EXIF-hez: ${finalMetadata.latitude}, ${finalMetadata.longitude}`);
+
+                                try {
+                                    // ⭐ GPS koordináták decimális → DMS konverzió
+                                    function toDegreesMinutesSeconds(decimal) {
+                                        const absolute = Math.abs(decimal);
+                                        const degrees = Math.floor(absolute);
+                                        const minutesNotTruncated = (absolute - degrees) * 60;
+                                        const minutes = Math.floor(minutesNotTruncated);
+                                        const seconds = (minutesNotTruncated - minutes) * 60;
+                                        return [degrees, minutes, seconds];
+                                    }
+
+                                    const latDMS = toDegreesMinutesSeconds(finalMetadata.latitude);
+                                    const lonDMS = toDegreesMinutesSeconds(finalMetadata.longitude);
+
+                                    // ⭐ Sharp EXIF GPS formátum
+                                    const exifData = {
+                                        IFD0: {
+                                            Make: finalMetadata.camera || 'Unknown',
+                                            Model: finalMetadata.camera || 'Unknown'
+                                        },
+                                        GPSInfo: {
+                                            GPSLatitudeRef: finalMetadata.latitude >= 0 ? 'N' : 'S',
+                                            GPSLatitude: latDMS,
+                                            GPSLongitudeRef: finalMetadata.longitude >= 0 ? 'E' : 'W',
+                                            GPSLongitude: lonDMS,
+                                            GPSVersionID: [2, 3, 0, 0]
+                                        }
+                                    };
+
+                                    console.log(`📍 GPS EXIF DMS:`, {
+                                        lat: latDMS,
+                                        latRef: exifData.GPSInfo.GPSLatitudeRef,
+                                        lon: lonDMS,
+                                        lonRef: exifData.GPSInfo.GPSLongitudeRef
+                                    });
+
+                                    // ⭐ Kép újraírása EXIF GPS metaadatokkal tömörítéssel
+                                    finalImageBuffer = await sharp(imageBuffer)
+                                        .withExif(exifData)
+                                        .jpeg({ quality: 85 }) // 85% minőség - optimális tömörítés metaadatok megőrzésével
+                                        .toBuffer();
+
+                                    console.log(`✅ EXIF GPS metaadatok beágyazva képbe`);
+                                } catch (exifError) {
+                                    console.warn(`⚠️ EXIF GPS hozzáadása sikertelen:`, exifError.message);
+                                    finalImageBuffer = imageBuffer;
+                                }
+                            } else {
+                                console.log(`ℹ️ Nincs GPS adat - kép feltöltése GPS nélkül`);
+                            }
+
+                            // Fájlnév generálása a PDF neve alapján
+                            const pdfBaseName = pdfFileName.replace(/\.pdf$/i, ''); // PDF név .pdf kiterjesztés nélkül
+                            const imageFileName = allImages.length > 1
+                                ? `${pdfBaseName} (${index + 1}).jpg`
+                                : `${pdfBaseName}.jpg`;
+
+                            // ⭐ Feltöltés GPS EXIF metaadatokkal
+                            const imageUploadResult = await uploadBufferToDrive(
+                                finalImageBuffer,  // ⭐ GPS EXIF-el ellátott kép
+                                imageFileName,
+                                pdfFolderId,
+                                'image/jpeg',
+                                finalMetadata
+                            );
+
+                            const imgElapsed = ((Date.now() - imgStartTime) / 1000).toFixed(2);
+                            console.log(`✅ Eredeti kép feltöltve metaadatokkal: ${imageFileName} (${(imageBuffer.length / 1024).toFixed(2)} KB, ${imgElapsed}s)`);
+
+                            return {
+                                url: imageUploadResult.webViewLink,
+                                id: imageUploadResult.id,
+                                metadata: finalMetadata
+                            };
+
+                        } catch (imgErr) {
+                            console.error(`❌ Hiba a kép feltöltésekor (${index + 1}):`, imgErr.message);
+                            return null;
+                        }
+                    });
+
+                    const uploadedImages = await Promise.all(uploadImagePromises);
+                    const successfulUploads = uploadedImages.filter(img => img !== null);
+
+                    const totalElapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+                    console.log(`🎉 ${successfulUploads.length}/${allImages.length} kép sikeresen feltöltve metaadatokkal (${totalElapsed}s összesen)`);
+
+                    res.json({
+                        success: true,
+                        message: 'PDF és képek sikeresen feltöltve a Google Drive-ra',
+                        driveUrl: uploadResult.webViewLink,
+                        images: successfulUploads
+                    });
+                } else {
+                    res.json({
+                        success: true,
+                        message: 'PDF sikeresen feltöltve',
+                        driveUrl: uploadResult.webViewLink
+                    });
+                }
+
+            } catch (driveErr) {
+                console.error('❌ Hiba a Google Drive feltöltésnél:', driveErr.message);
+                res.json({
+                    success: true,
+                    message: 'PDF letöltésre kész (Drive feltöltés sikertelen)',
+                    pdfData: pdfBuffer.toString('base64')
+                });
+            }
+        } else {
+            console.log('🏠 Fejlesztői környezet - PDF csak letöltésre');
+            res.json({
+                success: true,
+                message: 'PDF letöltésre kész (fejlesztői környezet)',
+                pdfData: pdfBuffer.toString('base64')
+            });
+        }
+
+    } catch (error) {
+        console.error('❌ Hiba a PDF exportálás során:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a PDF exportálása során.',
+            error: error.message
+        });
+    }
+});
+
+router.post('/projects/:projectId/reports/omissions/export-pdf', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+    const { pdfData, serialNumber, projectName, fileName, images } = req.body;
+
+    console.log('📥 PDF export request érkezett:', {
+        projectId,
+        userId,
+        serialNumber,
+        projectName,
+        fileName,
+        hasImages: !!images,
+        imageCount: images ? Object.keys(images).reduce((sum, key) => sum + (images[key]?.length || 0), 0) : 0
+    });
+
+    try {
+        // Jogosultság ellenőrzése
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({ 
+                    success: false, 
+                    message: 'Nincs jogosultsága ehhez a projekthez.' 
+                });
+            }
+        }
+
+        const safeProjectName = sanitizeFolderName(projectName);
+        const safeFolderName = (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A')
+            ? sanitizeFolderName(serialNumber)
+            : safeProjectName;
+
+        // Használjuk a kliens által generált fájlnevet, ha van
+        const pdfFileName = fileName || (
+            (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A')
+                ? `${sanitizeFolderName(serialNumber)}.pdf`
+                : `${safeProjectName}.pdf`
+        );
+
+        console.log(`📄 PDF export kezdés: ${pdfFileName}`);
+
+        // PDF buffer konvertálása
+        let pdfBuffer;
+        if (pdfData.startsWith('data:application/pdf;base64,')) {
+            const base64Data = pdfData.replace('data:application/pdf;base64,', '');
+            pdfBuffer = Buffer.from(base64Data, 'base64');
+        } else if (Buffer.isBuffer(pdfData)) {
+            pdfBuffer = pdfData;
+        } else {
+            pdfBuffer = Buffer.from(pdfData, 'base64');
+        }
+
+        console.log(`📊 PDF mérete: ${(pdfBuffer.length / 1024).toFixed(2)} KB`);
+
+        const isProduction = !!process.env.DATABASE_URL;
+
+        if (isProduction) {
+            console.log('🏭 Éles környezet - Google Drive feltöltés');
+
+            try {
+                if (!driveService) {
+                    console.log('⚠️ Drive service inicializálása...');
+                    await initializeGoogleDrive();
+                }
+
+                const projectFolderId = await getOrCreateFolder(safeProjectName, MAIN_DRIVE_FOLDER_ID);
+                const pdfFolderId = await getOrCreateDailyPdfFolder(safeFolderName, projectFolderId);
+
+                // PDF feltöltése
+                const uploadResult = await uploadPdfWithVersionControl(pdfBuffer, pdfFileName, pdfFolderId);
+                console.log(`✅ PDF feltöltve: ${uploadResult.webViewLink}`);
+
+                // ⭐ MÓDOSÍTOTT - Képek feltöltése EXIF metaadatokkal
+                if (images && Object.keys(images).length > 0) {
+                    const allImages = [];
+                    
+                    // Képek összegyűjtése az összes kategóriából
+                    Object.keys(images).forEach(itemId => {
+                        if (Array.isArray(images[itemId])) {
+                            images[itemId].forEach(imgObj => {
+                                // ⭐ FONTOS - A frontend objektumot küld: { data, originalData, metadata }
+                                if (imgObj && imgObj.originalData) {
+                                    // ⭐ ÚJ: originalData = tömörítetlen verzió Google Drive-hoz!
+                                    allImages.push({
+                                        data: imgObj.originalData,  // ⭐ TÖMÖRÍTETLEN!
+                                        compressedData: imgObj.data,  // Tömörített (backup)
+                                        metadata: imgObj.metadata || {},
+                                        itemId: itemId
+                                    });
+                                } else if (imgObj && imgObj.data) {
+                                    // Fallback: ha nincs originalData, használjuk a data-t
+                                    allImages.push({
+                                        data: imgObj.data,
+                                        metadata: imgObj.metadata || {},
+                                        itemId: itemId
+                                    });
+                                } else if (typeof imgObj === 'string') {
+                                    // Régi formátum támogatása (csak base64 string)
+                                    allImages.push({
+                                        data: imgObj,
+                                        metadata: {},
+                                        itemId: itemId
+                                    });
+                                }
+                            });
+                        }
+                    });
+
+                    console.log(`📸 ${allImages.length} kép feltöltése metaadatokkal...`);
+                    const startTime = Date.now();
+
+                    const uploadImagePromises = allImages.map(async (imgObj, index) => {
+                        const imgStartTime = Date.now();
+                        try {
+                            console.log(`📤 [${index + 1}/${allImages.length}] Kép feltöltés kezdés (EXIF metaadatokkal)...`);
+
+                            // ⭐ base64 → buffer
+                            const base64Data = imgObj.data.replace(/^data:image\/\w+;base64,/, '');
+                            const imageBuffer = Buffer.from(base64Data, 'base64');
+
+                            console.log(`📦 Eredeti képméret: ${(imageBuffer.length / 1024).toFixed(2)} KB`);
+
+                            // ⭐ KRITIKUS FIX: SZERVEROLDALI EXIF BEOLVASÁS!
+                            console.log(`🔍 Szerveroldali EXIF beolvasás (base64 képből)...`);
+                            const serverExifMetadata = await extractExifMetadata(imgObj.data);
+
+                            console.log(`📋 Szerver által kinyert EXIF:`, {
+                                hasDate: serverExifMetadata.hasDate,
+                                hasGPS: serverExifMetadata.hasGPS,
+                                location: serverExifMetadata.location,
+                                latitude: serverExifMetadata.latitude,
+                                longitude: serverExifMetadata.longitude,
+                                takenDate: serverExifMetadata.takenDate
+                            });
+
+                            // ⭐ SZERVER EXIF elsőbbsége, frontend metadata fallback
+                            const finalMetadata = {
+                                // Ha a szerver talált GPS-t, használjuk azt
+                                takenDate: serverExifMetadata.hasDate ? serverExifMetadata.takenDate : (imgObj.metadata?.takenDate || new Date().toISOString()),
+                                location: serverExifMetadata.hasGPS ? serverExifMetadata.location : (imgObj.metadata?.location || 'Nincs GPS adat'),
+                                latitude: serverExifMetadata.hasGPS ? serverExifMetadata.latitude : (imgObj.metadata?.latitude || null),
+                                longitude: serverExifMetadata.hasGPS ? serverExifMetadata.longitude : (imgObj.metadata?.longitude || null),
+                                camera: serverExifMetadata.camera || imgObj.metadata?.camera || null,
+                                hasGPS: serverExifMetadata.hasGPS || (imgObj.metadata?.hasGPS || false),
+                                hasDate: serverExifMetadata.hasDate || (imgObj.metadata?.hasDate || false),
+                                // Kiegészítő metaadatok
+                                itemId: imgObj.itemId,
+                                serialNumber: serialNumber || 'N/A',
+                                projectName: projectName,
+                                uploadDate: new Date().toISOString()
+                            };
+
+                            console.log(`✅ Végső metaadatok (szerver prioritással):`, {
+                                hasDate: finalMetadata.hasDate,
+                                hasGPS: finalMetadata.hasGPS,
+                                location: finalMetadata.location,
+                                latitude: finalMetadata.latitude,
+                                longitude: finalMetadata.longitude
+                            });
+
+                            // ⭐ KRITIKUS: EXIF GPS metaadatok visszarakása Sharp-pal
+                            let finalImageBuffer = imageBuffer;
+
+                            if (finalMetadata.latitude && finalMetadata.longitude &&
+                                !isNaN(finalMetadata.latitude) && !isNaN(finalMetadata.longitude)) {
+
+                                console.log(`🌍 GPS koordináták hozzáadása EXIF-hez: ${finalMetadata.latitude}, ${finalMetadata.longitude}`);
+
+                                try {
+                                    // ⭐ GPS koordináták decimális → DMS konverzió
+                                    function toDegreesMinutesSeconds(decimal) {
+                                        const absolute = Math.abs(decimal);
+                                        const degrees = Math.floor(absolute);
+                                        const minutesNotTruncated = (absolute - degrees) * 60;
+                                        const minutes = Math.floor(minutesNotTruncated);
+                                        const seconds = (minutesNotTruncated - minutes) * 60;
+                                        return [degrees, minutes, seconds];
+                                    }
+
+                                    const latDMS = toDegreesMinutesSeconds(finalMetadata.latitude);
+                                    const lonDMS = toDegreesMinutesSeconds(finalMetadata.longitude);
+
+                                    // ⭐ Sharp EXIF GPS formátum
+                                    const exifData = {
+                                        IFD0: {
+                                            Make: finalMetadata.camera || 'Unknown',
+                                            Model: finalMetadata.camera || 'Unknown'
+                                        },
+                                        GPSInfo: {
+                                            GPSLatitudeRef: finalMetadata.latitude >= 0 ? 'N' : 'S',
+                                            GPSLatitude: latDMS,
+                                            GPSLongitudeRef: finalMetadata.longitude >= 0 ? 'E' : 'W',
+                                            GPSLongitude: lonDMS,
+                                            GPSVersionID: [2, 3, 0, 0]
+                                        }
+                                    };
+
+                                    console.log(`📍 GPS EXIF DMS:`, {
+                                        lat: latDMS,
+                                        latRef: exifData.GPSInfo.GPSLatitudeRef,
+                                        lon: lonDMS,
+                                        lonRef: exifData.GPSInfo.GPSLongitudeRef
+                                    });
+
+                                    // ⭐ Kép újraírása EXIF GPS metaadatokkal tömörítéssel
+                                    finalImageBuffer = await sharp(imageBuffer)
+                                        .withExif(exifData)
+                                        .jpeg({ quality: 85 }) // 85% minőség - optimális tömörítés metaadatok megőrzésével
+                                        .toBuffer();
+
+                                    console.log(`✅ EXIF GPS metaadatok beágyazva képbe`);
+                                } catch (exifError) {
+                                    console.warn(`⚠️ EXIF GPS hozzáadása sikertelen:`, exifError.message);
+                                    finalImageBuffer = imageBuffer;
+                                }
+                            } else {
+                                console.log(`ℹ️ Nincs GPS adat - kép feltöltése GPS nélkül`);
+                            }
+
+                            // Fájlnév generálása a PDF neve alapján
+                            const pdfBaseName = pdfFileName.replace(/\.pdf$/i, ''); // PDF név .pdf kiterjesztés nélkül
+                            const imageFileName = allImages.length > 1
+                                ? `${pdfBaseName} (${index + 1}).jpg`
+                                : `${pdfBaseName}.jpg`;
+
+                            // ⭐ Feltöltés GPS EXIF metaadatokkal
+                            const imageUploadResult = await uploadBufferToDrive(
+                                finalImageBuffer,  // ⭐ GPS EXIF-el ellátott kép
+                                imageFileName,
+                                pdfFolderId,
+                                'image/jpeg',
+                                finalMetadata
+                            );
+
+                            const imgElapsed = ((Date.now() - imgStartTime) / 1000).toFixed(2);
+                            console.log(`✅ Eredeti kép feltöltve metaadatokkal: ${imageFileName} (${(imageBuffer.length / 1024).toFixed(2)} KB, ${imgElapsed}s)`);
+
+                            return {
+                                url: imageUploadResult.webViewLink,
+                                id: imageUploadResult.id,
+                                metadata: finalMetadata
+                            };
+
+                        } catch (imgErr) {
+                            console.error(`❌ Hiba a kép feltöltésekor (${index + 1}):`, imgErr.message);
+                            return null;
+                        }
+                    });
+
+                    const uploadedImages = await Promise.all(uploadImagePromises);
+                    const successfulUploads = uploadedImages.filter(img => img !== null);
+
+                    const totalElapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+                    console.log(`🎉 ${successfulUploads.length}/${allImages.length} kép sikeresen feltöltve metaadatokkal (${totalElapsed}s összesen)`);
+
+                    res.json({
+                        success: true,
+                        message: 'PDF és képek sikeresen feltöltve a Google Drive-ra',
+                        driveUrl: uploadResult.webViewLink,
+                        images: successfulUploads
+                    });
+                } else {
+                    res.json({
+                        success: true,
+                        message: 'PDF sikeresen feltöltve',
+                        driveUrl: uploadResult.webViewLink
+                    });
+                }
+
+            } catch (driveErr) {
+                console.error('❌ Hiba a Google Drive feltöltésnél:', driveErr.message);
+                res.json({
+                    success: true,
+                    message: 'PDF letöltésre kész (Drive feltöltés sikertelen)',
+                    pdfData: pdfBuffer.toString('base64')
+                });
+            }
+        } else {
+            console.log('🏠 Fejlesztői környezet - PDF csak letöltésre');
+            res.json({
+                success: true,
+                message: 'PDF letöltésre kész (fejlesztői környezet)',
+                pdfData: pdfBuffer.toString('base64')
+            });
+        }
+
+    } catch (error) {
+        console.error('❌ Hiba a PDF exportálás során:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a PDF exportálása során.',
+            error: error.message
+        });
+    }
+});
+
+router.post('/projects/:projectId/reports/other/export-pdf', isAuthenticated, async (req, res) => {
+    const projectId = req.params.projectId;
+    const userId = req.user.id;
+    const { pdfData, serialNumber, projectName, fileName, images } = req.body;
+
+    console.log('📥 PDF export request érkezett:', {
+        projectId,
+        userId,
+        serialNumber,
+        projectName,
+        fileName,
+        hasImages: !!images,
+        imageCount: images ? Object.keys(images).reduce((sum, key) => sum + (images[key]?.length || 0), 0) : 0
+    });
+
+    try {
+        // Jogosultság ellenőrzése
+        if (!req.user.isAdmin) {
+            const assignment = await knex('user_projects')
+                .where({ user_id: userId, project_id: projectId })
+                .first();
+
+            if (!assignment) {
+                return res.status(403).json({ 
+                    success: false, 
+                    message: 'Nincs jogosultsága ehhez a projekthez.' 
+                });
+            }
+        }
+
+        const safeProjectName = sanitizeFolderName(projectName);
+        const safeFolderName = (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A')
+            ? sanitizeFolderName(serialNumber)
+            : safeProjectName;
+
+        // Használjuk a kliens által generált fájlnevet, ha van
+        const pdfFileName = fileName || (
+            (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A')
+                ? `${sanitizeFolderName(serialNumber)}.pdf`
+                : `${safeProjectName}.pdf`
+        );
+
+        console.log(`📄 PDF export kezdés: ${pdfFileName}`);
+
+        // PDF buffer konvertálása
+        let pdfBuffer;
+        if (pdfData.startsWith('data:application/pdf;base64,')) {
+            const base64Data = pdfData.replace('data:application/pdf;base64,', '');
+            pdfBuffer = Buffer.from(base64Data, 'base64');
+        } else if (Buffer.isBuffer(pdfData)) {
+            pdfBuffer = pdfData;
+        } else {
+            pdfBuffer = Buffer.from(pdfData, 'base64');
+        }
+
+        console.log(`📊 PDF mérete: ${(pdfBuffer.length / 1024).toFixed(2)} KB`);
+
+        const isProduction = !!process.env.DATABASE_URL;
+
+        if (isProduction) {
+            console.log('🏭 Éles környezet - Google Drive feltöltés');
+
+            try {
+                if (!driveService) {
+                    console.log('⚠️ Drive service inicializálása...');
+                    await initializeGoogleDrive();
+                }
+
+                const projectFolderId = await getOrCreateFolder(safeProjectName, MAIN_DRIVE_FOLDER_ID);
+                const pdfFolderId = await getOrCreateDailyPdfFolder(safeFolderName, projectFolderId);
+
+                // PDF feltöltése
+                const uploadResult = await uploadPdfWithVersionControl(pdfBuffer, pdfFileName, pdfFolderId);
+                console.log(`✅ PDF feltöltve: ${uploadResult.webViewLink}`);
+
+                // ⭐ MÓDOSÍTOTT - Képek feltöltése EXIF metaadatokkal
+                if (images && Object.keys(images).length > 0) {
+                    const allImages = [];
+                    
+                    // Képek összegyűjtése az összes kategóriából
+                    Object.keys(images).forEach(itemId => {
+                        if (Array.isArray(images[itemId])) {
+                            images[itemId].forEach(imgObj => {
+                                // ⭐ FONTOS - A frontend objektumot küld: { data, originalData, metadata }
+                                if (imgObj && imgObj.originalData) {
+                                    // ⭐ ÚJ: originalData = tömörítetlen verzió Google Drive-hoz!
+                                    allImages.push({
+                                        data: imgObj.originalData,  // ⭐ TÖMÖRÍTETLEN!
+                                        compressedData: imgObj.data,  // Tömörített (backup)
+                                        metadata: imgObj.metadata || {},
+                                        itemId: itemId
+                                    });
+                                } else if (imgObj && imgObj.data) {
+                                    // Fallback: ha nincs originalData, használjuk a data-t
+                                    allImages.push({
+                                        data: imgObj.data,
+                                        metadata: imgObj.metadata || {},
+                                        itemId: itemId
+                                    });
+                                } else if (typeof imgObj === 'string') {
+                                    // Régi formátum támogatása (csak base64 string)
+                                    allImages.push({
+                                        data: imgObj,
+                                        metadata: {},
+                                        itemId: itemId
+                                    });
+                                }
+                            });
+                        }
+                    });
+
+                    console.log(`📸 ${allImages.length} kép feltöltése metaadatokkal...`);
+                    const startTime = Date.now();
+
+                    const uploadImagePromises = allImages.map(async (imgObj, index) => {
+                        const imgStartTime = Date.now();
+                        try {
+                            console.log(`📤 [${index + 1}/${allImages.length}] Kép feltöltés kezdés (EXIF metaadatokkal)...`);
+
+                            // ⭐ base64 → buffer
+                            const base64Data = imgObj.data.replace(/^data:image\/\w+;base64,/, '');
+                            const imageBuffer = Buffer.from(base64Data, 'base64');
+
+                            console.log(`📦 Eredeti képméret: ${(imageBuffer.length / 1024).toFixed(2)} KB`);
+
+                            // ⭐ KRITIKUS FIX: SZERVEROLDALI EXIF BEOLVASÁS!
+                            console.log(`🔍 Szerveroldali EXIF beolvasás (base64 képből)...`);
+                            const serverExifMetadata = await extractExifMetadata(imgObj.data);
+
+                            console.log(`📋 Szerver által kinyert EXIF:`, {
+                                hasDate: serverExifMetadata.hasDate,
+                                hasGPS: serverExifMetadata.hasGPS,
+                                location: serverExifMetadata.location,
+                                latitude: serverExifMetadata.latitude,
+                                longitude: serverExifMetadata.longitude,
+                                takenDate: serverExifMetadata.takenDate
+                            });
+
+                            // ⭐ SZERVER EXIF elsőbbsége, frontend metadata fallback
+                            const finalMetadata = {
+                                // Ha a szerver talált GPS-t, használjuk azt
+                                takenDate: serverExifMetadata.hasDate ? serverExifMetadata.takenDate : (imgObj.metadata?.takenDate || new Date().toISOString()),
+                                location: serverExifMetadata.hasGPS ? serverExifMetadata.location : (imgObj.metadata?.location || 'Nincs GPS adat'),
+                                latitude: serverExifMetadata.hasGPS ? serverExifMetadata.latitude : (imgObj.metadata?.latitude || null),
+                                longitude: serverExifMetadata.hasGPS ? serverExifMetadata.longitude : (imgObj.metadata?.longitude || null),
+                                camera: serverExifMetadata.camera || imgObj.metadata?.camera || null,
+                                hasGPS: serverExifMetadata.hasGPS || (imgObj.metadata?.hasGPS || false),
+                                hasDate: serverExifMetadata.hasDate || (imgObj.metadata?.hasDate || false),
+                                // Kiegészítő metaadatok
+                                itemId: imgObj.itemId,
+                                serialNumber: serialNumber || 'N/A',
+                                projectName: projectName,
+                                uploadDate: new Date().toISOString()
+                            };
+
+                            console.log(`✅ Végső metaadatok (szerver prioritással):`, {
+                                hasDate: finalMetadata.hasDate,
+                                hasGPS: finalMetadata.hasGPS,
+                                location: finalMetadata.location,
+                                latitude: finalMetadata.latitude,
+                                longitude: finalMetadata.longitude
+                            });
+
+                            // ⭐ KRITIKUS: EXIF GPS metaadatok visszarakása Sharp-pal
+                            let finalImageBuffer = imageBuffer;
+
+                            if (finalMetadata.latitude && finalMetadata.longitude &&
+                                !isNaN(finalMetadata.latitude) && !isNaN(finalMetadata.longitude)) {
+
+                                console.log(`🌍 GPS koordináták hozzáadása EXIF-hez: ${finalMetadata.latitude}, ${finalMetadata.longitude}`);
+
+                                try {
+                                    // ⭐ GPS koordináták decimális → DMS konverzió
+                                    function toDegreesMinutesSeconds(decimal) {
+                                        const absolute = Math.abs(decimal);
+                                        const degrees = Math.floor(absolute);
+                                        const minutesNotTruncated = (absolute - degrees) * 60;
+                                        const minutes = Math.floor(minutesNotTruncated);
+                                        const seconds = (minutesNotTruncated - minutes) * 60;
+                                        return [degrees, minutes, seconds];
+                                    }
+
+                                    const latDMS = toDegreesMinutesSeconds(finalMetadata.latitude);
+                                    const lonDMS = toDegreesMinutesSeconds(finalMetadata.longitude);
+
+                                    // ⭐ Sharp EXIF GPS formátum
+                                    const exifData = {
+                                        IFD0: {
+                                            Make: finalMetadata.camera || 'Unknown',
+                                            Model: finalMetadata.camera || 'Unknown'
+                                        },
+                                        GPSInfo: {
+                                            GPSLatitudeRef: finalMetadata.latitude >= 0 ? 'N' : 'S',
+                                            GPSLatitude: latDMS,
+                                            GPSLongitudeRef: finalMetadata.longitude >= 0 ? 'E' : 'W',
+                                            GPSLongitude: lonDMS,
+                                            GPSVersionID: [2, 3, 0, 0]
+                                        }
+                                    };
+
+                                    console.log(`📍 GPS EXIF DMS:`, {
+                                        lat: latDMS,
+                                        latRef: exifData.GPSInfo.GPSLatitudeRef,
+                                        lon: lonDMS,
+                                        lonRef: exifData.GPSInfo.GPSLongitudeRef
+                                    });
+
+                                    // ⭐ Kép újraírása EXIF GPS metaadatokkal tömörítéssel
+                                    finalImageBuffer = await sharp(imageBuffer)
+                                        .withExif(exifData)
+                                        .jpeg({ quality: 85 }) // 85% minőség - optimális tömörítés metaadatok megőrzésével
+                                        .toBuffer();
+
+                                    console.log(`✅ EXIF GPS metaadatok beágyazva képbe`);
+                                } catch (exifError) {
+                                    console.warn(`⚠️ EXIF GPS hozzáadása sikertelen:`, exifError.message);
+                                    finalImageBuffer = imageBuffer;
+                                }
+                            } else {
+                                console.log(`ℹ️ Nincs GPS adat - kép feltöltése GPS nélkül`);
+                            }
+
+                            // Fájlnév generálása a PDF neve alapján
+                            const pdfBaseName = pdfFileName.replace(/\.pdf$/i, ''); // PDF név .pdf kiterjesztés nélkül
+                            const imageFileName = allImages.length > 1
+                                ? `${pdfBaseName} (${index + 1}).jpg`
+                                : `${pdfBaseName}.jpg`;
+
+                            // ⭐ Feltöltés GPS EXIF metaadatokkal
+                            const imageUploadResult = await uploadBufferToDrive(
+                                finalImageBuffer,  // ⭐ GPS EXIF-el ellátott kép
+                                imageFileName,
+                                pdfFolderId,
+                                'image/jpeg',
+                                finalMetadata
+                            );
+
+                            const imgElapsed = ((Date.now() - imgStartTime) / 1000).toFixed(2);
+                            console.log(`✅ Eredeti kép feltöltve metaadatokkal: ${imageFileName} (${(imageBuffer.length / 1024).toFixed(2)} KB, ${imgElapsed}s)`);
+
+                            return {
+                                url: imageUploadResult.webViewLink,
+                                id: imageUploadResult.id,
+                                metadata: finalMetadata
+                            };
+
+                        } catch (imgErr) {
+                            console.error(`❌ Hiba a kép feltöltésekor (${index + 1}):`, imgErr.message);
+                            return null;
+                        }
+                    });
+
+                    const uploadedImages = await Promise.all(uploadImagePromises);
+                    const successfulUploads = uploadedImages.filter(img => img !== null);
+
+                    const totalElapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+                    console.log(`🎉 ${successfulUploads.length}/${allImages.length} kép sikeresen feltöltve metaadatokkal (${totalElapsed}s összesen)`);
+
+                    res.json({
+                        success: true,
+                        message: 'PDF és képek sikeresen feltöltve a Google Drive-ra',
+                        driveUrl: uploadResult.webViewLink,
+                        images: successfulUploads
+                    });
+                } else {
+                    res.json({
+                        success: true,
+                        message: 'PDF sikeresen feltöltve',
+                        driveUrl: uploadResult.webViewLink
+                    });
+                }
+
+            } catch (driveErr) {
+                console.error('❌ Hiba a Google Drive feltöltésnél:', driveErr.message);
+                res.json({
+                    success: true,
+                    message: 'PDF letöltésre kész (Drive feltöltés sikertelen)',
+                    pdfData: pdfBuffer.toString('base64')
+                });
+            }
+        } else {
+            console.log('🏠 Fejlesztői környezet - PDF csak letöltésre');
+            res.json({
+                success: true,
+                message: 'PDF letöltésre kész (fejlesztői környezet)',
+                pdfData: pdfBuffer.toString('base64')
+            });
+        }
+
+    } catch (error) {
+        console.error('❌ Hiba a PDF exportálás során:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Hiba történt a PDF exportálása során.',
+            error: error.message
+        });
+    }
+});
+
 
 // ⭐ ÚJ ROUTE - Képek metaadatainak lekérése Drive-ról
 router.get('/projects/:projectId/images-metadata', isAuthenticated, async (req, res) => {

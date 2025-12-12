@@ -2150,7 +2150,51 @@ const backUrl = isAdmin
         // ========================================
         // PDF GENERÁLÁS
         // ========================================
-        async function exportToPDF() {
+        
+        // PDF fájlnév generálása
+        function generatePdfFileName() {
+            const serialNumber = document.getElementById('serialNumber').value;
+            const projectName = document.getElementById('projectName').value || '<%= project.name %>';
+            const timestamp = new Date().toISOString().split('T')[0];
+
+            if (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A') {
+                return `${serialNumber}_${timestamp}.pdf`;
+            } else {
+                return `${projectName}_${timestamp}.pdf`;
+            }
+        }
+
+async function exportToPDF() {
+            const projectName = document.getElementById('projectName').value || '<%= project.name %>';
+            const serialNumber = document.getElementById('serialNumber').value || 'N/A';
+            const inspectorPerson = document.getElementById('inspectorPerson').value || '<%= user.name %>';
+            const inspectionDateValue = document.getElementById('inspectionDate').value;
+            const formattedDate = inspectionDateValue ? new Date(inspectionDateValue).toLocaleDateString('hu-HU', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            }) : 'N/A';
+
+            // Logók betöltése base64-ként
+            async function imageToBase64(url) {
+                try {
+                    const response = await fetch(url);
+                    const blob = await response.blob();
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                    });
+                } catch (error) {
+                    console.warn(`⚠️ Nem sikerült betölteni a logót: ${url}`, error);
+                    return null;
+                }
+            }
+
+            const mvmLogoBase64 = await imageToBase64('/images/MVM.png');
+            const iwsLogoBase64 = await imageToBase64('/images/IWS-Solutions.jpg');
+
             const formData = new FormData(document.getElementById('documentationForm'));
             const data = {};
 
@@ -2235,9 +2279,191 @@ const backUrl = isAdmin
                     sanctions: { fontSize: 11, margin: [0, 3, 0, 3] },
                     sanctionsSubtitle: { fontSize: 12, italics: true, color: '#666' }
                 }
-            };
+            ,
 
-            pdfMake.createPdf(docDefinition).download(`Szemelyifeltetelek_${data.serialNumber || 'dokumentum'}.pdf`);
+    images: {
+        mvmLogo: mvmLogoBase64,
+        iwsLogo: iwsLogoBase64
+    }
+};
+
+            
+            // ⭐ PDF generálás és Google Drive feltöltés
+            pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
+                console.log('📤 PDF base64 generálva, méret:', pdfBase64.length, 'karakter');
+                const imageCount = Object.keys(uploadedImages).reduce((sum, key) => sum + (uploadedImages[key]?.length || 0), 0);
+                console.log('📤 Képek száma feltöltésre:', imageCount);
+
+                // ⭐ Progress bar megjelenítése
+                showUploadProgress();
+                updateUploadProgress(10, 'PDF előkészítése...');
+
+                try {
+                    // Küldés a backend-nek
+                    updateUploadProgress(20, `PDF és ${imageCount} kép feltöltése a szerverre...`);
+                    console.log('🌐 Fetch kezdés - PDF és képek feltöltése...');
+
+                    const pdfFileName = generatePdfFileName();
+
+                    const response = await fetch('/projects/<%= project.id %>/reports/work-environment/export-pdf', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            pdfData: `data:application/pdf;base64,${pdfBase64}`,
+                            serialNumber: data.serialNumber || 'N/A',
+                            projectName: data.projectName || '<%= project.name %>',
+                            fileName: pdfFileName,
+                            images: uploadedImages
+                        })
+                    });
+
+                    updateUploadProgress(40, 'Válasz fogadása...');
+                    console.log('📡 Válasz érkezett:', response.status, response.statusText);
+
+                    if (!response.ok) {
+                        hideUploadProgress();
+                        throw new Error(`HTTP hiba! Státusz: ${response.status}`);
+                    }
+
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        hideUploadProgress();
+                        const responseText = await response.text();
+                        console.error('❌ Nem JSON válasz érkezett:', responseText.substring(0, 500));
+                        throw new Error('A szerver nem JSON választ küldött. Lehet, hogy ki vagy jelentkezve vagy szerver hiba történt.');
+                    }
+
+                    updateUploadProgress(60, 'Adatok feldolgozása...');
+                    const result = await response.json();
+                    console.log('✅ Backend válasz:', result);
+
+                    if (result.success) {
+                        updateUploadProgress(80, 'Drive feltöltés...');
+
+                        if (result.driveUrl) {
+                            updateUploadProgress(100, `✅ ${imageCount} kép sikeresen feltöltve!`);
+
+                            setTimeout(() => {
+                                hideUploadProgress();
+                                alert('✅ PDF sikeresen exportálva és feltöltve a Google Drive-ra!');
+                                console.log('📂 Drive URL:', result.driveUrl);
+                                if (result.images && result.images.length > 0) {
+                                    console.log(`📸 ${result.images.length} kép sikeresen feltöltve metaadatokkal`);
+                                }
+                            }, 500);
+                        } else {
+                            hideUploadProgress();
+                            alert('✅ PDF letöltésre kész!');
+                        }
+                    } else {
+                        hideUploadProgress();
+                        console.warn('⚠️ Backend hiba:', result.message);
+                        alert('⚠️ Hiba: ' + (result.message || 'Ismeretlen hiba'));
+                    }
+
+                    // ⭐ PDF letöltés (minden eszközön)
+                    const fileName = pdfFileName;
+                    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+                    console.log(`📱 Eszköz típus: ${isMobile ? 'Mobil' : 'Asztal'}, iOS: ${isIOS}`);
+
+                    pdfMake.createPdf(docDefinition).getBlob(function(blob) {
+                        try {
+                            const blobUrl = URL.createObjectURL(blob);
+
+                            if (isIOS) {
+                                console.log('🍎 iOS eszköz - Új ablak megnyitása');
+                                const reader = new FileReader();
+                                reader.onloadend = function() {
+                                    const newWindow = window.open('', '_blank');
+                                    if (newWindow) {
+                                        newWindow.document.write(`
+                                            <html>
+                                            <head><title>${fileName}</title></head>
+                                            <body style="margin:0;">
+                                                <embed src="${reader.result}" type="application/pdf" width="100%" height="100%" />
+                                            </body>
+                                            </html>
+                                        `);
+                                    } else {
+                                        alert('⚠️ Kérlek engedélyezd az új ablak megnyitását a böngészőben!');
+                                    }
+                                };
+                                reader.readAsDataURL(blob);
+                            } else if (isMobile) {
+                                console.log('📱 Mobil böngésző - Letöltés indítása');
+                                const link = document.createElement('a');
+                                link.href = blobUrl;
+                                link.download = fileName;
+                                link.style.display = 'none';
+                                document.body.appendChild(link);
+                                if (link.click) {
+                                    link.click();
+                                } else {
+                                    const clickEvent = new MouseEvent('click', {
+                                        view: window,
+                                        bubbles: true,
+                                        cancelable: true
+                                    });
+                                    link.dispatchEvent(clickEvent);
+                                }
+                                setTimeout(() => {
+                                    document.body.removeChild(link);
+                                    URL.revokeObjectURL(blobUrl);
+                                }, 100);
+                                console.log('✅ PDF letöltés elindítva (mobil)');
+                            } else {
+                                console.log('💻 Asztali böngésző - Standard letöltés');
+                                const link = document.createElement('a');
+                                link.href = blobUrl;
+                                link.download = fileName;
+                                link.style.display = 'none';
+                                document.body.appendChild(link);
+                                link.click();
+                                setTimeout(() => {
+                                    document.body.removeChild(link);
+                                    URL.revokeObjectURL(blobUrl);
+                                }, 100);
+                            }
+                        } catch (error) {
+                            console.error('❌ PDF letöltési hiba:', error);
+                            alert('⚠️ Hiba történt a PDF letöltésekor. Próbáld újra!');
+                        }
+                    });
+
+                } catch (error) {
+                    hideUploadProgress();
+                    console.error('❌ Kritikus hiba a PDF exportálás során:', error);
+
+                    let errorMessage = '⚠️ Hiba történt a PDF exportálása közben.\n\n';
+
+                    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                        errorMessage += 'Hálózati kapcsolat hiba. Ellenőrizd az internet kapcsolatot és próbáld újra!';
+                    } else if (error.message.includes('HTTP hiba')) {
+                        errorMessage += 'Szerver hiba: ' + error.message;
+                    } else {
+                        errorMessage += error.message || 'Ismeretlen hiba történt.';
+                    }
+
+                    alert(errorMessage);
+
+                    // Próbáljunk helyi letöltést biztonsági mentésként
+                    console.log('🔄 Próbálkozás helyi PDF letöltéssel...');
+                    try {
+                        const fileName = generatePdfFileName();
+                        pdfMake.createPdf(docDefinition).download(fileName);
+                        console.log('✅ Helyi letöltés sikerült');
+                    } catch (downloadError) {
+                        console.error('❌ Helyi letöltés is sikertelen:', downloadError);
+                    }
+                }
+            });
+
+            console.log('✓ PDF export folyamat elindítva');
+
 
             console.log('✓ PDF generálva');
         }
@@ -2935,6 +3161,19 @@ function loadSavedData(data) {
     console.log('✓ Mentett adatok sikeresen betöltve a form-ba');
 }
     </script>
+
+
+    <!-- ⭐ Progress bar overlay -->
+    <div id="uploadProgressOverlay" class="upload-progress-overlay">
+        <div class="upload-progress-container">
+            <div class="upload-progress-title">📤 Feltöltés folyamatban...</div>
+            <div class="upload-progress-bar-container">
+                <div id="uploadProgressBar" class="upload-progress-bar"></div>
+                <div id="uploadProgressText" class="upload-progress-text">0%</div>
+            </div>
+            <div id="uploadProgressStatus" class="upload-progress-status">Inicializálás...</div>
+        </div>
+    </div>
 
 </body>
 </html>
