@@ -585,6 +585,40 @@ const backUrl = isAdmin
     </div>
 
     <script>
+        // ========================================
+        // PROGRESS BAR FÜGGVÉNYEK
+        // ========================================
+        function showUploadProgress() {
+            const overlay = document.getElementById('uploadProgressOverlay');
+            if (overlay) {
+                overlay.style.display = 'flex';
+            }
+        }
+
+        function hideUploadProgress() {
+            const overlay = document.getElementById('uploadProgressOverlay');
+            if (overlay) {
+                overlay.style.display = 'none';
+            }
+        }
+
+        function updateUploadProgress(percent, status) {
+            const bar = document.getElementById('uploadProgressBar');
+            const text = document.getElementById('uploadProgressText');
+            const statusDiv = document.getElementById('uploadProgressStatus');
+
+            if (bar) bar.style.width = percent + '%';
+            if (text) text.textContent = Math.round(percent) + '%';
+            if (status && statusDiv) {
+                statusDiv.textContent = status;
+            }
+
+            console.log(`📊 Progress: ${Math.round(percent)}% - ${status}`);
+        }
+
+        // ========================================
+        // GLOBÁLIS VÁLTOZÓK
+        // ========================================
         const uploadedImages = {};
         const signatures = {};
         let currentSignatureType = '';
