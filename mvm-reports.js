@@ -738,10 +738,10 @@ router.post('/projects/:projectId/reports/documentation/export-pdf', isAuthentic
                                         lonRef: exifData.GPSInfo.GPSLongitudeRef
                                     });
 
-                                    // ⭐ Kép újraírása EXIF GPS metaadatokkal
+                                    // ⭐ Kép újraírása EXIF GPS metaadatokkal tömörítéssel
                                     finalImageBuffer = await sharp(imageBuffer)
                                         .withExif(exifData)
-                                        .jpeg({ quality: 100 }) // 100% minőség
+                                        .jpeg({ quality: 85 }) // 85% minőség - optimális tömörítés metaadatok megőrzésével
                                         .toBuffer();
 
                                     console.log(`✅ EXIF GPS metaadatok beágyazva képbe`);
