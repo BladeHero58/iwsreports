@@ -15,13 +15,6 @@
 <body>
     <h1>Üdvözlünk, <%= user.username %>!</h1>
         <p>Felhasználói jogosultságokkal rendelkezel</p>
-    <h2>Felhasználói információk:</h2>
-<!-- További információk -->
-
-    <ul>
-        <li><strong>Felhasználónév:</strong> <%= user.username %></li>
-        <li><strong>ID:</strong> <%= user.id %></li>
-    </ul>
 
     <section>
         <form action="/user/projects" method="get">
@@ -30,7 +23,7 @@
     </section>
     
     <form action="/profile" method="get">
-        <button type="submit" class="btn"><i class="fas fa-circle-user"></i> Profil megtekintése</button>
+        <button type="submit" class="btn"><i class="fas fa-id-card"></i> Profil megtekintése</button>
     </form>
 
     <form action="/logout" method="GET">

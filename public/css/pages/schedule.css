@@ -87,7 +87,7 @@ button {
   background-color: #f6ee48;
   color: #020202;
   padding: 8px;
-  border: 1px solid #ddd;
+  border: none;
   border-radius: 4px;
   font-size: 14px;
   cursor: pointer;
@@ -97,7 +97,7 @@ button {
 
 button:hover {
   background-color: #5c0099;
-  color: #fff;
+  color: white;
 }
 
 button:disabled {
@@ -107,7 +107,7 @@ button:disabled {
 
 .btn-danger {
   background-color: #5c0099;
-  color: #fff;
+  color: white;
 }
 
 .btn-danger:hover {

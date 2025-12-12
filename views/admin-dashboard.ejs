@@ -9,11 +9,11 @@
 </head>
 <body>
   <header>
-    <h1>Admin irányítópult</h1>
+    <h1>Üdvözlünk, <%= user.username %>!</h1>
      <!-- Bejelentkezett felhasználó információk megjelenítése -->
   <% if (user && user.isAdmin) { %>
     <section>
-      <p>Ön adminisztrátori jogosultsággal rendelkezik.</p>
+      <p>Adminisztrátori jogosultsággal rendelkezel.</p>
       <!-- További adminisztrátori funkciók itt -->
     </section>
   <% } else { %>
@@ -33,7 +33,7 @@
 </form>
 
 <form action="/profile" method="get">
-  <button type="submit" class="btn"><i class="fas fa-circle-user"></i> Profil megtekintése</button>
+  <button type="submit" class="btn"><i class="fas fa-id-card"></i> Profil megtekintése</button>
 </form>
 
 <form action="/logout" method="GET">
