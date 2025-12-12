@@ -17,6 +17,32 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 
     <style>
+        /* Vissza gomb */
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background-color: #5c0099;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+            font-size: 14px;
+            color: white;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 1000;
+            transition: all 0.3s;
+        }
+
+        .back-button:hover {
+            background-color: #202020;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
         /* Responsive adjustments for profile page */
         body {
             padding: 10px;
@@ -145,19 +171,6 @@
         color: #ffffff;
         }
 
-        /* Back to dashboard button - separate section */
-        .back-button-section {
-            max-width: 600px;
-            margin: 30px auto;
-            padding: 20px;
-            text-align: center;
-        }
-
-        .back-button-section .logout-btn {
-            width: 100%;
-            max-width: 400px;
-        }
-
         .modal-content {
             max-width: 90%;
             width: 500px;
@@ -180,6 +193,13 @@
         }
 
         @media (max-width: 768px) {
+            .back-button {
+                top: 10px;
+                left: 10px;
+                padding: 10px 16px;
+                font-size: 13px;
+            }
+
             body {
                 padding: 5px;
             }
@@ -266,6 +286,14 @@
         }
 
         @media (max-width: 576px) {
+            .back-button {
+                top: 10px;
+                left: 10px;
+                padding: 8px 14px;
+                font-size: 12px;
+                gap: 6px;
+            }
+
             h1 {
                 font-size: 20px;
             }
@@ -509,39 +537,13 @@
     </form>
 </div>
 
-<div class="back-button-section">
-    <form action="<%= user.is_admin ? '/admin-dashboard' : '/dashboard' %>" method="GET">
-        <button type="submit" class="logout-btn" id="backToDashboardBtn"><i class="fas fa-arrow-left"></i> Vissza az irányítópultra</button>
-    </form>
-</div>
+<a href="<%= user.is_admin ? '/admin-dashboard' : '/dashboard' %>" class="back-button">
+    <i class="fas fa-arrow-left"></i> Vissza
+</a>
 
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js'></script>
 
     <script>
-//GOMB VISSZA AZ IRÁNYÍTÓPULTRA
-// Alternatív megoldás, ha már rendelkezésre áll a user objektum a szerveroldali renderelésből
-// Ez a megoldás gyorsabb, mert nem kell API hívást tenni
-document.addEventListener('DOMContentLoaded', () => {
-    const backBtn = document.getElementById('backToDashboardBtn');
-
-    if (backBtn) {
-        backBtn.addEventListener('click', () => {
-            // Használjuk a szerveroldali renderelésből származó user objektumot
-            const isAdmin = <%= user.isAdmin || false %>; // Vagy <%= user.role === 'admin' %>
-            
-            console.log('Admin státusz:', isAdmin);
-            
-            if (isAdmin) {
-                console.log('Admin felhasználó, átirányítás admin-dashboard-ra');
-                window.location.href = '/admin-dashboard';
-            } else {
-                console.log('Normál felhasználó, átirányítás dashboard-ra');
-                window.location.href = '/dashboard';
-            }
-        });
-    }
-});
-
         // KÖZVETLEN ELLENŐRZÉS A SCRIPT BETÖLTŐDÉSEKOR
         console.log('Frontend (profile.ejs - early check): localStorage "token" value:', localStorage.getItem('token') ? 'Token megtalálható (első 10 karakter): ' + localStorage.getItem('token').substring(0, 10) + '...' : 'Nincs token');
 
