@@ -594,55 +594,25 @@ const backUrl = isAdmin
     </div>
 
     <!-- Aláírás Modal -->
-    <div id="signatureModal" class="modal">
+        <div id="signatureModal" class="modal">
         <div class="modal-content">
-            <span class="close" onclick="closeSignatureModal()">&times;</span>
-            <h2>Aláírás létrehozása</h2>
-
-            <!-- Tab buttons -->
-            <div class="tab-buttons">
-                <button class="tab-btn active" onclick="switchTab('draw')">
-                    <i class="fas fa-pencil-alt"></i> Rajzolás
-                </button>
-                <button class="tab-btn" onclick="switchTab('upload')">
-                    <i class="fas fa-upload"></i> Képfeltöltés
-                </button>
+            <div class="modal-header">
+                <h2><i class="fas fa-signature"></i> Aláírás hozzáadása</h2>
+                <button class="close-modal" onclick="closeSignatureModal()">&times;</button>
             </div>
-
-            <!-- Rajzolás tab -->
-            <div id="drawTab" class="tab-content active">
-                <canvas id="signatureCanvas" width="600" height="200"></canvas>
-                <div class="signature-controls">
-                    <button type="button" class="btn-clear" onclick="clearCanvas()">
-                        <i class="fas fa-eraser"></i> Törlés
-                    </button>
-                    <button type="button" class="btn-save" onclick="saveSignature()">
-                        <i class="fas fa-check"></i> Mentés
-                    </button>
-                </div>
-            </div>
-
-            <!-- Feltöltés tab -->
-            <div id="uploadTab" class="tab-content">
-                <div class="upload-area">
-                    <input type="file" id="signatureUpload" accept="image/*" onchange="handleSignatureUpload(event)">
-                    <label for="signatureUpload">
-                        <i class="fas fa-cloud-upload-alt"></i>
-                        <p>Kattintson vagy húzza ide az aláírás képét</p>
-                    </label>
-                </div>
-                <canvas id="uploadedSignatureCanvas" width="600" height="200" style="display: none;"></canvas>
-                <div class="signature-controls" id="uploadControls" style="display: none;">
-                    <button type="button" class="btn-clear" onclick="clearUploadedSignature()">
-                        <i class="fas fa-eraser"></i> Törlés
-                    </button>
-                    <button type="button" class="btn-save" onclick="saveUploadedSignature()">
-                        <i class="fas fa-check"></i> Mentés
-                    </button>
-                </div>
+            <canvas id="signatureCanvas" width="540" height="300"></canvas>
+            <div class="canvas-controls">
+                <button class="btn-clear" onclick="clearCanvas()">
+                    <i class="fas fa-trash"></i> Törlés
+                </button>
+                <button class="btn-save" onclick="saveSignature()">
+                    <i class="fas fa-save"></i> Mentés
+                </button>
             </div>
         </div>
     </div>
+
+
 
     <script>
         // ========================================
@@ -703,9 +673,9 @@ const backUrl = isAdmin
                 canvas.addEventListener('mouseout', stopDrawing);
 
                 // Touch események mobilra
-                canvas.addEventListener('touchstart', handleTouch);
-                canvas.addEventListener('touchmove', handleTouch);
-                canvas.addEventListener('touchend', stopDrawing);
+                canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+                canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+                canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
             }
 
             // Aktuális dátum beállítása alapértelmezettnek
@@ -1169,274 +1139,148 @@ const backUrl = isAdmin
         // ========================================
         // ALÁÍRÁS MODAL
         // ========================================
-        function openSignatureModal(type) {
-            currentSignatureType = type;
-            document.getElementById('signatureModal').style.display = 'block';
-            switchTab('draw');
-            clearCanvas();
-        }
+        
+        // ========================================
+        // ALÁÍRÁS RAJZOLÓ FÜGGVÉNYEK
+        // ========================================
 
-        function closeSignatureModal() {
-            document.getElementById('signatureModal').style.display = 'none';
-            clearCanvas();
-            clearUploadedSignature();
-        }
-
-        function switchTab(tab) {
-            const drawTab = document.getElementById('drawTab');
-            const uploadTab = document.getElementById('uploadTab');
-            const drawBtn = document.querySelector('.tab-btn:nth-child(1)');
-            const uploadBtn = document.querySelector('.tab-btn:nth-child(2)');
-
-            if (tab === 'draw') {
-                drawTab.classList.add('active');
-                uploadTab.classList.remove('active');
-                drawBtn.classList.add('active');
-                uploadBtn.classList.remove('active');
-            } else {
-                uploadTab.classList.add('active');
-                drawTab.classList.remove('active');
-                uploadBtn.classList.add('active');
-                drawBtn.classList.remove('active');
-            }
-        }
-
+        // Rajzolás kezdése
         function startDrawing(e) {
             isDrawing = true;
             const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
             ctx.beginPath();
-            ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+            ctx.moveTo(
+                (e.clientX - rect.left) * scaleX,
+                (e.clientY - rect.top) * scaleY
+            );
         }
 
+        // Rajzolás
         function draw(e) {
             if (!isDrawing) return;
+
             const rect = canvas.getBoundingClientRect();
-            ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            ctx.lineTo(
+                (e.clientX - rect.left) * scaleX,
+                (e.clientY - rect.top) * scaleY
+            );
             ctx.stroke();
         }
 
+        // Rajzolás befejezése
         function stopDrawing() {
+            if (isDrawing) {
+                ctx.closePath();
+            }
             isDrawing = false;
         }
 
-        function handleTouch(e) {
+        // Touch események - Start
+        function handleTouchStart(e) {
             e.preventDefault();
             const touch = e.touches[0];
-            const mouseEvent = new MouseEvent(e.type === 'touchstart' ? 'mousedown' : 'mousemove', {
-                clientX: touch.clientX,
-                clientY: touch.clientY
-            });
-            canvas.dispatchEvent(mouseEvent);
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            isDrawing = true;
+            ctx.beginPath();
+            ctx.moveTo(
+                (touch.clientX - rect.left) * scaleX,
+                (touch.clientY - rect.top) * scaleY
+            );
         }
 
+        // Touch események - Move
+        function handleTouchMove(e) {
+            e.preventDefault();
+            if (!isDrawing) return;
+
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            ctx.lineTo(
+                (touch.clientX - rect.left) * scaleX,
+                (touch.clientY - rect.top) * scaleY
+            );
+            ctx.stroke();
+        }
+
+        // Touch események - End
+        function handleTouchEnd(e) {
+            e.preventDefault();
+            if (isDrawing) {
+                ctx.closePath();
+            }
+            isDrawing = false;
+        }
+
+        // Canvas törlése
         function clearCanvas() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
         }
 
+        // Aláírás mentése
         function saveSignature() {
-            const dataUrl = canvas.toDataURL();
-            signatures[currentSignatureType] = dataUrl;
+            const dataURL = canvas.toDataURL('image/png');
+            signatures[currentSignatureType] = dataURL;
 
-            const preview = document.getElementById(`${currentSignatureType}Preview`);
-            preview.innerHTML = `<img src="${dataUrl}" alt="Aláírás">`;
+            let hiddenInputId = currentSignatureType + 'Signature';
+            if (currentSignatureType.startsWith('witness_')) {
+                hiddenInputId = currentSignatureType + 'Signature';
+            }
 
-            const hiddenInput = document.getElementById(`${currentSignatureType}Signature`);
-            if (hiddenInput) hiddenInput.value = dataUrl;
+            const hiddenInput = document.getElementById(hiddenInputId);
+            if (hiddenInput) {
+                hiddenInput.value = dataURL;
+                console.log('Hidden input frissítve:', hiddenInputId);
+            } else {
+                console.warn('Nem található hidden input:', hiddenInputId);
+            }
 
-            const clearBtn = document.getElementById(`${currentSignatureType}Clear`);
-            if (clearBtn) clearBtn.style.display = 'block';
+            const previewId = currentSignatureType + 'Preview';
+            const preview = document.getElementById(previewId);
+            if (preview) {
+                preview.innerHTML = '<img src="' + dataURL + '" alt="Aláírás">';
+            }
 
-            closeSignatureModal();
-        }
-
-        function handleSignatureUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const img = new Image();
-                img.onload = function() {
-                    const uploadCanvas = document.getElementById('uploadedSignatureCanvas');
-                    const uploadCtx = uploadCanvas.getContext('2d');
-
-                    uploadCanvas.style.display = 'block';
-                    document.getElementById('uploadControls').style.display = 'flex';
-
-                    uploadCtx.clearRect(0, 0, uploadCanvas.width, uploadCanvas.height);
-                    uploadCtx.drawImage(img, 0, 0, uploadCanvas.width, uploadCanvas.height);
-                };
-                img.src = e.target.result;
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function clearUploadedSignature() {
-            const uploadCanvas = document.getElementById('uploadedSignatureCanvas');
-            const uploadCtx = uploadCanvas.getContext('2d');
-            uploadCtx.clearRect(0, 0, uploadCanvas.width, uploadCanvas.height);
-            uploadCanvas.style.display = 'none';
-            document.getElementById('uploadControls').style.display = 'none';
-            document.getElementById('signatureUpload').value = '';
-        }
-
-        function saveUploadedSignature() {
-            const uploadCanvas = document.getElementById('uploadedSignatureCanvas');
-            const dataUrl = uploadCanvas.toDataURL();
-            signatures[currentSignatureType] = dataUrl;
-
-            const preview = document.getElementById(`${currentSignatureType}Preview`);
-            preview.innerHTML = `<img src="${dataUrl}" alt="Aláírás">`;
-
-            const hiddenInput = document.getElementById(`${currentSignatureType}Signature`);
-            if (hiddenInput) hiddenInput.value = dataUrl;
-
-            const clearBtn = document.getElementById(`${currentSignatureType}Clear`);
-            if (clearBtn) clearBtn.style.display = 'block';
+            const clearBtnId = currentSignatureType + 'Clear';
+            const clearBtn = document.getElementById(clearBtnId);
+            if (clearBtn) {
+                clearBtn.style.display = 'block';
+            }
 
             closeSignatureModal();
         }
 
+        // Aláírás törlése
         function clearSignature(type) {
             signatures[type] = null;
-            const preview = document.getElementById(`${type}Preview`);
-            preview.innerHTML = '<span><i class="fas fa-pen"></i> Kattintson ide az aláírás hozzáadásához</span>';
 
-            const hiddenInput = document.getElementById(`${type}Signature`);
-            if (hiddenInput) hiddenInput.value = '';
-
-            const clearBtn = document.getElementById(`${type}Clear`);
-            if (clearBtn) clearBtn.style.display = 'none';
-        }
-
-        // ========================================
-        // MENTÉS ÉS BETÖLTÉS
-        // ========================================
-        // Szankciók összegének kiszámítása
-        function calculateTotalFine() {
-            const prices = {
-                sanction_1: 100000,
-                sanction_2: 50000,
-                sanction_6: 50000,
-                sanction_7: 50000,
-                sanction_23: 50000
-            };
-
-            let total = 0;
-            const checkboxes = document.querySelectorAll('.price-item input[type="checkbox"]');
-
-            checkboxes.forEach(checkbox => {
-                if (checkbox.checked) {
-                    const sanctionKey = checkbox.name;
-                    const countInput = document.querySelector('input[name="' + sanctionKey + '_count"]');
-                    const count = countInput ? parseInt(countInput.value) || 1 : 1;
-                    const basePrice = prices[sanctionKey] || 0;
-                    total += basePrice * count;
-                }
-            });
-
-            return total;
-        }
-
-        // Alvállalkozói lánc lekérése
-        function getSubcontractorChain() {
-            const subcontractors = [];
-            const subcontractorInputs = document.querySelectorAll('[name^="subcontractor_"]');
-            subcontractorInputs.forEach(input => {
-                if (input.value.trim()) {
-                    subcontractors.push(input.value.trim());
-                }
-            });
-            return subcontractors;
-        }
-
-        // Form submit
-        document.getElementById('documentationForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-
-            const formData = new FormData(this);
-            const data = {};
-
-            for (let [key, value] of formData.entries()) {
-                data[key] = value;
+            const hiddenInput = document.getElementById(type + 'Signature');
+            if (hiddenInput) {
+                hiddenInput.value = '';
             }
 
-            // Bírság összeg hozzáadása
-            data.total_fine = calculateTotalFine();
-            data.total_fine_formatted = document.getElementById('totalPrice').textContent;
-
-            // Alvállalkozói lánc hozzáadása
-            data.subcontractors = getSubcontractorChain();
-
-            // Tanúk állapot mentése
-            data.witnessesVisible = witnessesVisible;
-            data.noWitnessAvailable = document.getElementById('noWitnessAvailable')?.checked || false;
-
-            // Képek hozzáadása metaadatokkal
-            data.images = uploadedImages;
-
-            // Projekt specifikus mezők hozzáadása
-            data.projectName = document.getElementById('projectName').value;
-            data.serialNumber = document.getElementById('serialNumber').value;
-            data.inspectorPerson = document.getElementById('inspectorPerson').value;
-            data.inspectionDate = document.getElementById('inspectionDate').value;
-
-            console.log('📤 Mentés adatokkal:', data);
-
-            fetch(this.action, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data)
-            })
-            .then(response => response.json())
-            .then(result => {
-                if (result.success) {
-                    alert('✓ Ellenőrzés sikeresen elmentve!');
-                } else {
-                    alert('✗ Hiba történt: ' + result.message);
-                }
-            })
-            .catch(error => {
-                console.error('Hiba:', error);
-                alert('✗ Hiba történt a mentés során.');
-            });
-        });
-
-        // Új ellenőrzés indítása
-        async function startNewInspection() {
-            const confirmNew = confirm('⚠️ Biztosan új ellenőrzést szeretnél indítani?\n\nEz törli a jelenlegi mentett adatokat és üres lappal kezdhetsz.');
-
-            if (!confirmNew) {
-                return;
+            const preview = document.getElementById(type + 'Preview');
+            if (preview) {
+                preview.innerHTML = '<span><i class="fas fa-pen"></i> Kattintson ide az aláírás hozzáadásához</span>';
             }
 
-            try {
-                const response = await fetch('/projects/<%= project.id %>/reports/personal-protective-equipment', {
-                    method: 'DELETE',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                });
-
-                const result = await response.json();
-
-                if (result.success) {
-                    alert('✅ Új ellenőrzés indítva! Az oldal újratöltődik.');
-                    window.location.reload();
-                } else {
-                    alert('❌ Hiba történt: ' + result.message);
-                }
-            } catch (error) {
-                console.error('Hiba az új ellenőrzés indításakor:', error);
-                alert('❌ Hiba történt az új ellenőrzés indításakor.');
+            const clearBtn = document.getElementById(type + 'Clear');
+            if (clearBtn) {
+                clearBtn.style.display = 'none';
             }
         }
 
-        // ========================================
-        // PDF GENERÁLÁS
-        // ========================================
         
         // PDF fájlnév generálása
         function generatePdfFileName() {
@@ -1445,25 +1289,24 @@ const backUrl = isAdmin
             const timestamp = new Date().toISOString().split('T')[0];
 
             if (serialNumber && serialNumber.trim() !== '' && serialNumber !== 'N-A') {
-                return `${serialNumber}_${timestamp}.pdf`;
+                return serialNumber + '_' + timestamp + '.pdf';
             } else {
-                return `${projectName}_${timestamp}.pdf`;
+                return projectName + '_' + timestamp + '.pdf';
             }
         }
 
-
-        // Helper függvények a PDF-hez (documentation.ejs mintájára)
-        function getStatusText(status) {
-            switch(status) {
-                case 'megfelelő': return 'MEGFELELŐ (M)';
-                case 'nem_megfelelő': return 'NEM MEGFELELŐ (NM)';
-                case 'felszólítás_után': return 'FELSZÓLÍTÁS UTÁN TELJESÍTVE (FT)';
-                case 'nem_vizsgált': return 'NEM VIZSGÁLT (NV)';
-                default: return 'Nincs értékelve';
-            }
+        function openSignatureModal(type) {
+            currentSignatureType = type;
+            document.getElementById('signatureModal').style.display = 'block';
+            clearCanvas();
         }
 
-        function getStatusStyle(status) {
+        function closeSignatureModal() {
+            document.getElementById('signatureModal').style.display = 'none';
+            currentSignatureType = '';
+        }
+
+                function getStatusStyle(status) {
             switch(status) {
                 case 'megfelelő': return 'statusOk';
                 case 'nem_megfelelő': return 'statusFail';
