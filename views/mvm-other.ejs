@@ -83,7 +83,7 @@ const backUrl = isAdmin
         <!-- Header -->
         <div class="header">
             <h1>10. Egyéb</h1>
-            <p>Munkagépek, munkaeszközök állapota, kezelése és biztonsági felülvizsgálatai</p>
+            <p>Tisztító közegek, figyelem, kommunikáció, természetvédelem</p>
         </div>
 
         <form id="documentationForm" method="POST" action="/projects/<%= project.id %>/reports/other">
@@ -952,7 +952,7 @@ const backUrl = isAdmin
                 statusDiv.textContent = status;
             }
 
-            console.log(`📊 Progress: ${Math.round(percent)}% - ${status}`);
+            console.log('📊 Progress: ' + Math.round(percent) + '% - ' + status);
         }
 
         // ========================================
@@ -1025,7 +1025,7 @@ const backUrl = isAdmin
             const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
             const day = String(selectedDate.getDate()).padStart(2, '0');
 
-            const generatedSerial = `${serialPrefix}/${year}${month}${day}`;
+            const generatedSerial = serialPrefix + '/' + year + month + day;
             serialInput.value = generatedSerial;
 
             console.log('✓ Sorszám generálva:', generatedSerial);
@@ -1058,7 +1058,7 @@ const backUrl = isAdmin
 
             const witnessDiv = document.createElement('div');
             witnessDiv.className = 'form-group witness-group';
-            witnessDiv.id = `witness_${witnessIndex}`;
+            witnessDiv.id = 'witness_' + witnessIndex;
 
             witnessDiv.innerHTML = `
                 <label>Tanú ${witnessIndex + 1}</label>
@@ -1121,9 +1121,9 @@ const backUrl = isAdmin
             div.style.cssText = 'display: flex; align-items: center; margin-bottom: 8px;';
 
             div.innerHTML = `
-                <span style="font-weight: 600; color: #2c5282; margin-right: 10px; min-width: 20px;">${subcontractorCounter + 1}.</span>
+                <span style="font-weight: 600; color: #2c5282; margin-right: 10px; min-width: 20px;">' + (subcontractorCounter + 1) + '.</span>
                 <input type="text"
-                       name="subcontractor_${subcontractorCounter}"
+                       name="subcontractor_' + subcontractorCounter + '"
                        placeholder="Alvállalkozó cég neve"
                        style="flex: 1; padding: 8px 12px; border: 2px solid #cbd5e0; border-radius: 6px;">
                 <button type="button"
@@ -1147,7 +1147,7 @@ const backUrl = isAdmin
             subcontractorCounter = 0;
             items.forEach((item, index) => {
                 const span = item.querySelector('span');
-                span.textContent = `${index + 2}.`;
+                span.textContent = (index + 2) + '.';
                 subcontractorCounter++;
             });
         }
@@ -1156,15 +1156,15 @@ const backUrl = isAdmin
         // SÚLYOSSÁG TOGGLE
         // ========================================
         function toggleSeverity(itemId) {
-            const selectedValue = document.querySelector(`input[name="item_${itemId}"]:checked`)?.value;
-            const severityDiv = document.getElementById(`severity_${itemId}`);
+            const selectedValue = document.querySelector('input[name="item_' + itemId + '"]:checked')?.value;
+            const severityDiv = document.getElementById('severity_' + itemId);
 
             if (selectedValue === 'nem_megfelelő' || selectedValue === 'felszólítás_után') {
                 severityDiv.style.display = 'block';
             } else {
                 severityDiv.style.display = 'none';
                 // Súlyosság radio-k törlése
-                const severityRadios = document.querySelectorAll(`input[name="item_${itemId}_severity"]`);
+                const severityRadios = document.querySelectorAll('input[name="item_' + itemId + '_severity"]');
                 severityRadios.forEach(radio => radio.checked = false);
             }
         }
@@ -1427,40 +1427,22 @@ const backUrl = isAdmin
         // ========================================
         // SZANKCIÓK SZÁMÍTÁSA
         // ========================================
-        function calculateTotal() {
-            const prices = {
-                sanction_1: 100000,
-                sanction_4: 100000,
-                sanction_5: 50000,
-                sanction_6: 50000,
-                sanction_9: 50000,
-                sanction_10: 30000,
-                sanction_11: 30000,
-                sanction_13: 100000,
-                sanction_16: 100000,
-                sanction_17: 10000,
-                sanction_21: 20000,
-                sanction_26: 100000,
-                sanction_27: 100000,
-                sanction_29a: 25000,
-                sanction_29b: 50000,
-                sanction_36: 20000
-            };
-
+                function calculateTotal() {
             let total = 0;
             const checkboxes = document.querySelectorAll('.price-item input[type="checkbox"]');
 
             checkboxes.forEach(checkbox => {
                 if (checkbox.checked) {
-                    const sanctionKey = checkbox.name;
-                    const countInput = document.querySelector(`input[name="${sanctionKey}_count"]`);
+                    const basePrice = parseInt(checkbox.value);
+                    const sanctionName = checkbox.name;
+                    const countInput = document.querySelector('input[name="' + sanctionName + '_count"]');
                     const count = countInput ? parseInt(countInput.value) || 1 : 1;
-                    const basePrice = prices[sanctionKey] || 0;
                     total += basePrice * count;
                 }
             });
 
             document.getElementById('totalPrice').textContent = total.toLocaleString('hu-HU') + ' Ft';
+            return total;
         }
 
         // ========================================
@@ -1633,7 +1615,7 @@ const backUrl = isAdmin
             checkboxes.forEach(checkbox => {
                 if (checkbox.checked) {
                     const sanctionKey = checkbox.name;
-                    const countInput = document.querySelector(`input[name="${sanctionKey}_count"]`);
+                    const countInput = document.querySelector('input[name="' + sanctionKey + '_count"]');
                     const count = countInput ? parseInt(countInput.value) || 1 : 1;
                     const basePrice = prices[sanctionKey] || 0;
                     total += basePrice * count;
@@ -1756,6 +1738,51 @@ const backUrl = isAdmin
             }
         }
 
+
+        // Helper függvények a PDF-hez (documentation.ejs mintájára)
+        function getStatusText(status) {
+            switch(status) {
+                case 'megfelelő': return 'MEGFELELŐ (M)';
+                case 'nem_megfelelő': return 'NEM MEGFELELŐ (NM)';
+                case 'felszólítás_után': return 'FELSZÓLÍTÁS UTÁN TELJESÍTVE (FT)';
+                case 'nem_vizsgált': return 'NEM VIZSGÁLT (NV)';
+                default: return 'Nincs értékelve';
+            }
+        }
+
+        function getStatusStyle(status) {
+            switch(status) {
+                case 'megfelelő': return 'statusOk';
+                case 'nem_megfelelő': return 'statusFail';
+                case 'felszólítás_után': return 'statusFT';
+                case 'nem_vizsgált': return 'statusNA';
+                default: return 'statusNA';
+            }
+        }
+
+        function getSeverityBadge(itemId, data) {
+            const severity = data['item_' + itemId + '_severity'];
+            if (!severity) return null;
+
+            const severityConfig = {
+                'alacsony': { text: 'Hiba súlyossága: 🟡 ALACSONY', color: '#000000', bg: '#FFFF00' },
+                'közepes': { text: 'Hiba súlyossága: 🟠 KÖZEPES', color: '#000000', bg: '#ED7D31' },
+                'magas': { text: 'Hiba súlyossága: 🔴 MAGAS', color: '#000000', bg: '#FF0000' }
+            };
+
+            const config = severityConfig[severity];
+            if (!config) return null;
+
+            return {
+                text: config.text,
+                bold: true,
+                fontSize: 10,
+                color: config.color,
+                background: config.bg,
+                margin: [0, 5, 0, 0]
+            };
+        }
+
 async function exportToPDF() {
             const projectName = document.getElementById('projectName').value || '<%= project.name %>';
             const serialNumber = document.getElementById('serialNumber').value || 'N/A';
@@ -1869,7 +1896,46 @@ async function exportToPDF() {
                     statusBadge: { fontSize: 11, bold: true, alignment: 'center', margin: [0, 5, 0, 5] },
                     imageTitle: { fontSize: 12, bold: true, margin: [0, 10, 0, 5] },
                     sanctions: { fontSize: 11, margin: [0, 3, 0, 3] },
-                    sanctionsSubtitle: { fontSize: 12, italics: true, color: '#666' }
+                    sanctionsSubtitle: { fontSize: 12, italics: true, color: '#666' },
+    statusOk: {
+        fontSize: 11,
+        color: '#000000',
+        bold: true,
+        background: '#66FF66',
+        margin: [5, 0, 5, 5]
+    },
+    statusFail: {
+        fontSize: 11,
+        color: '#000000',
+        bold: true,
+        background: '#FF0000',
+        margin: [5, 0, 5, 5]
+    },
+    statusFT: {
+        fontSize: 11,
+        color: '#000000',
+        bold: true,
+        background: '#3b82f6',
+        margin: [5, 0, 5, 5]
+    },
+    statusNA: {
+        fontSize: 11,
+        color: '#92400e',
+        bold: true,
+        background: '#fef3c7',
+        margin: [5, 0, 5, 5]
+    },
+    checklistTitle: {
+        fontSize: 12,
+        bold: true,
+        margin: [5, 5, 5, 2]
+    },
+    notes: {
+        fontSize: 9,
+        italics: true,
+        color: '#666',
+        margin: [5, 3, 5, 5]
+    },
                 }
             ,
 
@@ -2228,9 +2294,15 @@ async function exportToPDF() {
         }
 
         // Ellenőrzési pontok PDF-hez
+        
         function getChecklistItemsForPDF(data) {
             const result = [
-                { text: 'ELLENŐRZÉSI PONTOK', style: 'sectionHeader' }
+                {
+                    text: 'ELLENŐRZÉSI PONTOK',
+                    style: 'sectionHeader',
+                    margin: [0, 10, 0, 10],
+                    pageBreak: 'before'
+                }
             ];
 
             const items = [
@@ -2245,113 +2317,76 @@ async function exportToPDF() {
                 ];
 
             items.forEach(item => {
-                const status = data[`item_${item.id}`];
-                const severity = data[`item_${item.id}_severity`];
-                const notes = data[`notes_${item.id}`];
+                const status = data['item_' + item.id];
+                const notes = data['notes_' + item.id];
 
+                // Table minden ellenőrzési ponthoz (documentation.ejs mintájára)
                 result.push({
-                    text: item.title,
-                    style: 'checklistHeader'
+                    table: {
+                        widths: ['*'],
+                        body: [[
+                            {
+                                stack: [
+                                    { text: item.label, style: 'checklistTitle' },
+                                    { text: 'Értékelés: ' + getStatusText(status), style: getStatusStyle(status), margin: [0, 5, 0, 0] },
+                                    getSeverityBadge(item.id, data) || {},
+                                    notes ? { text: 'Megjegyzés: ' + notes, style: 'notes' } : {}
+                                ].filter(Boolean),
+                                border: [true, true, true, true],
+                                fillColor: '#fafafa'
+                            }
+                        ]]
+                    },
+                    layout: {
+                        hLineColor: '#333',
+                        vLineColor: '#333',
+                        hLineWidth: function() { return 1; },
+                        vLineWidth: function() { return 1; }
+                    },
+                    margin: [0, 0, 0, 8],
+                    unbreakable: true
                 });
 
-                // Státusz
-                let statusText = 'Nem értékelt';
-                let statusColor = '#999';
-                if (status === 'megfelelő') {
-                    statusText = '✓ Megfelelt';
-                    statusColor = '#28a745';
-                } else if (status === 'nem_megfelelő') {
-                    statusText = '✗ Nem megfelelt';
-                    statusColor = '#dc3545';
-                } else if (status === 'felszólítás_után') {
-                    statusText = '⚠ Felszólítás után teljesítve';
-                    statusColor = '#17a2b8';
-                } else if (status === 'nem_vizsgált') {
-                    statusText = '○ Nem vonatkozik / Nem vizsgált';
-                    statusColor = '#ffc107';
-                }
-
-                result.push({
-                    text: statusText,
-                    color: statusColor,
-                    bold: true,
-                    fontSize: 11,
-                    margin: [0, 5, 0, 5]
-                });
-
-                // Súlyosság
-                if (severity) {
-                    let severityText = '';
-                    let severityColor = '#000';
-                    if (severity === 'alacsony') {
-                        severityText = '🟡 Alacsony súlyosságú hiba';
-                        severityColor = '#000';
-                    } else if (severity === 'közepes') {
-                        severityText = '🟠 Közepes súlyosságú hiba';
-                        severityColor = '#000';
-                    } else if (severity === 'magas') {
-                        severityText = '🔴 Magas súlyosságú hiba';
-                        severityColor = '#000';
-                    }
-
-                    result.push({
-                        text: severityText,
-                        color: severityColor,
-                        fontSize: 10,
-                        margin: [0, 0, 0, 5]
-                    });
-                }
-
-                // Megjegyzés
-                if (notes) {
-                    result.push({
-                        text: `Megjegyzés: ${notes}`,
-                        fontSize: 10,
-                        margin: [0, 5, 0, 5]
-                    });
-                }
-
-                // Képek
+                // Képek hozzáadása az adott ellenőrzési ponthoz
                 result.push(...getImagesForPDF(item.id));
-
-                result.push({ text: '\n' });
             });
 
             return result;
         }
 
+
         // Szankciók PDF-hez
         function getAppliedSanctionsForPDF(data) {
             const sanctionLabels = {
-                    '34': '34. Közlekedési utak lezárása',
-                    '35': '35. Nem megfelelő tárolás',
-                    '37': '37. Tűzvédelmi eszközök hiánya',
-                    '38': '38. Súlyos szabálytalanság (kitiltás)',
-                    '40': '40. Életvédelmi rendszer kiiktatása',
-                    '41': '41. Veszélyhelyzet kezelésének elmulasztása',
-                    '42': '42. Engedély nélküli tevékenység',
-                    '43': '43. Dokumentáció súlyos hiányossága',
-                    '44': '44. Munkaterület súlyos rendezetlensége',
-                    '45': '45. Jelölések hiánya',
-                    '46': '46. Kommunikációs eszközök hiánya',
-                    '47': '47. Ismételt súlyos veszélyeztetés (kitiltás)',
-                    '48': '48. Rendkívül súlyos szabálytalanság'
+                    sanction_34: '34. Közlekedési utak lezárása',
+                    sanction_35: '35. Nem megfelelő tárolás',
+                    sanction_37: '37. Tűzvédelmi eszközök hiánya',
+                    sanction_38: '38. Súlyos szabálytalanság (kitiltás)',
+                    sanction_40: '40. Életvédelmi rendszer kiiktatása',
+                    sanction_41: '41. Veszélyhelyzet kezelésének elmulasztása',
+                    sanction_42: '42. Engedély nélküli tevékenység',
+                    sanction_43: '43. Dokumentáció súlyos hiányossága',
+                    sanction_44: '44. Munkaterület súlyos rendezetlensége',
+                    sanction_45: '45. Jelölések hiánya',
+                    sanction_46: '46. Kommunikációs eszközök hiánya',
+                    sanction_47: '47. Ismételt súlyos veszélyeztetés (kitiltás)',
+                    sanction_48: '48. Rendkívül súlyos szabálytalanság'
                 };
 
             const sanctionPricesRaw = {
-                    '34': 50000,
-                    '35': 30000,
-                    '37': 100000,
-                    '38': 'Kitiltás',
-                    '40': 200000,
-                    '41': 150000,
-                    '42': 100000,
-                    '43': 75000,
-                    '44': 50000,
-                    '45': 30000,
-                    '46': 20000,
-                    '47': 'Kitiltás',
-                    '48': 500000
+                    sanction_34: 50000,
+                    sanction_35: 30000,
+                    sanction_37: 100000,
+                    sanction_38: 'Kitiltás',
+                    sanction_40: 200000,
+                    sanction_41: 150000,
+                    sanction_42: 100000,
+                    sanction_43: 75000,
+                    sanction_44: 50000,
+                    sanction_45: 30000,
+                    sanction_46: 20000,
+                    sanction_47: 'Kitiltás',
+                    sanction_48: 500000
                 };
 
             const result = [];
@@ -2364,16 +2399,16 @@ async function exportToPDF() {
                     const sanctionKey = checkbox.name;
                     hasAny = true;
 
-                    const countInput = document.querySelector(`input[name="${sanctionKey}_count"]`);
+                    const countInput = document.querySelector('input[name="' + sanctionKey + '_count"]');
                     const count = countInput ? parseInt(countInput.value) || 1 : 1;
                     const basePrice = sanctionPricesRaw[sanctionKey];
                     const totalPrice = basePrice * count;
                     const formattedPrice = totalPrice.toLocaleString('hu-HU') + ' Ft';
 
-                    const countText = count > 1 ? ` (${count}x)` : '';
+                    const countText = count > 1 ? ' (' + count + 'x)' : '';
 
                     result.push({
-                        text: `• ${sanctionLabels[sanctionKey]}${countText} - ${formattedPrice}`,
+                        text: '• ' + sanctionLabels[sanctionKey] + countText + ' - ' + formattedPrice,
                         style: 'sanctions',
                         margin: [0, 3, 0, 3]
                     });
