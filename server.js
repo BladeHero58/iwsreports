@@ -760,7 +760,8 @@ app.get('/user/projects', isAuthenticated, async (req, res) => {
     const userProjects = await knex('projects')
       .select('projects.*')
       .join('user_projects', 'projects.id', 'user_projects.project_id')
-      .where('user_projects.user_id', userId);
+      .where('user_projects.user_id', userId)
+      .orderBy('projects.name', 'asc');
 
     // Ha nincs hozzárendelt projekt, értesítjük a felhasználót
     if (userProjects.length === 0) {
@@ -1047,7 +1048,7 @@ async function isAdmin(req, res, next) {
 app.get('/admin/projects', isAdmin, async (req, res) => {
   try {
     // Lekérjük a projekteket és felhasználókat az adatbázisból KNEX-szel
-    const projects = await knex('projects').select('*');
+    const projects = await knex('projects').select('*').orderBy('name', 'asc');
     const users = await knex('users').select('*');
 
     res.render('projects', { projects, users }); // Mindkét adat átadása a sablonnak

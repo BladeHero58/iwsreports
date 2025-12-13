@@ -691,6 +691,41 @@ const backUrl = isAdmin
     } catch (error) {
         console.error('Hiba a mentett adatok betöltésekor:', error);
     }
+
+    // Form submit eseménykezelő (AJAX mentés alert-tel)
+    const documentationForm = document.getElementById('documentationForm');
+    if (documentationForm) {
+        documentationForm.addEventListener('submit', async function(e) {
+            e.preventDefault(); // Megakadályozzuk az oldal újratöltését
+
+            const formData = new FormData(documentationForm);
+            const data = {};
+            formData.forEach((value, key) => {
+                data[key] = value;
+            });
+
+            try {
+                const response = await fetch(documentationForm.action, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('✅ ' + result.message);
+                } else {
+                    alert('❌ Hiba: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Hiba a mentés során:', error);
+                alert('❌ Hiba történt a mentés során. Kérjük próbálja újra.');
+            }
+        });
+    }
 });
 
         // Tanúk megjelenítése (2 tanú automatikusan)
