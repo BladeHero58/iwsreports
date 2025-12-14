@@ -1509,9 +1509,8 @@ async function exportToPDF() {
     }
 };
 
-            
-            // ⭐ PDF generálás és Google Drive feltöltés
-            pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
+            // PDF generálás és feltöltés
+pdfMake.createPdf(docDefinition).getBase64(async function(pdfBase64) {
                 console.log('📤 PDF base64 generálva, méret:', pdfBase64.length, 'karakter');
                 const imageCount = Object.keys(uploadedImages).reduce((sum, key) => sum + (uploadedImages[key]?.length || 0), 0);
                 console.log('📤 Képek száma feltöltésre:', imageCount);
